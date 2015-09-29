@@ -1,0 +1,59 @@
+#!/bin/bash
+
+PARAMS=$@
+
+GONDOLA_CMD=target/appassembler/bin/gondola.sh
+if [ ! -e "$GONDOLA_CMD" ]
+then
+  echo "$GONDOLA_CMD does not exist. Execute 'mvn package' to create it."
+fi
+
+export CLASSPATH_PREFIX=target/classes
+
+# If unset, set it
+if [ -z "$JAVA_OPTS" ]; then
+  export xJAVA_OPTS="-ea -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
+fi
+
+# Error if hostid is not specified
+function check_hostid {
+  if [ -z "$HOSTID" ]; then
+    echo "-hostid is missing"
+    sh $GONDOLA_CMD $PARAMS
+    exit 1
+  fi
+}
+
+# Find the hostid. To be used for the pid file.
+while test $# -gt 0; do
+  case "$1" in
+    -hostid)
+      shift
+      if test $# -gt 0; then
+        export HOSTID=$1
+      fi
+      shift
+      ;;
+    start)
+      # Start program
+      check_hostid
+      sh $GONDOLA_CMD $PARAMS &
+      PID=$!
+      echo $PID > "/tmp/gondola.host-$HOSTID.pid"
+      #echo "/tmp/gondola.host-$HOSTID.pid = $PID"
+      exit
+      ;;
+    stop)
+      check_hostid
+      PID=`cat "/tmp/gondola.host-$HOSTID.pid"`
+      kill -9 $PID
+      exit
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+sh $GONDOLA_CMD $PARAMS
+
