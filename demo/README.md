@@ -13,14 +13,8 @@ This is RESTful API has two endpoints for retrieving and storing key-value pairs
 Get & Save entries:
   - GET /api/entries/{key}
   - PUT /api/entries/{key}
-
-The entry structure is defined as following:
-```
-{
-  "key" : "the key",
-  "value" : "the value"
-}
-```
+  
+The entry is a simple string.
 
 ## Start the Servers
 
@@ -82,11 +76,11 @@ Usage: ./bin/get_content.sh key
 
 > bin/get_content.sh 123
 port: 8080 :
-{"key":"123","value":"3456"}
+3456
 port: 8081 :
-{"key":"123","value":"3456"}
+3456
 port: 8082 :
-{"key":"123","value":"3456"}
+3456
 ```
 
 ## Failover Test
@@ -104,6 +98,9 @@ The folloing commands will demo the scenario:
 [host2]> ./bin/run.sh host2
 [host3]> ./bin/run.sh host3
 
+// put initial data to server 
+[admin]> ./bin/put_content.sh fooKey fooValue
+
 // Kill host1 server
 [host1]> ^c
 
@@ -113,41 +110,41 @@ The folloing commands will demo the scenario:
 2015-09-30 00:23:12 INFO  CoreMember:621 - [host3-83] Becomes LEADER for term 67
 ...
 
-// Get key 123 from all servers
-[admin]> ./bin/get_content.sh 123
+// Get key "fooKey" from all servers
+[admin]> ./bin/get_content.sh fooKey
 port: 8080 :
 curl: (7) Failed to connect to localhost port 8080: Connection refused
 
 port: 8081 :
-{"key":"123","value":"123"}
+fooValue
 port: 8082 :
-{"key":"123","value":"123"}
+vooValue
 
-// Set key 123 with value on host3
-[admin]> ./bin/put_content.sh 123 456 host3
+// Set key "fooKey" with value on host3
+[admin]> ./bin/put_content.sh fooKey fooValue2 host3
 ...
 < HTTP/1.1 204 No Content
 
-// get key 123 again
-[admin]> ./bin/get_content.sh 123
+// get key "fooKey" again
+[admin]> ./bin/get_content.sh fooKey
 port: 8080 :
 curl: (7) Failed to connect to localhost port 8080: Connection refused
 
 port: 8081 :
-{"key":"123","value":"456"}
+fooValue2
 port: 8082 :
-{"key":"123","value":"456"}
+fooValue2
 
 // bring host1 back
 [host1]> ./bin/run.sh host1
 
-// get key 123 again
+// get key "fooKey" again, host1 should get up-to-date value
 [admin]> ./bin/get_content.sh 123
 port: 8080 :
-{"key":"123","value":"456"}
+fooValue2
 port: 8081 :
-{"key":"123","value":"456"}
+fooValue2
 port: 8082 :
-{"key":"123","value":"456"}
+fooValue2
 
 ```
