@@ -8,19 +8,20 @@ package com.yahoo.gondola.demo;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 
-@Produces("application/json")
-@Consumes("application/json")
 @Path("/entries/{entryId}")
 public class DemoResources {
     @Inject DemoService service;
 
     @GET
-    public Node getEntry(@PathParam("nodeId") String entryId) {
-        return service.getEntry(entryId);
+    public String getEntry(@PathParam("entryId") String entryId) {
+        return service.getEntry(entryId).getValue();
     }
 
     @PUT
-    public void putEntry(Entry entry, @PathParam("entryId") String entryId) {
-        service.putEntry(entryId, node);
+    public void putEntry(String value, @PathParam("entryId") String entryId) {
+        Entry entry = new Entry();
+        entry.setKey(entryId);
+        entry.setValue(value);
+        service.putEntry(entryId, entry);
     }
 }
