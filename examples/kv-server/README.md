@@ -1,4 +1,4 @@
-# Demo application
+# Key-Value server application
 
 This demo application implements a fault-tolerant hash table using a
 Raft cluster of three nodes.  The demo starts up three server's each
@@ -118,7 +118,7 @@ curl: (7) Failed to connect to localhost port 8080: Connection refused
 port: 8081 :
 fooValue
 port: 8082 :
-vooValue
+fooValue
 
 // Set key "fooKey" with value on host3
 [admin]> ./bin/put_content.sh fooKey fooValue2 host3

@@ -30,14 +30,9 @@ public class DemoService {
         Config config = new Config(gondolaConf);
         String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
         Gondola gondola = new Gondola(config, hostId);
+        GondolaContext.setGondola(gondola);
         gondola.start();
         cluster = gondola.getCluster("cluster1");
-
-        // Set first instance as leader
-        if (hostId.equals("host1")) {
-            logger.info("Host: {} force to become a leader", hostId);
-            cluster.forceLeader(10000);
-        }
 
         new Replicator().start();
     }
