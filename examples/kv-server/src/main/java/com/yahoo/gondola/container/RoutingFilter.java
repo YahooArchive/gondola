@@ -5,7 +5,9 @@ import com.yahoo.gondola.Member;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -122,8 +124,17 @@ public class RoutingFilter implements Filter {
             httpPut.setHeader(HTTP.CONTENT_TYPE, request.getContentType());
             httpPut.setEntity(new InputStreamEntity(request.getInputStream()));
             proxiedResponse = httpclient.execute(httpPut);
-        } else {
-            // TODO: add DELETE / POST method
+        } else if (method.equals("POST")) {
+            HttpPost httpPost = new HttpPost(destHost +requestURI);
+            httpPost.setHeader(HTTP.CONTENT_TYPE, request.getContentType());
+            httpPost.setEntity(new InputStreamEntity(request.getInputStream()));
+            proxiedResponse = httpclient.execute(httpPost);
+        } else if (method.equals("DELETE")) {
+            HttpDelete httpDelete = new HttpDelete(destHost +requestURI);
+            httpDelete.setHeader(HTTP.CONTENT_TYPE, request.getContentType());
+            proxiedResponse = httpclient.execute(httpDelete);
+        }
+        else {
             throw new RuntimeException("Not implemented");
         }
 
