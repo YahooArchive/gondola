@@ -22,10 +22,10 @@
     <!-- routing filter -->
     <filter>
         <filter-name>RoutingFilter</filter-name>
-        <filter-class>com.yahoo.gondola.RoutingFilter</filter-class>
+        <filter-class>com.yahoo.gondola.container.RoutingFilter</filter-class>
         <init-param>
-            <param-name>com.yahoo.gondola.ClusterCallback</param-name>
-            <param-value>com.yahoo.gondola.ClusterCallback</param-value>
+            <param-name>clusterCallback</param-name>
+            <param-value>com.yahoo.gondola.demo.DemoCallback</param-value>
         </init-param>
     </filter>
     <filter-mapping>

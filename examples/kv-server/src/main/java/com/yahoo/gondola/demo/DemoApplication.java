@@ -8,8 +8,11 @@ package com.yahoo.gondola.demo;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 
+import javax.servlet.ServletContext;
+import javax.ws.rs.core.Context;
+
 public class DemoApplication extends ResourceConfig {
-    public DemoApplication() throws Exception {
+    public DemoApplication(@Context ServletContext servletContext) throws Exception {
         DemoService demoService = new DemoService();
         registerClasses(DemoResources.class);
         register(new AbstractBinder() {

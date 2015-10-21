@@ -5,11 +5,18 @@
  */
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.NotLeaderException;
+import com.yahoo.gondola.container.RoutingFilter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.net.URL;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,13 +32,17 @@ public class DemoService {
 
     public DemoService() throws Exception {
         // Create the Gondola instance
+
         URL gondolaConfURI = DemoApplication.class.getClassLoader().getResource("gondola.conf");
+        if (gondolaConfURI == null) {
+            throw new FileNotFoundException("Gondola configuration not found");
+        }
         File gondolaConf = new File(gondolaConfURI.getFile());
         Config config = new Config(gondolaConf);
         String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
         Gondola gondola = new Gondola(config, hostId);
-        GondolaContext.setGondola(gondola);
         gondola.start();
+        RoutingFilter.setGondola(gondola);
         cluster = gondola.getCluster("cluster1");
 
         new Replicator().start();
