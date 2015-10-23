@@ -5,8 +5,7 @@
  */
 package com.yahoo.gondola;
 
-import com.typesafe.config.ConfigFactory;
-import com.typesafe.config.ConfigList;
+import com.typesafe.config.ConfigObject;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +49,9 @@ public class Config {
 
         // memberId -> member
         Map<Integer, ConfigMember> members = new HashMap<>();
+
+        // hostId -> HostAttributes
+        Map<String, Map<String, String>> hostAttributes = new HashMap<>();
     }
 
     // Holds the latest verison of the config data. When new data is available, the new ConfigData
@@ -90,7 +92,7 @@ public class Config {
      */
     public Config(File file) {
         this.file = file;
-        com.typesafe.config.Config cfg = ConfigFactory.parseFile(file).resolve();
+        com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.parseFile(file).resolve();
         process(cfg);
         new Watcher(file).start();
     }
@@ -179,8 +181,12 @@ public class Config {
         return addr;
     }
 
+    public Map<String, String> getAttributesForHost(String hostId) {
+        return configData.hostAttributes.get(hostId);
+    }
+
     private void process(com.typesafe.config.Config cfg) {
-        ConfigList list = cfg.getList("gondola.hosts");
+
 
         // Prepare the container for the new config data
         ConfigData cd = new ConfigData();
@@ -190,6 +196,8 @@ public class Config {
         cd.clusterToMembers = new HashMap<>();
         cd.addrs = new HashMap<>();
         cd.members = new HashMap<>();
+        cd.hostAttributes = new HashMap<>();
+
 
         // Parse the clusterid, hostid, and memberid information
         for (com.typesafe.config.Config v : cfg.getConfigList("gondola.clusters")) {
@@ -222,6 +230,16 @@ public class Config {
             }
         }
 
+        // Get host attribute map
+        for (ConfigObject h : cfg.getObjectList("gondola.hosts")) {
+            String hostId = String.valueOf(h.get("hostId").unwrapped());
+            Map<String, String> hostAttribute = new HashMap<>();
+            cd.hostAttributes.put(hostId, hostAttribute);
+            for (String key : h.keySet()) {
+                hostAttribute.put(key, String.valueOf(h.get(key).unwrapped()));
+            }
+        }
+
         // Get all the addresses of the hosts
         for (com.typesafe.config.Config c : cfg.getConfigList("gondola.hosts")) {
             cd.addrs.put(c.getString("hostId"), new InetSocketAddress(c.getString("host"), c.getInt("port")));
@@ -250,7 +268,7 @@ public class Config {
 
                     if (file.lastModified() != lastModified) {
                         // Parse and update observers
-                        process(ConfigFactory.parseFile(file));
+                        process(com.typesafe.config.ConfigFactory.parseFile(file));
                         observable.notifyObservers();
 
                         logger.info("Reloaded config file {}", file);

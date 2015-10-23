@@ -34,7 +34,10 @@ public class DemoService {
     /**
      * Get entry data, read directly from internal data structure.
      */
-    public String getValue(String entryId){
+    public String getValue(String entryId) throws RecordNotFoundException {
+        if (!entries.containsKey(entryId)) {
+            throw new RecordNotFoundException();
+        }
         return entries.get(entryId);
     }
 
@@ -85,5 +88,9 @@ public class DemoService {
                 }
             }
         }
+    }
+
+    public static class RecordNotFoundException extends Throwable {
+
     }
 }

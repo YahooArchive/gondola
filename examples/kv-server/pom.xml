@@ -4,22 +4,31 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
+    <parent>
+        <groupId>com.yahoo.gondola.examples</groupId>
+        <artifactId>examples</artifactId>
+        <version>0.1-SNAPSHOT</version>
+    </parent>
+
     <groupId>com.yahoo.gondola</groupId>
     <artifactId>kvserver</artifactId>
-    <version>1.0-SNAPSHOT</version>
     <packaging>war</packaging>
+    <name>gondola-example-kvserver</name>
 
     <properties>
-        <jetty-maven-plugin.version>9.3.0.M2</jetty-maven-plugin.version>
-        <jersey-server.version>2.22</jersey-server.version>
         <jetty.port>8080</jetty.port>
     </properties>
 
     <dependencies>
         <dependency>
-            <groupId>com.yahoo</groupId>
-            <artifactId>gondola</artifactId>
-            <version>0.1-SNAPSHOT</version>
+            <groupId>com.yahoo.gondola</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.yahoo.gondola.containers</groupId>
+            <artifactId>jersey2-routing</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.glassfish.jersey.core</groupId>
@@ -40,17 +49,6 @@
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
             <version>1.1.2</version>
-        </dependency>
-        <!-- TODO: should be move out to servlet filter module -->
-        <dependency>
-            <groupId>org.apache.httpcomponents</groupId>
-            <artifactId>httpclient</artifactId>
-            <version>4.5.1</version>
-        </dependency>
-        <dependency>
-            <groupId>commons-io</groupId>
-            <artifactId>commons-io</artifactId>
-            <version>2.4</version>
         </dependency>
     </dependencies>
 

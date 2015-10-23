@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.yahoo.gondola.containers</groupId>
+    <artifactId>containers</artifactId>
+    <name>containers</name>
+    <parent>
+        <groupId>com.yahoo.gondola</groupId>
+        <artifactId>gondola-main</artifactId>
+        <version>0.1-SNAPSHOT</version>
+    </parent>
+    <description>Gondola container provider umbrella project module</description>
+    <modules>
+        <module>jersey2-routing</module>
+    </modules>
+    <packaging>pom</packaging>
+</project>

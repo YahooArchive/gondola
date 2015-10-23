@@ -6,7 +6,6 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 
 import org.apache.http.Header;
-import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -35,6 +34,8 @@ import javax.ws.rs.core.Response;
 public class RoutingFilter implements ContainerRequestFilter {
 
     public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
+    public static final String APP_PORT = "appPort";
+    public static final String APP_SCHEME = "appScheme";
     /**
      * Routing table
      * Key: memberId, value: HTTP URL
@@ -43,6 +44,8 @@ public class RoutingFilter implements ContainerRequestFilter {
 
     Gondola gondola;
     Set<String> myClusterIds;
+
+    // clusterId --> list of available servers
     Map<String, List<String>> routingTable;
 
     CloseableHttpClient httpclient;
@@ -50,11 +53,11 @@ public class RoutingFilter implements ContainerRequestFilter {
         this.gondola = gondola;
         this.clusterIdCallback = clusterIdCallback;
         httpclient = HttpClients.createDefault();
+        loadRoutingTable();
     }
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
-        loadRoutingTableIfNeeded();
         String clusterId = getClusterId(requestContext);
 
         if (isMyCluster(clusterId)) {
@@ -77,26 +80,31 @@ public class RoutingFilter implements ContainerRequestFilter {
         proxyRequestToLeader(requestContext, clusterId);
     }
 
-    // TODO: load from gondola config, require the App port present in gondola config
-    private void loadRoutingTableIfNeeded() {
-        int port = 8080;
-        if (routingTable == null) {
-            ConcurrentHashMap<String, List<String>> newRoutingTable = new ConcurrentHashMap<>();
-            Config config = gondola.getConfig();
-            for(String hostId : config.getHostIds()) {
-                for(String clusterId : config.getClusterIds(hostId)) {
-                    InetSocketAddress address = config.getAddressForHost(hostId);
-                    List<String> addresses = newRoutingTable.get(clusterId);
-                    if (addresses == null) {
-                        addresses = new ArrayList<>();
-                        newRoutingTable.put(clusterId, addresses);
-                    }
-                    // TODO: construct address in the form of : <scheme>://<hostname>:<port>
-                    addresses.add(String.format("%s://%s:%d", "http", address.getHostName(), port++));
-                }
+    private void loadRoutingTable() {
+        // The routing entry will be modified on the fly, concurrent map is needed
+        Map<String, List<String>> newRoutingTable = new ConcurrentHashMap<>();
+        Config config = gondola.getConfig();
+        for(String hostId : config.getHostIds()) {
+            if (hostId.equals(gondola.getHostId())) {
+                continue;
             }
-            routingTable = newRoutingTable;
+            for(String clusterId : config.getClusterIds(hostId)) {
+                InetSocketAddress address = config.getAddressForHost(hostId);
+                List<String> addresses = newRoutingTable.get(clusterId);
+                if (addresses == null) {
+                    addresses = new ArrayList<>();
+                    newRoutingTable.put(clusterId, addresses);
+                }
+                Map<String, String> attrs = config.getAttributesForHost(hostId);
+                if (attrs.get(APP_PORT) == null || attrs.get(APP_SCHEME) == null) {
+                    throw new IllegalStateException(
+                        String.format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT, APP_SCHEME));
+                }
+                String appUri = String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
+                addresses.add(appUri);
+            }
         }
+        routingTable = newRoutingTable;
     }
 
 
@@ -127,15 +135,17 @@ public class RoutingFilter implements ContainerRequestFilter {
 
         for(String appUrl : appUrls) {
             try (CloseableHttpResponse proxiedResponse = proxyRequest(appUrl, request)) {
-                HttpEntity entity = proxiedResponse.getEntity();
+                String entity = proxiedResponse.getEntity() != null ? EntityUtils.toString(proxiedResponse.getEntity()) : "";
                 request.abortWith(Response
                                   .status(proxiedResponse.getStatusLine().getStatusCode())
-                                  .entity(EntityUtils.toString(entity))
+                                  .entity(entity)
                                   .header(X_GONDOLA_LEADER_ADDRESS, appUrl)
                                   .build());
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
                 return;
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+                ignored.printStackTrace();
+            }
         }
         request.abortWith(Response
                           .status(Response.Status.BAD_GATEWAY)
@@ -145,12 +155,17 @@ public class RoutingFilter implements ContainerRequestFilter {
 
     private void updateRoutingTableIfNeeded(String clusterId, CloseableHttpResponse proxiedResponse) {
         Header[] headers = proxiedResponse.getHeaders(X_GONDOLA_LEADER_ADDRESS);
-        if (headers != null) {
-            updateRoutingTable(clusterId, headers[0].getValue());
+        if (headers.length > 0) {
+            setClusterLeader(clusterId, headers[0].getValue());
         }
     }
 
-    private void updateRoutingTable(String clusterId, String newAppUrl) {
+    /**
+     * Move newAppUrl to the first entry of the routing table.
+     * @param clusterId
+     * @param newAppUrl
+     */
+    private void setClusterLeader(String clusterId, String newAppUrl) {
         List<String> appUrls = lookupRoutingTable(clusterId);
         List<String> newAppUrls = new ArrayList<>(appUrls.size());
         newAppUrls.add(newAppUrl);
@@ -210,11 +225,8 @@ public class RoutingFilter implements ContainerRequestFilter {
                 proxiedResponse = httpclient.execute(httpDelete);
                 break;
             default:
-                throw new RuntimeException("Method not supported: " + method);
+                throw new IllegalStateException("Method not supported: " + method);
         }
         return proxiedResponse;
     }
-
-
-
 }

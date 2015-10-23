@@ -14,7 +14,11 @@ public class DemoResources {
 
     @GET
     public String getEntry(@PathParam("entryId") String entryId) {
-        return service.getValue(entryId);
+        try {
+            return service.getValue(entryId);
+        } catch (DemoService.RecordNotFoundException e) {
+            throw new NotFoundException();
+        }
     }
 
     @PUT
