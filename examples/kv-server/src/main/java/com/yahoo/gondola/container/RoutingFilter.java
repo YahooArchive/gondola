@@ -248,7 +248,7 @@ public class RoutingFilter implements Filter {
                 proxiedResponse = httpclient.execute(httpDelete);
                 break;
             default:
-                throw new RuntimeException("Not implemented");
+                throw new RuntimeException("Method not supported: " + method);
         }
         return proxiedResponse;
     }
