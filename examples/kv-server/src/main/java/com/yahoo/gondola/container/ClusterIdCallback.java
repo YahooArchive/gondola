@@ -14,7 +14,7 @@ import javax.servlet.ServletRequest;
  * Request phase
  * 3. While processing the request, RoutingFilter pass gondola instance and servlet request to the callback.
  */
-public interface ClusterCallback {
+public interface ClusterIdCallback {
     /**
      * The callback method to get gondola cluster ID based on request
      *

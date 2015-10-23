@@ -43,7 +43,7 @@ public class RoutingFilter implements Filter {
      * Routing table
      * Key: memberId, value: HTTP URL
      */
-    ClusterCallback callback;
+    ClusterIdCallback callback;
 
     static Gondola gondola;
     FilterConfig filterConfig;
@@ -56,7 +56,7 @@ public class RoutingFilter implements Filter {
         httpclient = HttpClients.createDefault();
         this.filterConfig = filterConfig;
 
-        registerCallback();
+        registerClusterIdCallback();
     }
 
     @Override
@@ -103,11 +103,11 @@ public class RoutingFilter implements Filter {
         RoutingFilter.gondola = gondola;
     }
 
-    private void registerCallback() throws ServletException {
-        String clusterCallbackClass = filterConfig.getInitParameter("clusterCallback");
+    private void registerClusterIdCallback() throws ServletException {
+        String clusterCallbackClass = filterConfig.getInitParameter("clusterIdCallback");
         if (clusterCallbackClass != null) {
             try {
-                callback = (ClusterCallback) RoutingFilter.class.getClassLoader()
+                callback = (ClusterIdCallback) RoutingFilter.class.getClassLoader()
                     .loadClass(clusterCallbackClass)
                     .newInstance();
             } catch (ClassNotFoundException | InstantiationException | IllegalAccessException e) {

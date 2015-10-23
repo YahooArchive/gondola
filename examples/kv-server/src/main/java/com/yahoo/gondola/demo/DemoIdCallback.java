@@ -1,12 +1,12 @@
 package com.yahoo.gondola.demo;
 
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.container.ClusterCallback;
+import com.yahoo.gondola.container.ClusterIdCallback;
 
 import javax.servlet.ServletRequest;
 
-public class DemoCallback implements ClusterCallback {
-    public DemoCallback() {
+public class DemoIdCallback implements ClusterIdCallback {
+    public DemoIdCallback() {
         System.out.println("Demo callback initialized");
     }
 
