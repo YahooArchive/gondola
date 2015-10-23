@@ -1,8 +1,6 @@
 package com.yahoo.gondola.container;
 
-import com.yahoo.gondola.Gondola;
-
-import javax.servlet.ServletRequest;
+import javax.ws.rs.container.ContainerRequestContext;
 
 /**
  * How callbacks work:
@@ -18,9 +16,8 @@ public interface ClusterIdCallback {
     /**
      * The callback method to get gondola cluster ID based on request
      *
-     * @param gondola
      * @param request
      * @return Gondola Cluster ID
      */
-    public String getClusterId(Gondola gondola, ServletRequest request);
+    String getClusterId(ContainerRequestContext request);
 }

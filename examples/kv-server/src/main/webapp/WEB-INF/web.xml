@@ -18,18 +18,4 @@
         <servlet-name>jersey2</servlet-name>
         <url-pattern>/*</url-pattern>
     </servlet-mapping>
-
-    <!-- routing filter -->
-    <filter>
-        <filter-name>RoutingFilter</filter-name>
-        <filter-class>com.yahoo.gondola.container.RoutingFilter</filter-class>
-        <init-param>
-            <param-name>clusterIdCallback</param-name>
-            <param-value>com.yahoo.gondola.demo.DemoIdCallback</param-value>
-        </init-param>
-    </filter>
-    <filter-mapping>
-        <filter-name>RoutingFilter</filter-name>
-        <url-pattern>*</url-pattern>
-    </filter-mapping>
 </web-app>

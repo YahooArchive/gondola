@@ -14,14 +14,11 @@ public class DemoResources {
 
     @GET
     public String getEntry(@PathParam("entryId") String entryId) {
-        return service.getEntry(entryId).getValue();
+        return service.getValue(entryId);
     }
 
     @PUT
     public void putEntry(String value, @PathParam("entryId") String entryId) {
-        Entry entry = new Entry();
-        entry.setKey(entryId);
-        entry.setValue(value);
-        service.putEntry(entryId, entry);
+        service.putValue(entryId, value);
     }
 }
