@@ -18,11 +18,6 @@
     <property name="severity" value="warning"/>
     <module name="TreeWalker">
         <module name="FileContentsHolder"/>
-        <module name="ConstantName">
-            <metadata name="net.sf.eclipsecs.core.comment" value="Constants (static finals) must be uppercase letters/digits/underscore."/>
-            <property name="severity" value="error"/>
-            <property name="format" value="^[A-Z][A-Z0-9_]*$"/>
-        </module>
         <module name="RedundantImport">
             <metadata name="net.sf.eclipsecs.core.comment" value="Duplicate import checking."/>
             <property name="severity" value="error"/>
