@@ -1,3 +1,8 @@
+/*
+ * Copyright 2015, Yahoo Inc.
+ * Copyrights licensed under the New BSD License.
+ * See the accompanying LICENSE file for terms.
+ */
 package com.yahoo.gondola.container;
 
 import javax.ws.rs.container.ContainerRequestContext;
@@ -5,12 +10,19 @@ import javax.ws.rs.container.ContainerRequestContext;
 /**
  * How callbacks work:
  *
- * Initialization
- * 1. RoutingFilter initialize the callback
- * 2. Application initialize the Gondola and set to RoutingFilter's static varialbe
+ * <p> When initialization
+ * <ul>
+ *   <li>RoutingFilter initialize the callback.</li>
+ *   <li>Application initialize the Gondola and set to RoutingFilter's static variable.</li>
+ * </ul>
+ * </p>
  *
- * Request phase
- * 3. While processing the request, RoutingFilter pass gondola instance and servlet request to the callback.
+ * <p> When processing the request
+ *     <ul>
+ *        <li>RoutingFilter pass gondola instance and servlet request to the callback.</li>
+ *     </ul>
+ * </p>
+ *
  */
 public interface ClusterIdCallback {
     /**

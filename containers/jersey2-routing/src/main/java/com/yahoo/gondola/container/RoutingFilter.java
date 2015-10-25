@@ -1,3 +1,8 @@
+/*
+ * Copyright 2015, Yahoo Inc.
+ * Copyrights licensed under the New BSD License.
+ * See the accompanying LICENSE file for terms.
+ */
 package com.yahoo.gondola.container;
 
 import com.yahoo.gondola.Cluster;
@@ -31,14 +36,18 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.Response;
 
+
+/**
+ * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
+ * resource.
+ */
 public class RoutingFilter implements ContainerRequestFilter {
 
     public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
     public static final String APP_PORT = "appPort";
     public static final String APP_SCHEME = "appScheme";
     /**
-     * Routing table
-     * Key: memberId, value: HTTP URL
+     * Routing table Key: memberId, value: HTTP URL
      */
     ClusterIdCallback clusterIdCallback;
 
@@ -49,6 +58,7 @@ public class RoutingFilter implements ContainerRequestFilter {
     Map<String, List<String>> routingTable;
 
     CloseableHttpClient httpclient;
+
     public RoutingFilter(Gondola gondola, ClusterIdCallback clusterIdCallback) throws ServletException {
         this.gondola = gondola;
         this.clusterIdCallback = clusterIdCallback;
@@ -67,9 +77,9 @@ public class RoutingFilter implements ContainerRequestFilter {
             // Still under leader election
             if (leader == null) {
                 requestContext.abortWith(Response
-                                         .status(Response.Status.INTERNAL_SERVER_ERROR)
-                                         .entity("Under leader election")
-                                         .build());
+                                             .status(Response.Status.INTERNAL_SERVER_ERROR)
+                                             .entity("Under leader election")
+                                             .build());
                 return;
             } else if (leader.isLocal()) {
                 return;
@@ -84,11 +94,11 @@ public class RoutingFilter implements ContainerRequestFilter {
         // The routing entry will be modified on the fly, concurrent map is needed
         Map<String, List<String>> newRoutingTable = new ConcurrentHashMap<>();
         Config config = gondola.getConfig();
-        for(String hostId : config.getHostIds()) {
+        for (String hostId : config.getHostIds()) {
             if (hostId.equals(gondola.getHostId())) {
                 continue;
             }
-            for(String clusterId : config.getClusterIds(hostId)) {
+            for (String clusterId : config.getClusterIds(hostId)) {
                 InetSocketAddress address = config.getAddressForHost(hostId);
                 List<String> addresses = newRoutingTable.get(clusterId);
                 if (addresses == null) {
@@ -98,9 +108,13 @@ public class RoutingFilter implements ContainerRequestFilter {
                 Map<String, String> attrs = config.getAttributesForHost(hostId);
                 if (attrs.get(APP_PORT) == null || attrs.get(APP_SCHEME) == null) {
                     throw new IllegalStateException(
-                        String.format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT, APP_SCHEME));
+                        String
+                            .format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT,
+                                    APP_SCHEME));
                 }
-                String appUri = String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
+                String
+                    appUri =
+                    String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
                 addresses.add(appUri);
             }
         }
@@ -120,8 +134,8 @@ public class RoutingFilter implements ContainerRequestFilter {
     private boolean isMyCluster(String clusterId) {
         if (myClusterIds == null) {
             myClusterIds = gondola.getClustersOnHost().stream()
-            .map(Cluster::getClusterId)
-            .collect(Collectors.toSet());
+                .map(Cluster::getClusterId)
+                .collect(Collectors.toSet());
         }
         return myClusterIds.contains(clusterId);
     }
@@ -133,14 +147,16 @@ public class RoutingFilter implements ContainerRequestFilter {
     private void proxyRequestToLeader(ContainerRequestContext request, String clusterId) {
         List<String> appUrls = lookupRoutingTable(clusterId);
 
-        for(String appUrl : appUrls) {
+        for (String appUrl : appUrls) {
             try (CloseableHttpResponse proxiedResponse = proxyRequest(appUrl, request)) {
-                String entity = proxiedResponse.getEntity() != null ? EntityUtils.toString(proxiedResponse.getEntity()) : "";
+                String
+                    entity =
+                    proxiedResponse.getEntity() != null ? EntityUtils.toString(proxiedResponse.getEntity()) : "";
                 request.abortWith(Response
-                                  .status(proxiedResponse.getStatusLine().getStatusCode())
-                                  .entity(entity)
-                                  .header(X_GONDOLA_LEADER_ADDRESS, appUrl)
-                                  .build());
+                                      .status(proxiedResponse.getStatusLine().getStatusCode())
+                                      .entity(entity)
+                                      .header(X_GONDOLA_LEADER_ADDRESS, appUrl)
+                                      .build());
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
                 return;
             } catch (IOException ignored) {
@@ -148,9 +164,9 @@ public class RoutingFilter implements ContainerRequestFilter {
             }
         }
         request.abortWith(Response
-                          .status(Response.Status.BAD_GATEWAY)
-                          .entity("All servers are not available in Cluster: " + clusterId)
-                          .build());
+                              .status(Response.Status.BAD_GATEWAY)
+                              .entity("All servers are not available in Cluster: " + clusterId)
+                              .build());
     }
 
     private void updateRoutingTableIfNeeded(String clusterId, CloseableHttpResponse proxiedResponse) {
@@ -162,14 +178,12 @@ public class RoutingFilter implements ContainerRequestFilter {
 
     /**
      * Move newAppUrl to the first entry of the routing table.
-     * @param clusterId
-     * @param newAppUrl
      */
     private void setClusterLeader(String clusterId, String newAppUrl) {
         List<String> appUrls = lookupRoutingTable(clusterId);
         List<String> newAppUrls = new ArrayList<>(appUrls.size());
         newAppUrls.add(newAppUrl);
-        for(String appUrl : appUrls) {
+        for (String appUrl : appUrls) {
             if (!appUrl.equals(newAppUrl)) {
                 newAppUrls.add(appUrl);
             }
@@ -179,6 +193,7 @@ public class RoutingFilter implements ContainerRequestFilter {
 
     /**
      * Lookup leader App URL in routing table
+     *
      * @param clusterId The Gondola clusterId
      * @return leader App URL. e.g. http://app1.yahoo.com:4080/
      */
@@ -193,10 +208,10 @@ public class RoutingFilter implements ContainerRequestFilter {
 
     /**
      * proxy request to destination host
-     * @param appUrl The target App URL
+     *
+     * @param appUrl  The target App URL
      * @param request The original request
      * @return the response of the proxied request
-     * @throws IOException
      */
     private CloseableHttpResponse proxyRequest(String appUrl, ContainerRequestContext request) throws IOException {
         String method = request.getMethod();

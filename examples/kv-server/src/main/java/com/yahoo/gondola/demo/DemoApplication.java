@@ -19,6 +19,15 @@ import java.net.URL;
 import javax.servlet.ServletContext;
 import javax.ws.rs.core.Context;
 
+/**
+ * Jersey2 JAX-RS application class,
+ * it initialize the essential class before serving.
+ *
+ * 1. Initialize Gondola instance
+ * 2. Initialize business logic object - DemoService
+ * 3. Initialize routing filter callback and register RoutingFilter as Jersey filter
+ * 4. Register the resources
+ */
 public class DemoApplication extends ResourceConfig {
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
         Gondola gondola = initializeGondola();
