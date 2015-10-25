@@ -22,29 +22,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.yahoo.gondola</groupId>
-            <artifactId>core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
             <groupId>com.yahoo.gondola.containers</groupId>
             <artifactId>jersey2-routing</artifactId>
             <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.glassfish.jersey.core</groupId>
-            <artifactId>jersey-server</artifactId>
-            <version>${jersey-server.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.glassfish.jersey.containers</groupId>
-            <artifactId>jersey-container-jetty-servlet</artifactId>
-            <version>${jersey-server.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.glassfish.jersey.media</groupId>
-            <artifactId>jersey-media-json-jackson</artifactId>
-            <version>${jersey-server.version}</version>
         </dependency>
         <dependency>
             <groupId>ch.qos.logback</groupId>
