@@ -188,7 +188,7 @@
     <module name="RegexpHeader">
         <metadata name="net.sf.eclipsecs.core.comment" value="Checks that the file starts with a yahoo/new bsd copyright block."/>
         <property name="severity" value="error"/>
-        <property name="headerFile" value="java.header"/>
+        <property name="headerFile" value="${checkstyle.header.file}"/>
         <property name="fileExtensions" value="java,groovy,g4"/>
     </module>
     <module name="FileTabCharacter">
