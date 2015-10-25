@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/yahoo/gondola.svg?branch=master)](https://travis-ci.org/yahoo/gondola)
+
 # High-performance Java Implementation of Raft Protocol
 
 Gondola is a high-performance implementation of the [Raft
