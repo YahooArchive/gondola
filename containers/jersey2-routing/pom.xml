@@ -10,6 +10,9 @@
     </parent>
     <name>gondola-container-jersey2-routing</name>
     <description>Gondola container provider umbrella project module</description>
+    <properties>
+        <jersey-server.version>2.22</jersey-server.version>
+    </properties>
 
     <dependencies>
         <dependency>

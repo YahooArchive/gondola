@@ -17,6 +17,7 @@
 
     <properties>
         <jetty.port>8080</jetty.port>
+        <jetty-maven-plugin.version>9.3.0.M2</jetty-maven-plugin.version>
     </properties>
 
     <dependencies>
