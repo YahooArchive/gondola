@@ -21,6 +21,9 @@
     <properties>
         <jersey-server.version>2.22</jersey-server.version>
         <jetty-maven-plugin.version>9.3.0.M2</jetty-maven-plugin.version>
+        <maven.checkstyle.plugin.version>2.15</maven.checkstyle.plugin.version>
+        <checkstyle.version>6.1.1</checkstyle.version>
+        <checkstyle.config.location>${user.dir}/checkstyle.xml</checkstyle.config.location>
     </properties>
 
     <licenses>
@@ -43,7 +46,7 @@
             <email>patc@yahoo-inc.com</email>
         </developer>
         <developer>
-            <name>Weicheng Pan</name>
+            <name>Wei-Cheng Pan</name>
             <email>wcpan@yahoo-inc.com</email>
         </developer>
     </developers>
@@ -72,6 +75,40 @@
                     <source>1.8</source>
                     <target>1.8</target>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>${maven.checkstyle.plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
+                        <configuration>
+                            <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                            <includes>**\/*</includes>
+                            <resourceIncludes>**\/*</resourceIncludes>
+                            <sourceDirectories>
+                                <sourceDirectory>src/main/java</sourceDirectory>
+                            </sourceDirectories>
+                            <propertyExpansion>basedir=${project.basedir}</propertyExpansion>
+                            <failsOnError>true</failsOnError>
+                            <consoleOutput>true</consoleOutput>
+                            <encoding>UTF-8</encoding>
+                        </configuration>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>com.puppycrawl.tools</groupId>
+                        <artifactId>checkstyle</artifactId>
+                        <version>${checkstyle.version}</version>
+                        <scope>compile</scope>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>

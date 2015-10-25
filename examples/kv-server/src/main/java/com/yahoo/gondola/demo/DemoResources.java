@@ -8,6 +8,10 @@ package com.yahoo.gondola.demo;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 
+
+/**
+ * End point & resource definition for Jersey2.
+ */
 @Path("/entries/{entryId}")
 public class DemoResources {
     @Inject DemoService service;

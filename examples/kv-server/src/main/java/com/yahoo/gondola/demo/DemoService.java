@@ -16,7 +16,11 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * The core business logic of demo service.
+ */
 public class DemoService {
+
     // The map holding all the entries
     Map<String, String> entries = new ConcurrentHashMap<>();
 
@@ -33,6 +37,10 @@ public class DemoService {
 
     /**
      * Get entry data, read directly from internal data structure.
+     *
+     * @param entryId
+     * @return the value of the resource
+     * @throws RecordNotFoundException
      */
     public String getValue(String entryId) throws RecordNotFoundException {
         if (!entries.containsKey(entryId)) {
@@ -42,33 +50,33 @@ public class DemoService {
     }
 
     /**
-     * Commits the entry to Raft log. The entries map is not updated;
-     * it is updated by the Replicator thread.
+     * Commits the entry to Raft log. The entries map is not updated; it is updated by the Replicator thread.
      */
     public void putValue(String key, String value) {
         try {
             Command command = cluster.checkoutCommand();
             byte[] bytes = (key + ":" + value).getBytes();
             command.commit(bytes, 0, bytes.length);
-        } catch (InterruptedException|NotLeaderException e) {
+        } catch (InterruptedException | NotLeaderException e) {
             throw new RuntimeException(e);
         }
     }
 
     /***
-     * Used by the replicator to update internal data structure
+     * Used by the replicator to update internal data structure.
      */
     private void setData(String key, String value) {
         entries.put(key, value);
     }
 
     /**
-     * Background thread that continuously reads committed commands
-     * from the Gondola cluster, and updates the entries map.  
-     * TODO: prevent reads until the map is fully updated.
+     * Background thread that continuously reads committed commands from the Gondola cluster, and updates the entries
+     * map. TODO: prevent reads until the map is fully updated.
      */
     public class Replicator extends Thread {
+
         int appliedIndex = 1;
+
         @Override
         public void run() {
             String string;
@@ -90,7 +98,9 @@ public class DemoService {
         }
     }
 
+    /**
+     * Exception for record does not exists in the system.
+     */
     public static class RecordNotFoundException extends Throwable {
-
     }
 }
