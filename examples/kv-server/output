@@ -1,0 +1,78 @@
+[INFO] Scanning for projects...
+[INFO]                                                                         
+[INFO] ------------------------------------------------------------------------
+[INFO] Building kvserver 1.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] 
+[INFO] >>> jetty-maven-plugin:9.3.0.M2:run (default-cli) > test-compile @ kvserver >>>
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:resources (default-resources) @ kvserver ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] Copying 3 resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:compile (default-compile) @ kvserver ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- maven-resources-plugin:2.6:testResources (default-testResources) @ kvserver ---
+[WARNING] Using platform encoding (UTF-8 actually) to copy filtered resources, i.e. build is platform dependent!
+[INFO] skip non existing resourceDirectory /Users/wcpan2/git/gondola/examples/kv-server/src/test/resources
+[INFO] 
+[INFO] --- maven-compiler-plugin:3.2:testCompile (default-testCompile) @ kvserver ---
+[INFO] No sources to compile
+[INFO] 
+[INFO] <<< jetty-maven-plugin:9.3.0.M2:run (default-cli) < test-compile @ kvserver <<<
+[INFO] 
+[INFO] --- jetty-maven-plugin:9.3.0.M2:run (default-cli) @ kvserver ---
+[INFO] Logging initialized @3308ms
+[INFO] Configuring Jetty for project: kvserver
+[INFO] webAppSourceDirectory not set. Trying src/main/webapp
+[INFO] Reload Mechanic: automatic
+[INFO] Classes = /Users/wcpan2/git/gondola/examples/kv-server/target/classes
+[INFO] Applying context xml file /Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/WEB-INF/jetty-web.xml
+[INFO] Context path = /api
+[INFO] Tmp directory = /Users/wcpan2/git/gondola/examples/kv-server/target/tmp
+[INFO] Web defaults = org/eclipse/jetty/webapp/webdefault.xml
+[INFO] Web overrides =  none
+[INFO] web.xml file = file:///Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/WEB-INF/web.xml
+[INFO] Webapp directory = /Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp
+[INFO] jetty-9.3.0.M2
+2015-10-23 14:30:44 INFO  Gondola:81 - ------- Gondola init: host2, /127.0.0.1:2829, pid=72024 -------
+********** hello
+********** false
+2015-10-23 14:30:44 INFO  SocketNetwork:150 - 127.0.0.1:2829 is not active: Connection refused
+2015-10-23 14:30:44 INFO  H2dbStorage:44 - Initializing H2DB storage. maxCommandSize=1000 url=jdbc:h2:/tmp/gondola-db-host2
+2015-10-23 14:30:45 INFO  H2dbStorage:49 - H2DB autoCommit=true
+2015-10-23 14:30:45 INFO  SocketNetwork:150 - 127.0.0.1:2829 is not active: Connection refused
+2015-10-23 14:30:45 INFO  SaveQueue:235 - [host2-82] Initializing save index with latest=(0,0) maxGap=0
+2015-10-23 14:30:45 INFO  CoreMember:648 - [host2-82] Becomes FOLLOWER of -1 
+2015-10-23 14:30:45 INFO  SaveQueue:183 - [host2-82] Settling storage. workQ=0 busy=0 maxGap=0
+2015-10-23 14:30:45 INFO  SaveQueue:235 - [host2-82] Initializing save index with latest=(0,0) maxGap=0
+2015-10-23 14:30:45 INFO  Gondola:118 - Starting up Gondola...
+2015-10-23 14:30:45 INFO  CoreMember:648 - [host2-82] Becomes FOLLOWER of -1 
+2015-10-23 14:30:45 INFO  SaveQueue:183 - [host2-82] Settling storage. workQ=0 busy=0 maxGap=0
+2015-10-23 14:30:45 INFO  SaveQueue:235 - [host2-82] Initializing save index with latest=(0,0) maxGap=0
+2015-10-23 14:30:45 INFO  SocketChannel:77 - [host2-82] Creating connection to 81
+2015-10-23 14:30:45 WARN  SocketChannel:365 - [host2-82] Failed to create socket to 81 (/127.0.0.1:2828): Connection refused
+2015-10-23 14:30:45 INFO  SocketChannel:366 - [host2-82] Will retry creating the socket to 81 (/127.0.0.1:2828) every 1000ms
+2015-10-23 14:30:45 INFO  SocketChannel:77 - [host2-82] Creating connection to 83
+2015-10-23 14:30:45 WARN  SocketChannel:365 - [host2-82] Failed to create socket to 83 (/127.0.0.1:2830): Connection refused
+2015-10-23 14:30:45 INFO  SocketChannel:366 - [host2-82] Will retry creating the socket to 83 (/127.0.0.1:2830) every 1000ms
+2015-10-23 14:30:45 INFO  CoreMember:794 - [host2-82] FOLLOWER pid=72024 wait=0ms cmdQ=0 waitQ=0 in=0|0.0/s out=0.0/s lat=NaNms/NaNms
+2015-10-23 14:30:45 INFO  CoreMember:798 - [host2-82] - leader=-1 cterm=18 ci=0 latest=(0,0) votedFor=83 msgPool=0/4
+2015-10-23 14:30:45 INFO  CoreMember:802 - [host2-82] - storage 0.0/s ti=(0,0) saveQ=0 gap=0 done=0
+2015-10-23 14:30:45 INFO  CoreMember:807 - [host2-82] - peer=81 D in=0.0/s|0.0B/s out=0|0.0/s|0.0B/s ni=-1 mi=0 vf=(-1,-1) lat=NaNms
+2015-10-23 14:30:45 INFO  CoreMember:807 - [host2-82] - peer=83 D in=0.0/s|0.0B/s out=0|0.0/s|0.0B/s ni=-1 mi=0 vf=(-1,-1) lat=NaNms
+2015-10-23 14:30:45 INFO  CoreMember:427 - b1=NaN, b2=NaN, b3=NaN, b4=NaN b5=NaN 0.000ms/loop
+[INFO] Started o.e.j.m.p.JettyWebAppContext@3e48e859{/api,file:///Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/,AVAILABLE}{file:///Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/}
+[INFO] Started ServerConnector@162c1dfb{HTTP/1.1,[http/1.1]}{0.0.0.0:8081}
+[INFO] Started @5414ms
+[INFO] Started Jetty Server
+[INFO] Starting scanner at interval of 1 seconds.
+[INFO] Stopped ServerConnector@162c1dfb{HTTP/1.1,[http/1.1]}{0.0.0.0:8081}
+[INFO] Stopped o.e.j.m.p.JettyWebAppContext@3e48e859{/api,file:///Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/,UNAVAILABLE}{file:///Users/wcpan2/git/gondola/examples/kv-server/src/main/webapp/}
+[INFO] Jetty server exiting.
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time: 5.346 s
+[INFO] Finished at: 2015-10-23T14:30:47-07:00
