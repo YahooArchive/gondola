@@ -266,7 +266,7 @@ These are the major classes in the implementation:
 
 The following is a rough class diagram of the major classes showing the major relationships between the classes:
 
-![Design Diagram](https://github.com/yahoo/gondola/blob/master/src/main/resources/gondola_design.png)
+![Design Diagram](https://github.com/yahoo/gondola/blob/master/core/src/main/resources/gondola_design.png)
 [source](https://docs.google.com/drawings/d/1DZwNXhH3iycqqBMFVulvyXVtIOar7h_USkMBdfTAWU4/edit)
 
 
