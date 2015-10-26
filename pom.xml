@@ -6,6 +6,12 @@
     <artifactId>gondola-main</artifactId>
     <version>0.1-SNAPSHOT</version>
     <description>Java implementation of Raft</description>
+    <distributionManagement>
+        <repository>
+            <id>bintray</id>
+            <url>https://api.bintray.com/maven/yahoo/maven/gondola;publish=1</url>
+        </repository>
+    </distributionManagement>
     <scm>
         <developerConnection>scm:git:ssh://git@github.com/yahoo/gondola.git</developerConnection>
         <tag>HEAD</tag>
