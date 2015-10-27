@@ -37,7 +37,7 @@ public class H2dbStorage implements Storage {
         // Get configs
         maxCommandSize = gondola.getConfig().getInt("raft.command_max_size");
         String user = gondola.getConfig().get("storage_h2.user");
-        String password = gondola.getConfig().get("storage_h2.password");
+        String password = gondola.getConfig().getSecret("storage_h2.password");
         String url = gondola.getConfig().get("storage_h2.url");
         url = url.replace("$hostId", hostId);
 
