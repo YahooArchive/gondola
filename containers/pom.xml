@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.yahoo.gondola</groupId>
         <artifactId>gondola-main</artifactId>
-        <version>0.2.2-SNAPSHOT</version>
+        <version>0.2.2</version>
     </parent>
     <description>Gondola container provider umbrella project module</description>
     <modules>
