@@ -8,6 +8,13 @@ env:
     - secure: YnRBTSKAOYzzRbuVK6qa8eOgZ14fAYg03sBk+Y9LWzLhf5b+NNER3PK3Euks7uIppYYKsXIWGfpVGs1fqIVr2D8/w5gJDxOysK9SVKkY8BwqpJ4Evj7AJ6wwozaUOtGc5Tb/1BFavXutDc6KjUhLiy8Vhvg/Xd+EdX67zp7vhqV/3naDaWikkJylYYASSJbUi5/ZtVcDzEw9O1YfD5T7fI32MOeMzv5MBCYdZrt5Pb7ZktlrxcwMzmVS5cqQcDYmHLrPa0TI6nXC8XgVrr8n+OiRP+JxvplfgRndqwWx9LlIiA3wuJt8gKLzSUeDuUpNs9si0OkL4fIcuQ8E8vw/y9tF9wR1PfCmWU3iZKDkc3eMhUbYuqK++q58b3Hj30HThvMVruf0tMI/QWp5MtknAzFh6v5/HbJwUhV/HVHCuxiSCSG05CfIY3t0vc40rUIv6cY3QCR70dTC0m9XViS+iRls7dw82fQEZLkf+PGZwYpkJRZc5d0dSY4cqH/66Mcfnb844alo6BYILPoREAQxKsdWc0fN+CKwXZubId/AVQ8pZx65XqomWxXGpiPCzSGnEQXb9MVq82VH3E2Z5yl9DNnfR+ta1+QTvmbggo6PgrdX5OU8dinLD+0NFUW6v2e5o1c5dEUu1yR67ECbVD0/FPojKXOlhDIieJo0QHTvqoc=
     - secure: LnyZKA8qgUKCagVqmrc83Ko8dLq/Vbl6Pf2UKQJLNfP2rhuinyrEmOCxxDEx2QnS21WrBa/a1cGHStq3kqWLfs3bEpNwPLWLY8DIas7qfMRae1xncEFr7oEz9g56BFCObMHt/0CgNZB06rc6QrNuhWH0xbYHQPXqYABPwEhvMEY7ghsjLeQslDM6js5HM6Rh1vpl8RxWBHa8ySGOB8/OllGZM3wYiCOvVoFpFwHhMg1fkzKNwBEcQP+qQPH6e3K+5/SgILHl+7oPWvT4nLk0lUj+yrlWY4yhoCD+1SoP2WYb052x+OhA0bS3NWpZvHZHVUjzTwikou0AlopHku17qoJsuw8ou/8aENUTYgxodzUmjuxp4kusb6hINFIm0hFKpdMM8y7cRC6lqjLXzLSUV6yOQRFBjmqswoI/wNl3ZyJTUK+5WDuQ07XOvRxqFP8TCcZaehVKon+HmA4VPYCxnlI+Nrn287cc7mMXQhUvdoyI51E+th9GKD68oes0hH/3LQAeNLSi6XKRqiFypndEMBL2uQNfdcw2RhU7xJrzNdQjVVw68ZIwS4zTaod+ghg0LdvU7yCP5YpVodP/4qMzTfT2ak8NfYkp07ni0AJYiYqa1oziV3S0DUPfzK3luH/yWImXU+PI9MNQBycyhQyR/eoskSGcaWjigJEpG3/6lTU=
 
+branches:
+  only:
+    - master
+      # Build tags that match this regex in addition to building the master branch.
+    - /^[0-9]+\.[0-9]+\.[0-9]+/
+
+
 script: mvn verify
 after_success:
   - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy --settings settings/maven/settings.xml
