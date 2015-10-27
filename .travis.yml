@@ -1,24 +1,18 @@
 language: java
-
 jdk:
-  - oraclejdk8
-
+- oraclejdk8
 env:
   global:
-    - secure: Nd1+8rIOpTdh8cKvWnraeS68203yxG7IMa/jvu3N+tHwk74AN8XoX/7AtAPELbIgcGqrPfZ3pMAODQvIcbDq5zSx5TbUWgpxJgCohmOzDjBW6vu7ZfORlwCFx52bnppIMiYkx1nuaTqeLYPf7R141qELYtVDzzIZL9e071Q63mWWdPSOhzkwJzcI0QSwY9qbddWDA6XlPbFT15WWAt1wyZh+2JfVgxECqYVr7ncKUb62ZtU3bg9gY3OuGc2X3mLETplQ1Yx5Lm8n9hSixmKr9FxcVo5pzfjClSip3CF5hir3UaytgdJv9/BhDJsjIg5pkTySHpYgt0hWibTh7korJgJUrXovQwzpA33j60On2GQpnn+X/pmTZz3ozEqxyMTbKAbBD9/V1RaV1aJXbMzdLmhtOaeFL8U052l0sDU3I4d1ApUM2ELEORf220tLFvYe8P0J9XHtYxLn5qfzSNgAOTL9UNhtSFXr2lL94rxm46PDYy8G0x1qW5Dw3oERsCR0p6+I/DPpF5/l1vWthIDQtB+Ux2o01v5MdklJjLZO8gxONC3M4fH83Smfwce939DcO5ZQadM3XxPCAdCaImaJN2bzs2vWVbtTwfFRQ1J025Y7C62e+RtptijrOeOvLTH3W73ofXNvDA5BSQhdwNEViKfYItLvYNsHP7JNmEXOXUk=
-    - secure: ij5lH66GX5SlDyb81R2Fo1kF/Rkyn9MjkKJuVrlh9jNxwkuScFFG9z0UxWFi9qTjDGtUNydsALQwAeImrC8VaA68p9h6OnAFuXn+7aNQ9Jtgpl+S5N4RV9gZYmmPLSpvrpxt3kUm9DElcdWOD6k51LZ/YXhxABdHz1y2Y8pfqJ5fAOXPpal2DE/Qn/NLoeP4/62r7qVUbnP/2oVtR7UApabadYGMysLX1SeRV4J2xCdSYGtpC7q1p83m/3sSv/VPvYfZaQZ+TlLuvYOqAuyMHv3EcuBdBFRj0rqJbgRa+ux2C6jqrqtuaWSj/5ni3uOvzTryG/5W9o1CgF/Sn8VT32PbQMJAO3n4/E00ieTvcmQAOCHCIr3BLNKlgqx3qHHGsUx/ccy8BIv6Qr4z1WzrCDlZsIuO5eHtVyLVhZi55tK4yuKm/3fTaKbTnnQhBR0S/p4L9AsUcjiB9Mn+DbZqOi5BaF6LXPkgt8hGez/XaDIPERZ8w/uu21pfEvGX+2cesq/waJSDWQg7eq/ORFTEoWFYaJZB8EnAPPq1F2p5vthDRUMvO8yKDsZjinC2Q7qpGpp9HE2OFHM4fLYMUdTFR1EeZPOcHohpIOmLyUeJYzCB+qejBdEA9fY0e7nf6ZPobLiGdoq1Buf6/B5YdniUJaPYNIvG8kvIgSVoRrcWskg=
-
+  - secure: Nd1+8rIOpTdh8cKvWnraeS68203yxG7IMa/jvu3N+tHwk74AN8XoX/7AtAPELbIgcGqrPfZ3pMAODQvIcbDq5zSx5TbUWgpxJgCohmOzDjBW6vu7ZfORlwCFx52bnppIMiYkx1nuaTqeLYPf7R141qELYtVDzzIZL9e071Q63mWWdPSOhzkwJzcI0QSwY9qbddWDA6XlPbFT15WWAt1wyZh+2JfVgxECqYVr7ncKUb62ZtU3bg9gY3OuGc2X3mLETplQ1Yx5Lm8n9hSixmKr9FxcVo5pzfjClSip3CF5hir3UaytgdJv9/BhDJsjIg5pkTySHpYgt0hWibTh7korJgJUrXovQwzpA33j60On2GQpnn+X/pmTZz3ozEqxyMTbKAbBD9/V1RaV1aJXbMzdLmhtOaeFL8U052l0sDU3I4d1ApUM2ELEORf220tLFvYe8P0J9XHtYxLn5qfzSNgAOTL9UNhtSFXr2lL94rxm46PDYy8G0x1qW5Dw3oERsCR0p6+I/DPpF5/l1vWthIDQtB+Ux2o01v5MdklJjLZO8gxONC3M4fH83Smfwce939DcO5ZQadM3XxPCAdCaImaJN2bzs2vWVbtTwfFRQ1J025Y7C62e+RtptijrOeOvLTH3W73ofXNvDA5BSQhdwNEViKfYItLvYNsHP7JNmEXOXUk=
+  - secure: ij5lH66GX5SlDyb81R2Fo1kF/Rkyn9MjkKJuVrlh9jNxwkuScFFG9z0UxWFi9qTjDGtUNydsALQwAeImrC8VaA68p9h6OnAFuXn+7aNQ9Jtgpl+S5N4RV9gZYmmPLSpvrpxt3kUm9DElcdWOD6k51LZ/YXhxABdHz1y2Y8pfqJ5fAOXPpal2DE/Qn/NLoeP4/62r7qVUbnP/2oVtR7UApabadYGMysLX1SeRV4J2xCdSYGtpC7q1p83m/3sSv/VPvYfZaQZ+TlLuvYOqAuyMHv3EcuBdBFRj0rqJbgRa+ux2C6jqrqtuaWSj/5ni3uOvzTryG/5W9o1CgF/Sn8VT32PbQMJAO3n4/E00ieTvcmQAOCHCIr3BLNKlgqx3qHHGsUx/ccy8BIv6Qr4z1WzrCDlZsIuO5eHtVyLVhZi55tK4yuKm/3fTaKbTnnQhBR0S/p4L9AsUcjiB9Mn+DbZqOi5BaF6LXPkgt8hGez/XaDIPERZ8w/uu21pfEvGX+2cesq/waJSDWQg7eq/ORFTEoWFYaJZB8EnAPPq1F2p5vthDRUMvO8yKDsZjinC2Q7qpGpp9HE2OFHM4fLYMUdTFR1EeZPOcHohpIOmLyUeJYzCB+qejBdEA9fY0e7nf6ZPobLiGdoq1Buf6/B5YdniUJaPYNIvG8kvIgSVoRrcWskg=
 cache:
   directories:
-    - "~/.m2"
-
+  - "~/.m2"
 branches:
   only:
-    - master
-      # Build tags that match this regex in addition to building the master branch.
-    - /^[0-9]+\.[0-9]+\.[0-9]+/
-
-
+  - master
+  - "/^[0-9]+\\.[0-9]+\\.[0-9]+/"
 script: mvn verify
 after_success:
-  - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy --settings settings/maven/settings.xml
+- test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
+  --settings settings/maven/settings.xml
