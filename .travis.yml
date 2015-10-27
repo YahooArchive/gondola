@@ -3,4 +3,11 @@ language: java
 jdk:
   - oraclejdk8
 
+env:
+  global:
+    - secure: WAIT_FOR_KEY
+    - secure: WAIT_FOR_KEY
+
 script: mvn verify
+after_success:
+  - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy --settings settings/maven/settings.xml
