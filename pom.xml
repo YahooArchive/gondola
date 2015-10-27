@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.yahoo.gondola</groupId>
     <artifactId>gondola-main</artifactId>
-    <version>0.1</version>
+    <version>0.2-SNAPSHOT</version>
     <description>Java implementation of Raft</description>
     <distributionManagement>
         <repository>
@@ -13,7 +13,7 @@
     </distributionManagement>
     <scm>
         <developerConnection>scm:git:ssh://git@github.com/yahoo/gondola.git</developerConnection>
-        <tag>0.1</tag>
+        <tag>HEAD</tag>
     </scm>
     <modules>
         <module>core</module>
