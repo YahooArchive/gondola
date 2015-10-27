@@ -27,3 +27,4 @@ test-results
 nohup.out
 tmp
 logs/
+*.releaseBackup
