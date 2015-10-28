@@ -26,6 +26,7 @@ import java.util.Set;
  */
 public class Config {
     final static Logger logger = LoggerFactory.getLogger(Config.class);
+    SecretHelper secretHelper;
 
     /*
      * This class encapsulates all the configuration data. It's used to avoid having a lock
@@ -99,7 +100,7 @@ public class Config {
 
     /**
      * Returns a string which describes the location of the config values. E.g. if the configs were retrieved from a file,
-     * this would return the file location. Used in config-related error messages. 
+     * this would return the file location. Used in config-related error messages.
      *
      * @return a non-null string identifying the location of the configs.
      */
@@ -110,19 +111,27 @@ public class Config {
     /********************* simple property *******************/
 
     public String get(String property) {
-        return configData.cfg.getString(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getString(property) : secret;
     }
 
     public boolean getBoolean(String property) {
-        return configData.cfg.getBoolean(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getBoolean(property) : Boolean.parseBoolean(secret);
     }
 
     public int getInt(String property) {
-        return configData.cfg.getInt(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getInt(property) : Integer.parseInt(secret);
     }
 
     public long getLong(String property) {
-        return configData.cfg.getLong(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getLong(property) : Long.parseLong(secret);
+    }
+
+    private String getSecret(String property) {
+        return secretHelper == null ? null : secretHelper.getSecret(property);
     }
 
     /********************** listener *******************/
@@ -134,6 +143,10 @@ public class Config {
     public void registerForUpdates(Observer obs) {
         observable.addObserver(obs);
         obs.update(observable, this);
+    }
+
+    public void registerSecretHelper(SecretHelper helper) {
+
     }
 
     /********************* host and cluster *******************/
@@ -279,5 +292,17 @@ public class Config {
                 }
             }
         }
+    }
+
+    /**
+     * This interface helps getting secret in the config and it's not allowed to store in the config.
+     */
+    public interface SecretHelper {
+        /**
+         * Get secret based on the property ID.
+         * @param property The secret key
+         * @return secret string, null if property doesn't exists
+         */
+        String getSecret(String property);
     }
 }
