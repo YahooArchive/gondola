@@ -111,23 +111,27 @@ public class Config {
     /********************* simple property *******************/
 
     public String get(String property) {
-        return configData.cfg.getString(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getString(property) : secret;
     }
 
     public boolean getBoolean(String property) {
-        return configData.cfg.getBoolean(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getBoolean(property) : Boolean.parseBoolean(secret);
     }
 
     public int getInt(String property) {
-        return configData.cfg.getInt(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getInt(property) : Integer.parseInt(secret);
     }
 
     public long getLong(String property) {
-        return configData.cfg.getLong(property);
+        String secret = getSecret(property);
+        return secret == null ? configData.cfg.getLong(property) : Long.parseLong(secret);
     }
 
-    public String getSecret(String property) {
-        return secretHelper == null ? get(property) : secretHelper.getSecret(property);
+    private String getSecret(String property) {
+        return secretHelper == null ? null : secretHelper.getSecret(property);
     }
 
     /********************** listener *******************/
