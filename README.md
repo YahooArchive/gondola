@@ -20,6 +20,20 @@ requests are especially welcome.
 * Zero-allocation implementation. The implementation reuses objects whereever possible to minimize garbage collection issues (unfortunately database drivers still create objects).
 * Pre-vote support. A Raft optimization that avoids unnecessary elections when a node joins or re-joins the cluster.
 
+## How to use
+maven - pom.xml
+```
+  <dependencies>
+  ...
+        <dependency>
+            <groupId>com.yahoo.gondola</groupId>
+            <artifactId>core</artifactId>
+            <version>0.2.7</version>
+        </dependency>
+  ...
+    </dependencies>
+```
+
 ## Known Issues and To Dos
 
 * Occassionally leader election with more than 2-nodes will take more cycles than it should to complete.
