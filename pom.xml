@@ -13,6 +13,7 @@
     </distributionManagement>
     <scm>
         <developerConnection>scm:git:ssh://git@github.com/yahoo/gondola.git</developerConnection>
+        <url>https://github.com/yahoo/gondola.git</url>
         <tag>HEAD</tag>
     </scm>
     <modules>
