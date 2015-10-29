@@ -22,6 +22,7 @@
     </modules>
     <packaging>pom</packaging>
     <name>gondola</name>
+    <url>https://github.com/yahoo/gondola</url>
 
     <properties>
         <maven.checkstyle.plugin.version>2.15</maven.checkstyle.plugin.version>
