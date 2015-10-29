@@ -27,6 +27,26 @@
         <maven.test.skip>true</maven.test.skip>
     </properties>
 
+    <url>https://github.com/yahoo/gondola</url>
+    <developers>
+        <developer>
+            <name>Patrick Chan</name>
+            <email>patc@yahoo-inc.com</email>
+        </developer>
+        <developer>
+            <name>Wei-Cheng Pan</name>
+            <email>wcpan@yahoo-inc.com</email>
+        </developer>
+    </developers>
+    <licenses>
+        <license>
+            <name>New BSD License</name>
+        </license>
+    </licenses>
+    <scm>
+        <developerConnection>scm:git:ssh://git@github.com/yahoo/gondola.git</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
 
 
     <dependencies>
