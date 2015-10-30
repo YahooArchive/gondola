@@ -30,6 +30,7 @@
         <checkstyle.version>6.1.1</checkstyle.version>
         <checkstyle.config.location>settings/checkstyle.xml</checkstyle.config.location>
         <checkstyle.header.file>settings/java.header</checkstyle.header.file>
+        <slf4j.version>1.7.10</slf4j.version>
     </properties>
 
     <licenses>
@@ -61,7 +62,6 @@
         <name>Yahoo! Inc</name>
         <url>https://www.yahoo.com/</url>
     </organization>
-
     <build>
         <plugins>
             <!-- Disable javadoc strict checking -->
@@ -152,4 +152,30 @@
         </plugins>
     </build>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <!-- Testing packages -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>6.8.21</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>1.10.8</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 </project>
