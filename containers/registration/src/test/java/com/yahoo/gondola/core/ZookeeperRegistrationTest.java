@@ -1,3 +1,8 @@
+/*
+ * Copyright 2015, Yahoo Inc.
+ * Copyrights licensed under the New BSD License.
+ * See the accompanying LICENSE file for terms.
+ */
 package com.yahoo.gondola.core;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +19,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.net.InetAddress;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 
@@ -46,7 +52,8 @@ public class ZookeeperRegistrationTest {
     public void testRegister(String testSiteId, String testClusterId, int expectedMemberId, Class expectedException)
         throws Exception {
         try {
-            int memberId = registration.register(testClusterId, InetAddress.getLoopbackAddress(), testSiteId);
+            int memberId = registration.register(testClusterId, InetAddress.getLoopbackAddress(), testSiteId, URI
+                .create("https://api1.yahoo.com:4443"));
             List<String> nodes = client.getChildren().forPath(ZookeeperRegistration.GONDOLA_DISCOVER);
             assertTrue(nodes.contains(testSiteId + "_" + memberId));
             Registration.Registry
@@ -55,7 +62,7 @@ public class ZookeeperRegistrationTest {
                                            ZookeeperRegistration.GONDOLA_DISCOVER + "/" + testSiteId + "_" + memberId),
                                        Registration.Registry.class);
             assertEquals(memberId, expectedMemberId);
-        } catch (Registration.RegistrationExcpetion e) {
+        } catch (Registration.RegistrationException e) {
             assertTrue(e.getClass().equals(expectedException));
         }
     }
@@ -66,9 +73,9 @@ public class ZookeeperRegistrationTest {
             {"gq1", "cluster1", 7, null},
             {"bf1", "cluster1", 4, null},
             {"ne1", "cluster2", 10, null},
-            {"wrong", "cluster1", 7, Registration.RegistrationExcpetion.class},
-            {"ne1", "clusterWrong", 7, Registration.RegistrationExcpetion.class},
-            {"wrong", "clusterWrong", 7, Registration.RegistrationExcpetion.class},
+            {"wrong", "cluster1", 7, Registration.RegistrationException.class},
+            {"ne1", "clusterWrong", 7, Registration.RegistrationException.class},
+            {"wrong", "clusterWrong", 7, Registration.RegistrationException.class},
         };
 
     }
@@ -79,7 +86,7 @@ public class ZookeeperRegistrationTest {
             args =
             ArgumentCaptor.forClass(Registration.Registry.class);
         registration.addObserver(observer);
-        int registeredMemberId = registration.register("cluster1", InetAddress.getLoopbackAddress(), "gq1");
+        int registeredMemberId = registration.register("cluster1", InetAddress.getLoopbackAddress(), "gq1", URI.create("https://api1.yahoo.com:4443"));
         // wait for zookeeper events
         Thread.sleep(100);
         verify(observer, times(1)).registrationUpdate(args.capture());
@@ -101,10 +108,20 @@ public class ZookeeperRegistrationTest {
 
     }
 
+    @Test
+    public void testAwait() throws Exception {
+
+    }
+
+    @Test
+    public void testGetConfig() throws Exception {
+
+    }
+
     private void testGetRegistries(Registration writer, Registration reader, int sleep) throws Exception {
-        int id1 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "gq1");
-        int id2 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "bf1");
-        int id3 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "ne1");
+        int id1 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "gq1", URI.create("https://api1.yahoo.com:4443"));
+        int id2 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "bf1", URI.create("https://api2.yahoo.com:4443"));
+        int id3 = writer.register("cluster1", InetAddress.getLoopbackAddress(), "ne1", URI.create("https://api3.yahoo.com:4443"));
         if (sleep != 0) {
             Thread.sleep(sleep);
         }
@@ -130,6 +147,4 @@ public class ZookeeperRegistrationTest {
         client.start();
         return client;
     }
-
-
 }
