@@ -46,10 +46,7 @@ public class ZookeeperRegistration implements Registration {
         this.objectMapper = objectMapper;
         registries = new HashMap<>();
         observers = new ArrayList<>();
-        ensureDiscoveryPath();
-        watchChanges();
-        loadRegistries();
-        loadTopologyRequirement();
+
     }
 
 
@@ -88,7 +85,7 @@ public class ZookeeperRegistration implements Registration {
     }
 
     @Override
-    public void await(String clusterId, int timeoutMs) {
+    public void await(int timeoutMs) {
 
     }
 
@@ -100,6 +97,16 @@ public class ZookeeperRegistration implements Registration {
     @Override
     public List<String> getHostIds() {
         return null;
+    }
+
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+
     }
 
 

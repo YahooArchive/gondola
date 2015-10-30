@@ -12,24 +12,26 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The Registration client interface, which talks to a centralized registration service.
+ * <p>The Registration client interface, which talks to a centralized registration service.</p>
  *
  * <b>Usage:</b>
  * <blockquote><pre>
- *     Registration registration = new ZookeeperRegistration(...);
- *     // Register for getting updates
+ *     CuratorFramework client = ...;
+ *     client.start();
+ *     ObjectMapper mapper = new ObjectMapper();
+ *     Registration registration = new ZookeeperRegistration(client, mapper);
+ *     // Register for getting updates, and make sure observer is registered before start() to prevent missing update event
  *     registration.addObserver(registry1 -> {
  *        ..
  *     });
+ *     registration.start();
  *     // Register for memberId
  *     InetAddress address = getGondolaAddress();
  *     int memberId = registration.register("cluster1", address, "site1", "http://api1.yahoo.com:4080");
  *     int memberId2 = registration.register("cluster2", address, "site1", "http://api1.yahoo.com:4080");
  *     int memberId3 = registration.register("cluster3", address, "site1", "http://api1.yahoo.com:4080");
- *     // Wait for joined clusters have all other nodes joined
- *     registration.await("cluster1", -1);
- *     registration.await("cluster2", -1);
- *     registration.await("cluster3", -1);
+ *     // Wait for joined cluster until all other nodes joined
+ *     registration.await(-1);
  *
  *     File gondolaConfig = registration.getConfig();
  *
@@ -69,12 +71,11 @@ public interface Registration {
     Map<Integer, Registry> getRegistries();
 
     /**
-     * Wait until other nodes join the cluster
+     * Wait until other nodes joined the cluster we just registered
      *
-     * @param clusterId
      * @param timeoutMs if timeout < 0, means infinite
      */
-    void await(String clusterId, int timeoutMs);
+    void await(int timeoutMs);
 
     /**
      * Get gondola config from Registry service
@@ -85,12 +86,21 @@ public interface Registration {
 
     /**
      * get registered hostIds
-     *
-     * @return
      */
     List<String> getHostIds();
 
+    /**
+     * start client service
+     */
+    void start();
+
+    /**
+     * stop client service
+     */
+    void stop();
+
     class RegistrationException extends RuntimeException {
+
         public RegistrationException(Exception e) {
             super(e);
         }
