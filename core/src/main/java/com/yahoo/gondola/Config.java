@@ -85,6 +85,18 @@ public class Config {
             this.hostId = hostId;
             this.memberId = memberId;
         }
+
+        public String getClusterId() {
+            return clusterId;
+        }
+
+        public String getHostId() {
+            return hostId;
+        }
+
+        public int getMemberId() {
+            return memberId;
+        }
     }
 
     /**

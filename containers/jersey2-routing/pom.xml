@@ -51,10 +51,5 @@
             <artifactId>jersey-container-jetty-servlet</artifactId>
             <version>${jersey-server.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.yahoo.gondola</groupId>
-            <artifactId>core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
     </dependencies>
 </project>
