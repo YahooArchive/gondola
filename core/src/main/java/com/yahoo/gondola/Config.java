@@ -222,6 +222,15 @@ public class Config {
         return configData.hostAttributes.get(hostId);
     }
 
+    public void setAddressForHostId(String hostId, InetSocketAddress socketAddress) {
+        // modify the address map by copy-on-write
+        HashMap<String, InetSocketAddress> newMap = new HashMap<>(configData.addrs);
+        newMap.put(hostId, socketAddress);
+        configData.addrs = newMap;
+        observable.notifyObservers();
+    }
+
+
     private void process(com.typesafe.config.Config cfg) {
 
 

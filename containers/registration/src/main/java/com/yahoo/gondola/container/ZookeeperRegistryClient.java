@@ -12,6 +12,7 @@ import com.yahoo.gondola.Config;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
+import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.EnsurePath;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
@@ -49,8 +50,8 @@ public class ZookeeperRegistryClient implements RegistryClient {
         entries = new HashMap<>();
         listeners = new ArrayList<>();
         myHostIds = new HashSet<>();
-        ensurePath();
-        watchChanges();
+        ensureZookeeperPath();
+        watchRegistryChanges();
         loadEntries();
     }
 
@@ -140,32 +141,9 @@ public class ZookeeperRegistryClient implements RegistryClient {
         }
     }
 
-    private void watchChanges() {
+    private void watchRegistryChanges() {
         PathChildrenCache pathChildrenCache = new PathChildrenCache(client, GONDOLA_HOSTS, true);
-        pathChildrenCache.getListenable().addListener((curatorFramework1, pathChildrenCacheEvent) -> {
-            ChildData data = pathChildrenCacheEvent.getData();
-            Entry entry = objectMapper.readValue(data.getData(), Entry.class);
-            switch (pathChildrenCacheEvent.getType()) {
-                case CHILD_ADDED:
-                case CHILD_UPDATED:
-                    putRegistry(entry);
-                    break;
-                case CHILD_REMOVED:
-                    deleteRegistry(entry);
-                    break;
-                case CONNECTION_RECONNECTED:
-                    loadEntries();
-                    break;
-                case CONNECTION_LOST:
-                case CONNECTION_SUSPENDED:
-                    // doing nothing
-                    break;
-                default:
-                    throw new IllegalStateException(
-                        "All event type must be implemented - " + pathChildrenCacheEvent.getType().toString());
-            }
-            listeners.stream().forEach(r -> r.accept(entry));
-        });
+        pathChildrenCache.getListenable().addListener(registryChangeHandler);
         try {
             pathChildrenCache.start();
         } catch (Exception e) {
@@ -173,6 +151,32 @@ public class ZookeeperRegistryClient implements RegistryClient {
         }
     }
 
+    PathChildrenCacheListener registryChangeHandler = (curatorFramework1, pathChildrenCacheEvent) -> {
+        ChildData data = pathChildrenCacheEvent.getData();
+        Entry entry = objectMapper.readValue(data.getData(), Entry.class);
+        switch (pathChildrenCacheEvent.getType()) {
+            case CHILD_ADDED:
+            case CHILD_UPDATED:
+                putRegistry(entry);
+                config.setAddressForHostId(entry.hostId, entry.serverAddress);
+                break;
+            case CHILD_REMOVED:
+                deleteRegistry(entry);
+                config.setAddressForHostId(entry.hostId, null);
+                break;
+            case CONNECTION_RECONNECTED:
+                loadEntries();
+                break;
+            case CONNECTION_LOST:
+            case CONNECTION_SUSPENDED:
+                // doing nothing
+                break;
+            default:
+                throw new IllegalStateException(
+                    "All event type must be implemented - " + pathChildrenCacheEvent.getType().toString());
+        }
+        listeners.stream().forEach(r -> r.accept(entry));
+    };
 
     private void putRegistry(Entry entry) {
         entries.put(entry.hostId, entry);
@@ -182,7 +186,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
         entries.remove(entry.hostId);
     }
 
-    private void ensurePath() {
+    private void ensureZookeeperPath() {
         try {
             new EnsurePath(GONDOLA_HOSTS).ensure(this.client.getZookeeperClient());
         } catch (Exception e) {

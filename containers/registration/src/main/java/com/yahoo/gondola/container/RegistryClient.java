@@ -51,7 +51,7 @@ public interface RegistryClient {
     String register(String siteId, InetSocketAddress serverAddress, URI serviceURI) throws RegistryException;
 
     /**
-     * Add listener for host list changes
+     * Add registryChangeHandler for host list changes
      */
     void addListener(Consumer<Entry> observer);
 
