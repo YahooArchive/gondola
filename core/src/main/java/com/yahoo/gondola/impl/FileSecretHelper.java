@@ -1,15 +1,14 @@
 package com.yahoo.gondola.impl;
 
-import com.yahoo.gondola.Config;
-
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.function.Function;
 
 /**
  * The file secret helper simply read from a property file, and secret from the file.
  */
-public class FileSecretHelper implements Config.SecretHelper {
+public class FileSecretHelper implements Function<String, String> {
 
     Properties properties;
 
@@ -27,7 +26,7 @@ public class FileSecretHelper implements Config.SecretHelper {
     }
 
     @Override
-    public String getSecret(String property) {
+    public String apply(String property) {
         return properties.getProperty(property);
     }
 }

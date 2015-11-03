@@ -20,6 +20,7 @@ import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * This class supplies all of the configuration information for the entire raft system.
@@ -145,6 +146,12 @@ public class Config {
     public long getLong(String property) {
         String secret = getSecret(property);
         return secret == null ? configData.cfg.getLong(property) : Long.parseLong(secret);
+    }
+
+    public List<String> getList(String path) {
+        return configData.cfg.getList(path).stream()
+            .map(configValue -> String.valueOf(configValue.unwrapped()))
+            .collect(Collectors.toList());
     }
 
     private String getSecret(String property) {

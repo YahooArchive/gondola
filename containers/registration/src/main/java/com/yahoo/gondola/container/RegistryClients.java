@@ -8,18 +8,28 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 
 public class RegistryClients {
+
+    /**
+     * prevening create instance of this factory class
+     */
+    private RegistryClients() {}
+
+    /**
+     * create zookeeper client via config
+     *
+     * @param config
+     * @return
+     */
     public static RegistryClient createZookeeperClient(Config config) {
         CuratorFramework client = CuratorFrameworkFactory.builder()
             .connectString(getZookeeperConnectionString(config))
             .retryPolicy(new RetryOneTime(1000))
             .build();
         client.start();
-        ObjectMapper objectMapper = new ObjectMapper();
-        return new ZookeeperRegistryClient(client, objectMapper, config);
+        return new ZookeeperRegistryClient(client, new ObjectMapper(), config);
     }
 
     private static String getZookeeperConnectionString(Config config) {
-        // TODO: implement
-        return "";
+        return String.join(",", config.getList("registry_zookeeper.servers"));
     }
 }
