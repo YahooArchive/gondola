@@ -42,6 +42,7 @@ public class RegistryClientsTest {
         assertEquals(list.get(0), "zk1.yahoo.com:2181");
 
     }
+
     @Test
     public void testCreateZookeeperClient() throws Exception {
         MockitoAnnotations.initMocks(this);

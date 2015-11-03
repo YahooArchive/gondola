@@ -53,10 +53,10 @@ public class ZookeeperRegistryClientTest {
     @Mock
     Consumer<RegistryClient.Entry> listener;
 
-    final String SITE_1_HOST_3_CLUSTERS = "site_1_host_3_clusters";
-    final String SITE_1_HOST_2_CLUSTERS = "site_1_host_2_clusters";
-    final String SITE_1_HOST_1_CLUSTER = "site_1_host_1_cluster";
-    final String SITE_2_HOSTS = "site_2_hosts";
+    static final String SITE_1_HOST_3_CLUSTERS = "site_1_host_3_clusters";
+    static final String SITE_1_HOST_2_CLUSTERS = "site_1_host_2_clusters";
+    static final String SITE_1_HOST_1_CLUSTER = "site_1_host_1_cluster";
+    static final String SITE_2_HOSTS = "site_2_hosts";
 
 
     @BeforeMethod
@@ -131,10 +131,10 @@ public class ZookeeperRegistryClientTest {
     @DataProvider
     public Object[][] getInputData() {
         return new Object[][]{
-                {SITE_1_HOST_3_CLUSTERS, "http://api.yahoo.com:4080", null},
-                {SITE_1_HOST_2_CLUSTERS, "http://api.yahoo.com:4080", null},
-                {SITE_1_HOST_1_CLUSTER, "http://api.yahoo.com:4080", null},
-                {"foo", "http://api.yahoo.com:4080", RegistryClient.RegistryException.class},
+            {SITE_1_HOST_3_CLUSTERS, "http://api.yahoo.com:4080", null},
+            {SITE_1_HOST_2_CLUSTERS, "http://api.yahoo.com:4080", null},
+            {SITE_1_HOST_1_CLUSTER, "http://api.yahoo.com:4080", null},
+            {"foo", "http://api.yahoo.com:4080", RegistryClient.RegistryException.class},
             };
 
     }
@@ -191,7 +191,10 @@ public class ZookeeperRegistryClientTest {
     }
 
     private void testGetEntries(RegistryClient writer, RegistryClient reader, int sleep) throws Exception {
-        String hostId = writer.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234), URI.create("https://api1.yahoo.com:4443"));
+        String
+            hostId =
+            writer.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234),
+                            URI.create("https://api1.yahoo.com:4443"));
 
         List<RegistryClient.Entry> writerEntries = writer.getEntries().entrySet().stream()
             .map(Map.Entry::getValue)

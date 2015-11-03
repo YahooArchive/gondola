@@ -30,8 +30,7 @@ import java.util.function.Consumer;
  *
  * </pre></blockquote>
  *
- * <b>Get entries</b>
- * <blockquote>
+ * <b>Get entries</b> <blockquote>
  * <pre>
  *     List&lt;Entry&gt; entries = registry.getEntries();
  * </pre>
@@ -40,35 +39,40 @@ import java.util.function.Consumer;
 public interface RegistryClient {
 
     /**
-     * Register for a hostId in specific site
+     * Register for a hostId in specific site.
      *
-     * @param siteId         The siteId of the host
-     * @param serverAddress  Gondola ip:port that used for inter gondola communication
-     * @param serviceURI     The application service URI
-     * @return registered hostId for gondola
-     * @throws RegistryException the registration exception
+     * @param siteId        The siteId of the host.
+     * @param serverAddress Gondola ip:port that used for inter gondola communication.
+     * @param serviceURI    The application service URI.
+     * @return registered hostId for gondola.
+     * @throws RegistryException the registration exception.
      */
     String register(String siteId, InetSocketAddress serverAddress, URI serviceURI) throws RegistryException;
 
     /**
-     * Add registryChangeHandler for host list changes
+     * Add registryChangeHandler for host list changes.
      */
     void addListener(Consumer<Entry> observer);
 
     /**
-     * Get registry map
+     * Get registry map.
      *
-     * @return A map of entries, key is the memberId
+     * @return A map of entries, key is the memberId.
      */
     Map<String, Entry> getEntries();
 
     /**
-     * Wait until other nodes joined the cluster we just registered
+     * Wait until other nodes joined the cluster we just registered.
      *
-     * @param timeoutMs if timeout < 0, means infinite
+     * @param timeoutMs if timeout < 0, means infinite.
+     * @return success if all required nodes join the cluster
+     * @throws RegistryException
      */
     boolean await(int timeoutMs) throws RegistryException;
 
+    /**
+     * The error while registering.
+     */
     class RegistryException extends RuntimeException {
 
         public RegistryException(Exception e) {
@@ -80,6 +84,9 @@ public interface RegistryClient {
         }
     }
 
+    /**
+     * The host entry in this registry.
+     */
     class Entry {
 
         public String hostId;

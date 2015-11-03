@@ -12,18 +12,21 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 
+/**
+ * The Factory class for creating registry client easily.
+ */
 public class RegistryClients {
 
     /**
-     * prevening create instance of this factory class
+     * prevening create instance of this factory class.
      */
-    private RegistryClients() {}
+    private RegistryClients() {
+    }
 
     /**
-     * create zookeeper client via config
-     *
-     * @param config
-     * @return
+     * create zookeeper client via config.
+     * @param config The Gondola config
+     * @return The ZookeeperRegistryClient instance
      */
     public static RegistryClient createZookeeperClient(Config config) {
         CuratorFramework client = CuratorFrameworkFactory.builder()

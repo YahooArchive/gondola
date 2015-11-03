@@ -6,7 +6,6 @@
 package com.yahoo.gondola.container;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.sun.deploy.association.RegisterFailedException;
 import com.yahoo.gondola.Config;
 
 import org.apache.curator.framework.CuratorFramework;
@@ -29,6 +28,9 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+/**
+ * The implementation of RegistryClient using zookeeper & apache Curator
+ */
 public class ZookeeperRegistryClient implements RegistryClient {
 
     public static final String GONDOLA_HOSTS = "/gondola/hosts";
@@ -203,7 +205,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 .collect(Collectors.toList());
 
             if (eligibleHostIds.size() == 0) {
-                throw new RegisterFailedException("SiteID " + siteId + " does not exist");
+                throw new RegistryException("SiteID " + siteId + " does not exist");
             }
 
             for (String key : client.getChildren().forPath(GONDOLA_HOSTS)) {
