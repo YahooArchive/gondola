@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * This class supplies all of the configuration information for the entire raft system.
@@ -26,7 +27,11 @@ import java.util.Set;
  */
 public class Config {
     final static Logger logger = LoggerFactory.getLogger(Config.class);
-    SecretHelper secretHelper;
+
+    /**
+     * This interface helps getting secret in the config and it's not allowed to store in the config.
+     */
+    Function<String, String> secretHelper;
 
     /*
      * This class encapsulates all the configuration data. It's used to avoid having a lock
@@ -143,7 +148,7 @@ public class Config {
     }
 
     private String getSecret(String property) {
-        return secretHelper == null ? null : secretHelper.getSecret(property);
+        return secretHelper == null ? null : secretHelper.apply(property);
     }
 
     /********************** listener *******************/
@@ -157,8 +162,8 @@ public class Config {
         obs.update(observable, this);
     }
 
-    public void registerSecretHelper(SecretHelper helper) {
-
+    public void registerSecretHelper(Function<String, String> helper) {
+        this.secretHelper = helper;
     }
 
     /********************* host and cluster *******************/
@@ -304,17 +309,5 @@ public class Config {
                 }
             }
         }
-    }
-
-    /**
-     * This interface helps getting secret in the config and it's not allowed to store in the config.
-     */
-    public interface SecretHelper {
-        /**
-         * Get secret based on the property ID.
-         * @param property The secret key
-         * @return secret string, null if property doesn't exists
-         */
-        String getSecret(String property);
     }
 }
