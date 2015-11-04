@@ -59,6 +59,9 @@ public class Config {
 
         // hostId -> HostAttributes
         Map<String, Map<String, String>> hostAttributes = new HashMap<>();
+
+        // hostId -> ClusterAttributes
+        Map<String, Map<String, String>> clusterAttributes = new HashMap<>();
     }
 
     // Holds the latest verison of the config data. When new data is available, the new ConfigData
@@ -191,6 +194,13 @@ public class Config {
     }
 
     /**
+     * Returns all the cluster ids.
+     */
+    public Set<String> getClusterIds() {
+        return configData.clusterToMembers.keySet();
+    }
+
+    /**
      * Returns all the members that are part of the cluster.
      * The first member returned is the primary member for that cluster.
      */
@@ -220,6 +230,11 @@ public class Config {
 
     public Map<String, String> getAttributesForHost(String hostId) {
         return configData.hostAttributes.get(hostId);
+    }
+
+
+    public Map<String, String> getAttributesForCluster(String clusterId) {
+        return configData.clusterAttributes.get(clusterId);
     }
 
     public void setAddressForHostId(String hostId, InetSocketAddress socketAddress) {
@@ -279,16 +294,8 @@ public class Config {
                 cd.members.put(cm.memberId, cm);
             }
         }
-
-        // Get host attribute map
-        for (ConfigObject h : cfg.getObjectList("gondola.hosts")) {
-            String hostId = String.valueOf(h.get("hostId").unwrapped());
-            Map<String, String> hostAttribute = new HashMap<>();
-            cd.hostAttributes.put(hostId, hostAttribute);
-            for (String key : h.keySet()) {
-                hostAttribute.put(key, String.valueOf(h.get(key).unwrapped()));
-            }
-        }
+        loadAttributes(cfg, cd.hostAttributes, "gondola.hosts", "hostId");
+        loadAttributes(cfg, cd.clusterAttributes, "gondola.clusters", "clusterId");
 
         // Get all the addresses of the hosts
         for (com.typesafe.config.Config c : cfg.getConfigList("gondola.hosts")) {
@@ -298,6 +305,18 @@ public class Config {
         // Enable the new config data
         this.configData = cd;
         watchPeriod = getInt("gondola.config_reload_period");
+    }
+
+    private void loadAttributes(com.typesafe.config.Config cfg, Map<String, Map<String, String>> attributesMap, String configSet, String keyName) {
+        // Get host attribute map
+        for (ConfigObject h : cfg.getObjectList(configSet)) {
+            String hostId = String.valueOf(h.get(keyName).unwrapped());
+            Map<String, String> hostAttribute = new HashMap<>();
+            attributesMap.put(hostId, hostAttribute);
+            for (String key : h.keySet()) {
+                hostAttribute.put(key, String.valueOf(h.get(key).unwrapped()));
+            }
+        }
     }
 
     public class Watcher extends Thread {

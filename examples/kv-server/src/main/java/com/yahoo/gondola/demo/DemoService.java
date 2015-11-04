@@ -13,8 +13,11 @@ import com.yahoo.gondola.NotLeaderException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * The core business logic of demo service.
@@ -27,12 +30,15 @@ public class DemoService {
     // Gondola cluster, used for replication
     Cluster cluster;
 
+    Replicator replicator;
+
     Logger logger = LoggerFactory.getLogger(DemoService.class);
 
     public DemoService(Gondola gondola) throws Exception {
         cluster = gondola.getClustersOnHost().get(0);
 
-        new Replicator().start();
+        replicator = new Replicator();
+        replicator.start();
     }
 
     /**
@@ -62,6 +68,14 @@ public class DemoService {
         }
     }
 
+    /**
+     * get appliedIndex.
+     * @return applied index.
+     */
+    public int getAppliedIndex() {
+       return replicator.getAppliedIndex();
+    }
+
     /***
      * Used by the replicator to update internal data structure.
      */
@@ -76,6 +90,11 @@ public class DemoService {
     public class Replicator extends Thread {
 
         int appliedIndex = 1;
+        List<Consumer<String>> listeners = new ArrayList<>();
+
+        void addListener(Consumer<String> listener) {
+            listeners.add(listener);
+        }
 
         @Override
         public void run() {
@@ -96,6 +115,14 @@ public class DemoService {
                 }
             }
         }
+
+        public int getAppliedIndex() {
+            return appliedIndex;
+        }
+    }
+
+    public void clearState() {
+        entries.clear();
     }
 
     /**

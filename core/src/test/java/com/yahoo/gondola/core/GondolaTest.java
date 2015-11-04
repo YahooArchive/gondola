@@ -1,30 +1,34 @@
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Member;
+import com.yahoo.gondola.Role;
+import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.rc.GondolaRc;
 import com.yahoo.gondola.rc.MemberRc;
+
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testng.Assert;
 import org.testng.ITestContext;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
-import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.testng.Assert;
-
+import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.assertEquals;
 
 /**
  * This is the TestNG suite of Gondola unit tests.
@@ -604,27 +608,19 @@ public class GondolaTest {
     public void roleChange() throws Exception {
         member1.insert(1, 1, "command 1");
         gondolaRc.resetMembers(); // Pick up new storage state
-        Observer observer = new Observer() {
-            @Override
-            public void update(Observable obs, Object evt) {
-                try {
-                    RoleChangeEvent crevt = (RoleChangeEvent) evt;
-                    if (crevt.newRole == Role.CANDIDATE) {
-                        assertNull(crevt.leader);
-                        assertEquals(crevt.oldRole, Role.FOLLOWER);
-                    }
-                    if (crevt.newRole == Role.LEADER) {
-                        assertEquals(crevt.leader.getMemberId(), 1);
-                        assertEquals(crevt.oldRole, Role.CANDIDATE);
-                    }
-                    assertEquals(crevt.member.getMemberId(), member1.getMemberId());
-                    Assert.assertNotNull(crevt.member.getAddress());
-                } catch (Throwable e) {
-                    exceptionInAnotherThread = e;
-                }
+        Consumer<RoleChangeEvent> listener = crevt -> {
+            if (crevt.newRole == Role.CANDIDATE) {
+                assertNull(crevt.leader);
+                assertEquals(crevt.oldRole, Role.FOLLOWER);
             }
+            if (crevt.newRole == Role.LEADER) {
+                assertEquals(crevt.leader.getMemberId(), 1);
+                assertEquals(crevt.oldRole, Role.CANDIDATE);
+            }
+            assertEquals(crevt.member.getMemberId(), member1.getMemberId());
+            Assert.assertNotNull(crevt.member.getAddress());
         };
-        member1.registerForRoleChanges(observer);
+        member1.registerForRoleChanges(listener);
 
         // Exit when a leader has been elected
         long leaderCount = 0;
@@ -632,7 +628,7 @@ public class GondolaTest {
             gondolaRc.tick(25);
             leaderCount = members.stream().filter(m -> m.cmember.isLeader()).count();
         }
-        member1.unregisterForRoleChanges(observer);
+        member1.unregisterForRoleChanges(listener);
     }
     
     /************************** backfill test cases ***********************/

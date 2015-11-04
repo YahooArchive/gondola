@@ -5,14 +5,18 @@
  */
 package com.yahoo.gondola.rc;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Role;
+import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.core.CoreMember;
 import com.yahoo.gondola.core.Message;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Observable;
-import java.util.Observer;
+import java.util.function.Consumer;
 
 /**
  * This "remote control" class is meant to represent one member in a particular cluster.
@@ -36,12 +40,6 @@ public class MemberRc {
         cmember = CoreMember.getCoreMember(cluster);
         storage = (RcStorage) gondola.getStorage();
         network = (RcNetwork) gondola.getNetwork();
-        gondola.registerForRoleChanges(new Observer() {
-            @Override
-            public void update(Observable obs, Object evt) {
-                RoleChangeEvent crevt = (RoleChangeEvent) evt;
-            }
-        });
     }
 
     public void reset() throws Exception {
@@ -129,11 +127,11 @@ public class MemberRc {
         cmember.showSummary(0, true);
     }
 
-    public void registerForRoleChanges(Observer observer) {
-        gondola.registerForRoleChanges(observer);
+    public void registerForRoleChanges(Consumer<RoleChangeEvent> listener) {
+        gondola.registerForRoleChanges(listener);
     }
 
-    public void unregisterForRoleChanges(Observer observer) {
-        gondola.unregisterForRoleChanges(observer);
+    public void unregisterForRoleChanges(Consumer<RoleChangeEvent> listener) {
+        gondola.unregisterForRoleChanges(listener);
     }
 }

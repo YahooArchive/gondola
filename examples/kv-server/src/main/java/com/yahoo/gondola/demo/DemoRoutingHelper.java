@@ -8,7 +8,7 @@ package com.yahoo.gondola.demo;
 import com.yahoo.gondola.Cluster;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.container.ClusterIdCallback;
+import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import java.util.HashSet;
 import java.util.List;
@@ -22,23 +22,39 @@ import javax.ws.rs.container.ContainerRequestContext;
 /**
  * The callback that inspect the request and return a cluster ID for RoutingFilter.
  */
-public class DemoIdCallback implements ClusterIdCallback {
+public class DemoRoutingHelper implements RoutingHelper {
 
     Gondola gondola;
     int numberOfClusters;
     List<String> clusterIdList;
+    DemoService demoService;
 
-    public DemoIdCallback(Gondola gondola) {
+    public DemoRoutingHelper(Gondola gondola, DemoService demoService) {
         this.gondola = gondola;
+        this.demoService = demoService;
         loadNumberOfClusters(gondola);
         loadClusterIdList(gondola);
-
     }
 
     @Override
-    public String getClusterId(ContainerRequestContext request) {
+    public int getBucketId(ContainerRequestContext request) {
         int hashValue = hashUri(request.getUriInfo().getPath());
-        return clusterIdList.get(hashValue % numberOfClusters);
+        return hashValue % numberOfClusters;
+    }
+
+    @Override
+    public int getAppliedIndex(String clusterId) {
+        return demoService.getAppliedIndex();
+    }
+
+    @Override
+    public String getSiteId(ContainerRequestContext request) {
+        return gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("siteId");
+    }
+
+    @Override
+    public void clearState(String clusterId) {
+        demoService.clearState();
     }
 
     private void loadNumberOfClusters(Gondola gondola) {
