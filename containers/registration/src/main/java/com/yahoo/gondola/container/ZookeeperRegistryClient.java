@@ -66,16 +66,6 @@ public class ZookeeperRegistryClient implements RegistryClient {
         }
     }
 
-    private List<Integer> getMemberIdsByHostId(String hostId) {
-        return config.getClusterIds(hostId).stream()
-            .map(clusterId -> config.getMembersInCluster(clusterId))
-            .flatMap(Collection::stream)
-            .filter(c -> c.getHostId().equals(hostId))
-            .map(Config.ConfigMember::getMemberId)
-            .distinct()
-            .collect(Collectors.toList());
-    }
-
     @Override
     public void addListener(Consumer<Entry> listener) {
         listeners.add(listener);
@@ -110,6 +100,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
                     throw new IOException(e);
                 }
             }
+            t = System.currentTimeMillis();
         }
         return isComplete;
     }
@@ -209,7 +200,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
                     if (entry.gondolaAddress.equals(serverAddress)) {
                         return entry.hostId;
                     }
-                    if (entry.siteId.equals(siteId)) {
+                    if (config.getSiteIdForHost(entry.hostId).equals(siteId)) {
                         eligibleHostIds.remove(entry.hostId);
                     }
                 }
@@ -219,9 +210,6 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 Entry entry = new Entry();
                 entry.hostId = hostId;
                 entry.gondolaAddress = serverAddress;
-                entry.siteId = siteId;
-                entry.memberIds = getMemberIdsByHostId(hostId);
-                entry.clusterIds = config.getClusterIds(hostId);
                 client.create().withMode(CreateMode.EPHEMERAL)
                     .forPath(GONDOLA_HOSTS + "/" + entry.hostId,
                              objectMapper.writeValueAsBytes(entry));

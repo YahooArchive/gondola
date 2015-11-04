@@ -230,6 +230,10 @@ public class Config {
         observable.notifyObservers();
     }
 
+    public String getSiteIdForHost(String hostId) {
+        return configData.hostAttributes.get(hostId).get("siteId");
+    }
+
 
     private void process(com.typesafe.config.Config cfg) {
 

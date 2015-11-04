@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -92,9 +91,7 @@ public class ZookeeperRegistryClientTest {
 
             assertNotNull(entry);
             assertEquals(hostId, entry.hostId);
-            assertEquals(testSiteId, entry.siteId);
-            assertEquals(config.getClusterIds(hostId), entry.clusterIds);
-            assertEquals(getMemberIdsByHostId(hostId), entry.memberIds);
+            assertEquals(testSiteId, config.getSiteIdForHost(entry.hostId));
             assertEquals(gondolaAddress, entry.gondolaAddress);
         } catch (IOException e) {
             assertTrue(e.getClass().equals(expectedException));
@@ -214,10 +211,7 @@ public class ZookeeperRegistryClientTest {
         for (RegistryClient.Entry e : writerEntries) {
             RegistryClient.Entry readerEntry = readerEntries.get(e.hostId);
             assertEquals(readerEntry.hostId, e.hostId);
-            assertEquals(readerEntry.siteId, e.siteId);
             assertEquals(readerEntry.gondolaAddress, e.gondolaAddress);
-            assertEquals(readerEntry.clusterIds, e.clusterIds);
-            assertEquals(readerEntry.memberIds, e.memberIds);
         }
     }
 
@@ -229,14 +223,5 @@ public class ZookeeperRegistryClientTest {
             .build();
         client.start();
         return client;
-    }
-
-    private List<Integer> getMemberIdsByHostId(String hostId) {
-        return config.getClusterIds(hostId).stream()
-            .map(s -> config.getMembersInCluster(s))
-            .flatMap(Collection::stream)
-            .filter(configMember -> configMember.getHostId().equals(hostId))
-            .map(Config.ConfigMember::getMemberId)
-            .collect(Collectors.toList());
     }
 }

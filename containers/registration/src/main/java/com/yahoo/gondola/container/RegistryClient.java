@@ -8,7 +8,6 @@ package com.yahoo.gondola.container;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -75,11 +74,7 @@ public interface RegistryClient {
      * The host entry in this registry.
      */
     class Entry {
-
         public String hostId;
-        public String siteId;
-        public List<Integer> memberIds;
-        public List<String> clusterIds;
         public InetSocketAddress gondolaAddress;
     }
 }
