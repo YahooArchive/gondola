@@ -218,7 +218,9 @@ public class ZookeeperRegistryClient implements RegistryClient {
                     entries.put(entry.hostId, entry);
                     myHostIds.add(entry.hostId);
                     return entry.hostId;
-                } catch (KeeperException.NodeExistsException ignored) {}
+                } catch (KeeperException.NodeExistsException ignored) {
+                    //ignored
+                }
             }
             throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
         } catch (Exception e) {
