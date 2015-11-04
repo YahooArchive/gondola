@@ -14,6 +14,7 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.EnsurePath;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
 
 import java.io.IOException;
@@ -184,11 +185,11 @@ public class ZookeeperRegistryClient implements RegistryClient {
 
     private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) throws IOException {
         try {
-            List<String> eligibleHostIds = config.getHostIds().stream()
+            Set<String> eligibleHostIds = config.getHostIds().stream()
                 .map(hostId -> config.getAttributesForHost(hostId))
                 .filter(a -> a.get("siteId").equals(siteId))
                 .map(a -> a.get("hostId"))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
             if (eligibleHostIds.size() == 0) {
                 throw new IOException("SiteID " + siteId + " does not exist");
@@ -210,12 +211,14 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 Entry entry = new Entry();
                 entry.hostId = hostId;
                 entry.gondolaAddress = serverAddress;
-                client.create().withMode(CreateMode.EPHEMERAL)
-                    .forPath(GONDOLA_HOSTS + "/" + entry.hostId,
-                             objectMapper.writeValueAsBytes(entry));
-                entries.put(entry.hostId, entry);
-                myHostIds.add(entry.hostId);
-                return entry.hostId;
+                try {
+                    client.create().withMode(CreateMode.EPHEMERAL)
+                        .forPath(GONDOLA_HOSTS + "/" + entry.hostId,
+                                 objectMapper.writeValueAsBytes(entry));
+                    entries.put(entry.hostId, entry);
+                    myHostIds.add(entry.hostId);
+                    return entry.hostId;
+                } catch (KeeperException.NodeExistsException ignored) {}
             }
             throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
         } catch (Exception e) {
