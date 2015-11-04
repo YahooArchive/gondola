@@ -16,6 +16,7 @@ import org.apache.curator.utils.EnsurePath;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.data.Stat;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.ArrayList;
@@ -34,24 +35,22 @@ import java.util.stream.Collectors;
 public class ZookeeperRegistryClient implements RegistryClient {
 
     public static final String GONDOLA_HOSTS = "/gondola/hosts";
+    private static final long RETRY_DELAY_MS = 300;
     CuratorFramework client;
 
 
     // memberId -> Registry
-    Map<String, Entry> entries;
+    Map<String, Entry> entries = new HashMap<>();
     ObjectMapper objectMapper;
-    List<Consumer<Entry>> listeners;
+    List<Consumer<Entry>> listeners = new ArrayList<>();
     Config config;
-    Set<String> myHostIds;
+    Set<String> myHostIds = new HashSet<>();
 
     protected ZookeeperRegistryClient(CuratorFramework curatorFramework, ObjectMapper objectMapper, Config config)
-        throws RegistryException {
+        throws IOException {
         this.client = curatorFramework;
         this.objectMapper = objectMapper;
         this.config = config;
-        entries = new HashMap<>();
-        listeners = new ArrayList<>();
-        myHostIds = new HashSet<>();
         ensureZookeeperPath();
         watchRegistryChanges();
         loadEntries();
@@ -59,11 +58,11 @@ public class ZookeeperRegistryClient implements RegistryClient {
 
 
     @Override
-    public String register(String siteId, InetSocketAddress serverAddress, URI serviceURI) throws RegistryException {
+    public String register(String siteId, InetSocketAddress gondolaAddress, URI serviceUri) throws IOException {
         try {
-            return registerHostIdOnZookeeper(siteId, serverAddress);
+            return registerHostIdOnZookeeper(siteId, gondolaAddress);
         } catch (Exception e) {
-            throw new RegistryException(e);
+            throw new IOException(e);
         }
     }
 
@@ -88,35 +87,31 @@ public class ZookeeperRegistryClient implements RegistryClient {
     }
 
     @Override
-    public boolean await(int timeoutMs) throws RegistryException {
-        boolean isSleepOnce = false;
-        while (true) {
-            boolean isComplete = true;
+    public boolean waitForClusterComplete(int timeoutMs) throws IOException {
+        boolean isSleepOnce = false, isComplete = false;
+        long now = System.currentTimeMillis();
+        long t = now;
+        while (now - t < timeoutMs && !isComplete) {
+            isComplete = true;
             for (String hostId : getRelatedHostIds()) {
                 try {
                     Stat stat = client.checkExists().forPath(GONDOLA_HOSTS + "/" + hostId);
                     if (stat == null) {
-                        try {
-                            if (!isSleepOnce) {
-                                isSleepOnce = true;
-                                Thread.sleep(timeoutMs);
-                                isComplete = false;
-                                break;
-                            } else {
-                                return false;
-                            }
-                        } catch (InterruptedException ignore) {
+                        if (!isSleepOnce) {
+                            isSleepOnce = true;
+                            isComplete = false;
+                            Thread.sleep(RETRY_DELAY_MS);
+                            break;
+                        } else {
                             return false;
                         }
                     }
                 } catch (Exception e) {
-                    throw new RegistryException(e);
+                    throw new IOException(e);
                 }
             }
-            if (isComplete) {
-                return true;
-            }
         }
+        return isComplete;
     }
 
     private List<String> getRelatedHostIds() {
@@ -131,7 +126,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
             .collect(Collectors.toList());
     }
 
-    private void loadEntries() throws RegistryException {
+    private void loadEntries() throws IOException {
         try {
             for (String nodeName : client.getChildren().forPath(GONDOLA_HOSTS)) {
                 Entry entry = objectMapper
@@ -139,17 +134,17 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 entries.put(entry.hostId, entry);
             }
         } catch (Exception e) {
-            throw new RegistryException(e);
+            throw new IOException(e);
         }
     }
 
-    private void watchRegistryChanges() {
+    private void watchRegistryChanges() throws IOException {
         PathChildrenCache pathChildrenCache = new PathChildrenCache(client, GONDOLA_HOSTS, true);
         pathChildrenCache.getListenable().addListener(registryChangeHandler);
         try {
             pathChildrenCache.start();
         } catch (Exception e) {
-            throw new RegistryException(e);
+            throw new IOException(e);
         }
     }
 
@@ -160,7 +155,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
             case CHILD_ADDED:
             case CHILD_UPDATED:
                 putRegistry(entry);
-                config.setAddressForHostId(entry.hostId, entry.serverAddress);
+                config.setAddressForHostId(entry.hostId, entry.gondolaAddress);
                 break;
             case CHILD_REMOVED:
                 deleteRegistry(entry);
@@ -188,15 +183,15 @@ public class ZookeeperRegistryClient implements RegistryClient {
         entries.remove(entry.hostId);
     }
 
-    private void ensureZookeeperPath() {
+    private void ensureZookeeperPath() throws IOException {
         try {
-            new EnsurePath(GONDOLA_HOSTS).ensure(this.client.getZookeeperClient());
+            new EnsurePath(GONDOLA_HOSTS).ensure(client.getZookeeperClient());
         } catch (Exception e) {
-            throw new RegistryException(e);
+            throw new IOException(e);
         }
     }
 
-    private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) {
+    private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) throws IOException {
         try {
             List<String> eligibleHostIds = config.getHostIds().stream()
                 .map(hostId -> config.getAttributesForHost(hostId))
@@ -205,13 +200,13 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 .collect(Collectors.toList());
 
             if (eligibleHostIds.size() == 0) {
-                throw new RegistryException("SiteID " + siteId + " does not exist");
+                throw new IOException("SiteID " + siteId + " does not exist");
             }
 
             for (String key : client.getChildren().forPath(GONDOLA_HOSTS)) {
                 Entry entry = objectMapper.readValue(client.getData().forPath(GONDOLA_HOSTS + "/" + key), Entry.class);
                 if (entry != null) {
-                    if (entry.serverAddress.equals(serverAddress)) {
+                    if (entry.gondolaAddress.equals(serverAddress)) {
                         return entry.hostId;
                     }
                     if (entry.siteId.equals(siteId)) {
@@ -223,7 +218,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
             for (String hostId : eligibleHostIds) {
                 Entry entry = new Entry();
                 entry.hostId = hostId;
-                entry.serverAddress = serverAddress;
+                entry.gondolaAddress = serverAddress;
                 entry.siteId = siteId;
                 entry.memberIds = getMemberIdsByHostId(hostId);
                 entry.clusterIds = config.getClusterIds(hostId);
@@ -234,9 +229,9 @@ public class ZookeeperRegistryClient implements RegistryClient {
                 myHostIds.add(entry.hostId);
                 return entry.hostId;
             }
-            throw new RegistryException("Unable to register hostId, all hosts are full on site " + siteId);
+            throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
         } catch (Exception e) {
-            throw new RegistryException(e);
+            throw new IOException(e);
         }
     }
 }

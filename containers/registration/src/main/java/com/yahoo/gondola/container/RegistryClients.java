@@ -12,6 +12,8 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.RetryOneTime;
 
+import java.io.IOException;
+
 /**
  * The Factory class for creating registry client easily.
  */
@@ -28,7 +30,7 @@ public class RegistryClients {
      * @param config The Gondola config
      * @return The ZookeeperRegistryClient instance
      */
-    public static RegistryClient createZookeeperClient(Config config) {
+    public static RegistryClient createZookeeperClient(Config config) throws IOException {
         CuratorFramework client = CuratorFrameworkFactory.builder()
             .connectString(getZookeeperConnectionString(config))
             .retryPolicy(new RetryOneTime(1000))

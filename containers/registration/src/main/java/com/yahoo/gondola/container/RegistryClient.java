@@ -5,6 +5,7 @@
  */
 package com.yahoo.gondola.container;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.List;
@@ -23,7 +24,7 @@ import java.util.function.Consumer;
  *     URL serviceUri = getServiceUri();
  *     String siteId = getSiteId();
  *     <b>String hostId = registry.register(address, siteId, serviceUri)</b>;
- *     <b>registry.await(-1);</b>
+ *     <b>registry.waitForClusterComplete(-1);</b>
  *
  *     Gondola gondola = new Gondola(config, hostId);
  *     gondola.start();
@@ -42,12 +43,12 @@ public interface RegistryClient {
      * Register for a hostId in specific site.
      *
      * @param siteId        The siteId of the host.
-     * @param serverAddress Gondola ip:port that used for inter gondola communication.
-     * @param serviceURI    The application service URI.
+     * @param gondolaAddress Gondola ip:port that used for inter gondola communication.
+     * @param serviceUri    This URI represents the URL prefix to use when forwarding requests to this node.
      * @return registered hostId for gondola.
-     * @throws RegistryException the registration exception.
+     * @throws IOException
      */
-    String register(String siteId, InetSocketAddress serverAddress, URI serviceURI) throws RegistryException;
+    String register(String siteId, InetSocketAddress gondolaAddress, URI serviceUri) throws IOException;
 
     /**
      * Add registryChangeHandler for host list changes.
@@ -57,7 +58,7 @@ public interface RegistryClient {
     /**
      * Get registry map.
      *
-     * @return A map of entries, key is the memberId.
+     * @return A map of entries, key is the hostId.
      */
     Map<String, Entry> getEntries();
 
@@ -66,23 +67,9 @@ public interface RegistryClient {
      *
      * @param timeoutMs if timeout < 0, means infinite.
      * @return success if all required nodes join the cluster
-     * @throws RegistryException
+     * @throws IOException
      */
-    boolean await(int timeoutMs) throws RegistryException;
-
-    /**
-     * The error while registering.
-     */
-    class RegistryException extends RuntimeException {
-
-        public RegistryException(Exception e) {
-            super(e);
-        }
-
-        public RegistryException(String s) {
-            super(s);
-        }
-    }
+    boolean waitForClusterComplete(int timeoutMs) throws IOException;
 
     /**
      * The host entry in this registry.
@@ -93,6 +80,6 @@ public interface RegistryClient {
         public String siteId;
         public List<Integer> memberIds;
         public List<String> clusterIds;
-        public InetSocketAddress serverAddress;
+        public InetSocketAddress gondolaAddress;
     }
 }

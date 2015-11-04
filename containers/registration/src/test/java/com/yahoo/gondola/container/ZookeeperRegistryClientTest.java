@@ -21,6 +21,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URL;
@@ -94,35 +95,35 @@ public class ZookeeperRegistryClientTest {
             assertEquals(testSiteId, entry.siteId);
             assertEquals(config.getClusterIds(hostId), entry.clusterIds);
             assertEquals(getMemberIdsByHostId(hostId), entry.memberIds);
-            assertEquals(gondolaAddress, entry.serverAddress);
-        } catch (RegistryClient.RegistryException e) {
+            assertEquals(gondolaAddress, entry.gondolaAddress);
+        } catch (IOException e) {
             assertTrue(e.getClass().equals(expectedException));
         }
     }
 
     @Test
-    public void testRegister_Insufficient() {
+    public void testRegister_Insufficient() throws IOException {
         registryClient.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234), URI.create("http://foo.com/"));
         try {
             registryClient.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1235), URI.create("http://foo.com/"));
-        } catch (RegistryClient.RegistryException e) {
+        } catch (IOException e) {
             assertTrue(e.getMessage().matches(".*Unable to register hostId, all hosts are full on site.*"));
         }
     }
 
     @Test
-    public void testRegister_2_hosts_in_1_site() {
+    public void testRegister_2_hosts_in_1_site() throws IOException {
         registryClient.register(SITE_2_HOSTS, new InetSocketAddress(1234), URI.create("http://foo.com/"));
         registryClient.register(SITE_2_HOSTS, new InetSocketAddress(1235), URI.create("http://foo.com/"));
         try {
             registryClient.register(SITE_2_HOSTS, new InetSocketAddress(1236), URI.create("http://foo.com/"));
-        } catch (RegistryClient.RegistryException e) {
+        } catch (IOException e) {
             assertTrue(e.getMessage().matches(".*Unable to register hostId, all hosts are full on site.*"));
         }
     }
 
     @Test
-    public void testRegister_twice() {
+    public void testRegister_twice() throws IOException {
         registryClient.register(SITE_1_HOST_1_CLUSTER, new InetSocketAddress(1234), URI.create("http://foo.com/"));
         registryClient.register(SITE_1_HOST_1_CLUSTER, new InetSocketAddress(1234), URI.create("http://foo.com/"));
 
@@ -134,7 +135,7 @@ public class ZookeeperRegistryClientTest {
             {SITE_1_HOST_3_CLUSTERS, "http://api.yahoo.com:4080", null},
             {SITE_1_HOST_2_CLUSTERS, "http://api.yahoo.com:4080", null},
             {SITE_1_HOST_1_CLUSTER, "http://api.yahoo.com:4080", null},
-            {"foo", "http://api.yahoo.com:4080", RegistryClient.RegistryException.class},
+            {"foo", "http://api.yahoo.com:4080", IOException.class},
             };
 
     }
@@ -167,20 +168,20 @@ public class ZookeeperRegistryClientTest {
     }
 
     @Test
-    public void testAwait() throws Exception {
+    public void testWaitForClusterComplete() throws Exception {
         // 0. A three nodes cluster, two server joins
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         Future<Boolean> result;
         registryClient.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234), URI.create("http://foo.com"));
         registryClient.register(SITE_1_HOST_2_CLUSTERS, new InetSocketAddress(1235), URI.create("http://foo.com"));
 
-        // 1. The await call should block for 1 second
-        Callable<Boolean> awaitCall = () -> registryClient.await(1000);
+        // 1. The waitForClusterComplete call should block for 1 second
+        Callable<Boolean> awaitCall = () -> registryClient.waitForClusterComplete(1000);
 
         result = executorService.submit(awaitCall);
         assertEquals(result.get(), Boolean.FALSE);
 
-        // 2. The request should be rnblock after the next node joins
+        // 2. The request should be block after the next node joins
         result = executorService.submit(awaitCall);
         registryClient.register(SITE_1_HOST_1_CLUSTER, new InetSocketAddress(1236), URI.create("http://foo.com"));
         assertEquals(result.get(), Boolean.TRUE);
@@ -214,7 +215,7 @@ public class ZookeeperRegistryClientTest {
             RegistryClient.Entry readerEntry = readerEntries.get(e.hostId);
             assertEquals(readerEntry.hostId, e.hostId);
             assertEquals(readerEntry.siteId, e.siteId);
-            assertEquals(readerEntry.serverAddress, e.serverAddress);
+            assertEquals(readerEntry.gondolaAddress, e.gondolaAddress);
             assertEquals(readerEntry.clusterIds, e.clusterIds);
             assertEquals(readerEntry.memberIds, e.memberIds);
         }
