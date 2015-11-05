@@ -111,7 +111,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
         return isComplete;
     }
 
-    private List<String> getRelatedHostIds() {
+    private Set<String> getRelatedHostIds() {
         return myHostIds.stream()
             .map(hostId -> config.getClusterIds(hostId))
             .flatMap(Collection::stream)
@@ -119,8 +119,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
             .map(clusterId -> config.getMembersInCluster(clusterId))
             .flatMap(Collection::stream)
             .map(Config.ConfigMember::getHostId)
-            .distinct()
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
     }
 
     private void loadEntries() throws IOException {
@@ -190,13 +189,9 @@ public class ZookeeperRegistryClient implements RegistryClient {
 
     private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) throws IOException {
         try {
-            Set<String> eligibleHostIds = config.getHostIds().stream()
-                .map(hostId -> config.getAttributesForHost(hostId))
-                .filter(a -> a.get("siteId").equals(siteId))
-                .map(a -> a.get("hostId"))
-                .collect(Collectors.toSet());
+            Set<String> eligibleHostIds = getAllHostsAtSite(siteId);
 
-            if (eligibleHostIds.size() == 0) {
+            if (eligibleHostIds.isEmpty()) {
                 throw new IOException("SiteID " + siteId + " does not exist");
             }
 
@@ -227,9 +222,15 @@ public class ZookeeperRegistryClient implements RegistryClient {
                     logger.info("Failed to register for host ID {}", hostId);
                 }
             }
-            throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
         } catch (Exception e) {
             throw new IOException(e);
         }
+        throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
+    }
+
+    private Set<String> getAllHostsAtSite(String siteId) {
+        return config.getHostIds().stream()
+            .filter(hostId -> siteId.equals(config.getAttributesForHost(hostId).get("siteId")))
+            .collect(Collectors.toSet());
     }
 }
