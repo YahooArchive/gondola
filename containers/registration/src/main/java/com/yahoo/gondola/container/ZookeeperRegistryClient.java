@@ -15,7 +15,10 @@ import org.apache.curator.framework.recipes.cache.PathChildrenCacheListener;
 import org.apache.curator.utils.EnsurePath;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
+import org.apache.zookeeper.client.ZooKeeperSaslClient;
 import org.apache.zookeeper.data.Stat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -46,6 +49,8 @@ public class ZookeeperRegistryClient implements RegistryClient {
     List<Consumer<Entry>> listeners = new ArrayList<>();
     Config config;
     Set<String> myHostIds = new HashSet<>();
+
+    Logger logger = LoggerFactory.getLogger(ZooKeeperSaslClient.class);
 
     protected ZookeeperRegistryClient(CuratorFramework curatorFramework, ObjectMapper objectMapper, Config config)
         throws IOException {
@@ -219,7 +224,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
                     myHostIds.add(entry.hostId);
                     return entry.hostId;
                 } catch (KeeperException.NodeExistsException ignored) {
-                    //ignored
+                    logger.info("Failed to register for host ID {}", hostId);
                 }
             }
             throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);

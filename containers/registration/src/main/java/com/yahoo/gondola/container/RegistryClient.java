@@ -62,7 +62,7 @@ public interface RegistryClient {
     Map<String, Entry> getEntries();
 
     /**
-     * Wait until other nodes joined the cluster we just registered.
+     * Causes the current thread to wait until other nodes joined the cluster, or the specified waiting time elapses.
      *
      * @param timeoutMs if timeout < 0, means infinite.
      * @return success if all required nodes join the cluster

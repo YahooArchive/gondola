@@ -224,7 +224,7 @@ public class Config {
 
     public void setAddressForHostId(String hostId, InetSocketAddress socketAddress) {
         // modify the address map by copy-on-write
-        HashMap<String, InetSocketAddress> newMap = new HashMap<>(configData.addrs);
+        Map<String, InetSocketAddress> newMap = new HashMap<>(configData.addrs);
         newMap.put(hostId, socketAddress);
         configData.addrs = newMap;
         observable.notifyObservers();
