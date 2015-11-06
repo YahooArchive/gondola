@@ -12,6 +12,7 @@
     <description>Gondola container provider umbrella project module</description>
     <modules>
         <module>jersey2-routing</module>
+        <module>registration</module>
     </modules>
     <packaging>pom</packaging>
     <url>https://github.com/yahoo/gondola</url>
@@ -35,6 +36,14 @@
         <url>https://github.com/yahoo/gondola.git</url>
         <tag>HEAD</tag>
     </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.yahoo.gondola</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
 
 
 </project>

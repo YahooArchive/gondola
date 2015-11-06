@@ -19,6 +19,8 @@ import java.util.Map;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * This class supplies all of the configuration information for the entire raft system.
@@ -26,7 +28,11 @@ import java.util.Set;
  */
 public class Config {
     final static Logger logger = LoggerFactory.getLogger(Config.class);
-    SecretHelper secretHelper;
+
+    /**
+     * This interface helps getting secret in the config and it's not allowed to store in the config.
+     */
+    Function<String, String> secretHelper;
 
     /*
      * This class encapsulates all the configuration data. It's used to avoid having a lock
@@ -85,6 +91,18 @@ public class Config {
             this.hostId = hostId;
             this.memberId = memberId;
         }
+
+        public String getClusterId() {
+            return clusterId;
+        }
+
+        public String getHostId() {
+            return hostId;
+        }
+
+        public int getMemberId() {
+            return memberId;
+        }
     }
 
     /**
@@ -130,8 +148,14 @@ public class Config {
         return secret == null ? configData.cfg.getLong(property) : Long.parseLong(secret);
     }
 
+    public List<String> getList(String path) {
+        return configData.cfg.getList(path).stream()
+            .map(configValue -> String.valueOf(configValue.unwrapped()))
+            .collect(Collectors.toList());
+    }
+
     private String getSecret(String property) {
-        return secretHelper == null ? null : secretHelper.getSecret(property);
+        return secretHelper == null ? null : secretHelper.apply(property);
     }
 
     /********************** listener *******************/
@@ -145,8 +169,8 @@ public class Config {
         obs.update(observable, this);
     }
 
-    public void registerSecretHelper(SecretHelper helper) {
-
+    public void registerSecretHelper(Function<String, String> helper) {
+        this.secretHelper = helper;
     }
 
     /********************* host and cluster *******************/
@@ -197,6 +221,19 @@ public class Config {
     public Map<String, String> getAttributesForHost(String hostId) {
         return configData.hostAttributes.get(hostId);
     }
+
+    public void setAddressForHostId(String hostId, InetSocketAddress socketAddress) {
+        // modify the address map by copy-on-write
+        Map<String, InetSocketAddress> newMap = new HashMap<>(configData.addrs);
+        newMap.put(hostId, socketAddress);
+        configData.addrs = newMap;
+        observable.notifyObservers();
+    }
+
+    public String getSiteIdForHost(String hostId) {
+        return configData.hostAttributes.get(hostId).get("siteId");
+    }
+
 
     private void process(com.typesafe.config.Config cfg) {
 
@@ -292,17 +329,5 @@ public class Config {
                 }
             }
         }
-    }
-
-    /**
-     * This interface helps getting secret in the config and it's not allowed to store in the config.
-     */
-    public interface SecretHelper {
-        /**
-         * Get secret based on the property ID.
-         * @param property The secret key
-         * @return secret string, null if property doesn't exists
-         */
-        String getSecret(String property);
     }
 }

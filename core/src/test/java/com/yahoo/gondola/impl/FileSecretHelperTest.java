@@ -24,11 +24,11 @@ public class FileSecretHelperTest {
 
     @Test
     public void testGetSecret_exists() throws Exception {
-        assertEquals(helper.getSecret("secret"), "topSecret");
+        assertEquals(helper.apply("secret"), "topSecret");
     }
 
     @Test
     public void testGetSecret_not_exists() throws Exception {
-        assertEquals(helper.getSecret("foo"), null);
+        assertEquals(helper.apply("foo"), null);
     }
 }
