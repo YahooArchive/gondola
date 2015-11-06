@@ -57,9 +57,13 @@ public class ZookeeperRegistryClient implements RegistryClient {
         this.client = curatorFramework;
         this.objectMapper = objectMapper;
         this.config = config;
-        ensureZookeeperPath();
-        watchRegistryChanges();
-        loadEntries();
+        try {
+            ensureZookeeperPath();
+            watchRegistryChanges();
+            loadEntries();
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
     }
 
 
@@ -90,25 +94,37 @@ public class ZookeeperRegistryClient implements RegistryClient {
         while (now - t < timeoutMs && !isComplete) {
             isComplete = true;
             for (String hostId : getRelatedHostIds()) {
-                try {
-                    Stat stat = client.checkExists().forPath(GONDOLA_HOSTS + "/" + hostId);
-                    if (stat == null) {
-                        if (!isSleepOnce) {
-                            isSleepOnce = true;
-                            isComplete = false;
-                            Thread.sleep(RETRY_DELAY_MS);
-                            break;
-                        } else {
-                            return false;
-                        }
+                Stat stat = checkFileExists(GONDOLA_HOSTS + "/" + hostId);
+                if (stat == null) {
+                    if (!isSleepOnce) {
+                        isSleepOnce = true;
+                        isComplete = false;
+                        sleep(RETRY_DELAY_MS);
+                        break;
+                    } else {
+                        return false;
                     }
-                } catch (Exception e) {
-                    throw new IOException(e);
                 }
             }
             t = System.currentTimeMillis();
         }
         return isComplete;
+    }
+
+    private void sleep(long timeMs) {
+        try {
+            Thread.sleep(timeMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    private Stat checkFileExists(String file) throws IOException {
+        try {
+            return client.checkExists().forPath(file);
+        } catch (Exception e) {
+            throw new IOException(e);
+        }
     }
 
     private Set<String> getRelatedHostIds() {
@@ -122,26 +138,18 @@ public class ZookeeperRegistryClient implements RegistryClient {
             .collect(Collectors.toSet());
     }
 
-    private void loadEntries() throws IOException {
-        try {
-            for (String nodeName : client.getChildren().forPath(GONDOLA_HOSTS)) {
-                Entry entry = objectMapper
-                    .readValue(client.getData().forPath(GONDOLA_HOSTS + "/" + nodeName), Entry.class);
-                entries.put(entry.hostId, entry);
-            }
-        } catch (Exception e) {
-            throw new IOException(e);
+    private void loadEntries() throws Exception {
+        for (String nodeName : client.getChildren().forPath(GONDOLA_HOSTS)) {
+            Entry entry = objectMapper
+                .readValue(client.getData().forPath(GONDOLA_HOSTS + "/" + nodeName), Entry.class);
+            entries.put(entry.hostId, entry);
         }
     }
 
-    private void watchRegistryChanges() throws IOException {
+    private void watchRegistryChanges() throws Exception {
         PathChildrenCache pathChildrenCache = new PathChildrenCache(client, GONDOLA_HOSTS, true);
         pathChildrenCache.getListenable().addListener(registryChangeHandler);
-        try {
-            pathChildrenCache.start();
-        } catch (Exception e) {
-            throw new IOException(e);
-        }
+        pathChildrenCache.start();
     }
 
     PathChildrenCacheListener registryChangeHandler = (curatorFramework1, pathChildrenCacheEvent) -> {
@@ -179,58 +187,50 @@ public class ZookeeperRegistryClient implements RegistryClient {
         entries.remove(entry.hostId);
     }
 
-    private void ensureZookeeperPath() throws IOException {
-        try {
-            new EnsurePath(GONDOLA_HOSTS).ensure(client.getZookeeperClient());
-        } catch (Exception e) {
-            throw new IOException(e);
-        }
+    private void ensureZookeeperPath() throws Exception {
+        new EnsurePath(GONDOLA_HOSTS).ensure(client.getZookeeperClient());
     }
 
-    private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) throws IOException {
-        try {
-            Set<String> eligibleHostIds = getAllHostsAtSite(siteId);
+    private String registerHostIdOnZookeeper(String siteId, InetSocketAddress serverAddress) throws Exception {
+        Set<String> eligibleHostIds = getAllHostsAtSite(siteId);
 
-            if (eligibleHostIds.isEmpty()) {
-                throw new IOException("SiteID " + siteId + " does not exist");
+        for (String key : client.getChildren().forPath(GONDOLA_HOSTS)) {
+            Entry entry = objectMapper.readValue(client.getData().forPath(GONDOLA_HOSTS + "/" + key), Entry.class);
+            if (entry == null) {
+                continue;
             }
+            if (entry.gondolaAddress.equals(serverAddress)) {
+                return entry.hostId;
+            }
+            if (config.getSiteIdForHost(entry.hostId).equals(siteId)) {
+                eligibleHostIds.remove(entry.hostId);
+            }
+        }
 
-            for (String key : client.getChildren().forPath(GONDOLA_HOSTS)) {
-                Entry entry = objectMapper.readValue(client.getData().forPath(GONDOLA_HOSTS + "/" + key), Entry.class);
-                if (entry != null) {
-                    if (entry.gondolaAddress.equals(serverAddress)) {
-                        return entry.hostId;
-                    }
-                    if (config.getSiteIdForHost(entry.hostId).equals(siteId)) {
-                        eligibleHostIds.remove(entry.hostId);
-                    }
-                }
+        for (String hostId : eligibleHostIds) {
+            Entry entry = new Entry();
+            entry.hostId = hostId;
+            entry.gondolaAddress = serverAddress;
+            try {
+                client.create().withMode(CreateMode.EPHEMERAL)
+                    .forPath(GONDOLA_HOSTS + "/" + entry.hostId, objectMapper.writeValueAsBytes(entry));
+                entries.put(entry.hostId, entry);
+                myHostIds.add(entry.hostId);
+                return entry.hostId;
+            } catch (KeeperException.NodeExistsException ignored) {
+                logger.info("Failed to register for host ID {}", hostId);
             }
-
-            for (String hostId : eligibleHostIds) {
-                Entry entry = new Entry();
-                entry.hostId = hostId;
-                entry.gondolaAddress = serverAddress;
-                try {
-                    client.create().withMode(CreateMode.EPHEMERAL)
-                        .forPath(GONDOLA_HOSTS + "/" + entry.hostId,
-                                 objectMapper.writeValueAsBytes(entry));
-                    entries.put(entry.hostId, entry);
-                    myHostIds.add(entry.hostId);
-                    return entry.hostId;
-                } catch (KeeperException.NodeExistsException ignored) {
-                    logger.info("Failed to register for host ID {}", hostId);
-                }
-            }
-        } catch (Exception e) {
-            throw new IOException(e);
         }
         throw new IOException("Unable to register hostId, all hosts are full on site " + siteId);
     }
 
-    private Set<String> getAllHostsAtSite(String siteId) {
-        return config.getHostIds().stream()
+    private Set<String> getAllHostsAtSite(String siteId) throws IOException {
+        Set<String> allHosts = config.getHostIds().stream()
             .filter(hostId -> siteId.equals(config.getAttributesForHost(hostId).get("siteId")))
             .collect(Collectors.toSet());
+        if (allHosts.isEmpty()) {
+            throw new IOException("SiteID " + siteId + " does not exist");
+        }
+        return allHosts;
     }
 }
