@@ -102,12 +102,12 @@ mvn test -Dtest=GondolaTest#missingEntry
 
 ## Tsunami Test
 
-This stress test is designed to find bugs in the raft implementation. Here's how it works:
+This stress test is designed to find bugs in the Raft implementation. Here's how it works:
 
 1. The test creates N writer threads for each node in the Raft cluster.
-2. A test thread has an id and a private counter and attempts to write its thread id and counter value to its assigned node. When a write succeeds, the counter is incremented. The threads assigned to the current leader will be able to write; threads assigned to followers will fail to write.
+2. A writer thread has an id and a private counter and attempts to write its thread id and counter value to its assigned node. When a write succeeds, the counter is incremented. Writes by threads assigned to the current leader are expected to succeed whereas writes by threads threads assigned to non-leaders are expected to get exceptions.
 3. A single reader thread reads Raft entries, one-at-a-time, from each node in round-robin fashion and ensures that the entries are identical.
-4. The reader thread also maintains a hash of all thread ids and ensures that the written counter values are monotonically increasing for each of the write threads.
+4. The reader also records the counter values for every writer and checks that the latest counter values are monotonically increasing.
 5. A restarter thread randomly and continuously restarts nodes to simulate random server failures.
 6. The Tsunami storage implementation induces random failures on all storage operations.
 7. The Tsunami network implementation generates random read, write, and connection failures on all networking operations. The wrapper will also delay and duplicate sent messages.

@@ -921,6 +921,7 @@ public class CoreMember implements Observer, Stoppable {
      * ***************************** incoming messages *********************************
      */
 
+    // If not max_value, indicates that the last append entry message does not match the entry in the current log.
     int failedNextIndex = Integer.MAX_VALUE;
 
     class MyMessageHandler extends MessageHandler {
@@ -965,7 +966,9 @@ public class CoreMember implements Observer, Stoppable {
                 // If prevLogIndex is 0, always accept the request
                 if (prevLogIndex > 0 && !sentRid.equals(prevLogTerm, prevLogIndex)) {
                     // This is an newer entry.
-                    // Check if the previous rid in the message is in storage
+                    // Check if the previous rid in the message is in storage.
+                    // As an optimization, if the index is > the failedNextIndex, there's no point checking.
+                    //boolean hasEntry = prevLogIndex < failedNextIndex && storage.hasLogEntry(memberId, prevLogTerm, prevLogIndex);
                     boolean hasEntry = storage.hasLogEntry(memberId, prevLogTerm, prevLogIndex);
                     if (storageTracing) {
                         logger.info("[{}-{}] hasEntry(term={} index={}) -> {}",
@@ -980,7 +983,6 @@ public class CoreMember implements Observer, Stoppable {
                         failedNextIndex = Math.min(failedNextIndex, Math.min(prevLogIndex, savedRid.index + 1));
                         message.appendEntryReply(memberId, currentTerm, failedNextIndex, false, false);
                         peer.send(message);
-
                         return false;
                     }
                 }

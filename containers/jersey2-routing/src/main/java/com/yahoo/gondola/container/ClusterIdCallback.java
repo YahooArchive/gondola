@@ -26,10 +26,10 @@ import javax.ws.rs.container.ContainerRequestContext;
  */
 public interface ClusterIdCallback {
     /**
-     * The callback method to get gondola cluster ID based on request
+     * Returns the Gondola cluster ID based on request.
      *
      * @param request
-     * @return Gondola Cluster ID
+     * @return non-null Gondola cluster ID
      */
     String getClusterId(ContainerRequestContext request);
 }

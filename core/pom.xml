@@ -23,7 +23,7 @@
         <target_jdk_version>1.8</target_jdk_version>
         <maven-failsafe-plugin.skipTests>true</maven-failsafe-plugin.skipTests>
         <maven-failsafe-plugin.version>2.16</maven-failsafe-plugin.version>
-        <maven.test.skip>true</maven.test.skip>
+        <maven.test.skip>false</maven.test.skip>
     </properties>
 
     <url>https://github.com/yahoo/gondola</url>

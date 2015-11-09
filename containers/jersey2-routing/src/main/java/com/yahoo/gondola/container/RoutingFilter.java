@@ -46,9 +46,8 @@ public class RoutingFilter implements ContainerRequestFilter {
     public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
     public static final String APP_PORT = "appPort";
     public static final String APP_SCHEME = "appScheme";
-    /**
-     * Routing table Key: memberId, value: HTTP URL
-     */
+
+    // Callback that returns a cluster id based on a request
     ClusterIdCallback clusterIdCallback;
 
     Gondola gondola;
@@ -177,7 +176,7 @@ public class RoutingFilter implements ContainerRequestFilter {
     }
 
     /**
-     * Move newAppUrl to the first entry of the routing table.
+     * Moves newAppUrl to the first entry of the routing table.
      */
     private void setClusterLeader(String clusterId, String newAppUrl) {
         List<String> appUrls = lookupRoutingTable(clusterId);
@@ -192,9 +191,9 @@ public class RoutingFilter implements ContainerRequestFilter {
     }
 
     /**
-     * Lookup leader App URL in routing table
+     * Finds the leader's URL in the routing table.
      *
-     * @param clusterId The Gondola clusterId
+     * @param clusterId The non-null Gondola cluster id
      * @return leader App URL. e.g. http://app1.yahoo.com:4080/
      */
     private List<String> lookupRoutingTable(String clusterId) {
@@ -207,7 +206,7 @@ public class RoutingFilter implements ContainerRequestFilter {
 
 
     /**
-     * proxy request to destination host
+     * Proxies the request to the destination host.
      *
      * @param appUrl  The target App URL
      * @param request The original request

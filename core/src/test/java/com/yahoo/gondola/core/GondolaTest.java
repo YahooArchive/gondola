@@ -9,14 +9,12 @@ import org.slf4j.LoggerFactory;
 import org.testng.ITestContext;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
+import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -52,6 +50,10 @@ public class GondolaTest {
     int runningTick;
     int runningCommand;
 
+    // test name -> time in milliseconds
+    Map<String, Long> testTimings = new TreeMap<>();
+    long startTime;
+
     String currentTest;
 
     // When non-null, the main thread will throw this exception
@@ -79,7 +81,7 @@ public class GondolaTest {
         final String mname = m.getName();
         currentTest = this.getClass().getName() + "." + mname;
         logger.info(String.format("************************ %s *******************", currentTest));
-        startTimer = System.currentTimeMillis();
+        startTime = startTimer = System.currentTimeMillis();
         gondolaRc.start();
     }
 
@@ -88,6 +90,7 @@ public class GondolaTest {
      */
     @AfterMethod(alwaysRun = true)
     public void doAfterMethod(ITestContext tc, ITestResult tr, Method m) throws Exception {
+        testTimings.put(currentTest, System.currentTimeMillis() - startTime);
         runningCommand = 0;
         runningTick = 0;
 
@@ -105,6 +108,16 @@ public class GondolaTest {
         gondolaRc.stop();
     }
 
+    @AfterTest(alwaysRun = true)
+    public void doAfterTest() {
+        // Print timings
+        logger.info("");
+        logger.info("----------- Test Timings ------------");
+        for (Map.Entry<String, Long> entry : testTimings.entrySet()) {
+            logger.info(String.format("%5.2fs - %30s", entry.getValue()/1000.0d, entry.getKey()));
+        }
+    }
+    
     /**
      * Convenience method to commit a string to a particular member.
      */
@@ -472,7 +485,7 @@ public class GondolaTest {
 
         int count = 0;
         while (count < 2) {
-            gondolaRc.tick(50);
+            gondolaRc.tick(10);
 
             // Force the leader to become a candidate
             for (MemberRc m : members) {
@@ -654,7 +667,7 @@ public class GondolaTest {
         gondolaRc.resetMembers(); // Pick up new storage state
         runningTick = 50;
 
-        // Retrieve the command after members 2 and 3 are backfilled
+        // Retrieve the command after member 1 is backfilled
         Command c = member1.getCommittedCommand(1000); // avoid timeout in assertCommand
         assertCommand(member1, 2, 1000, "newer 1000");
     }

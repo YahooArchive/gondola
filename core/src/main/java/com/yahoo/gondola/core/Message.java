@@ -101,7 +101,6 @@ public class Message {
 
     // Overhead constants
     static {
-System.out.println("********** hello");
         // These numbers don't yet include the header overhead. Will be added in the next step.
         overhead[TYPE_APPEND_ENTRY_REQ] = 4 * 4 + 2 * 1;
         overhead[TYPE_APPEND_ENTRY_REP] = 1 * 4 + 2 * 1;
@@ -137,7 +136,6 @@ System.out.println("********** hello");
                 Config config = (Config) arg;
                 maxCommandSize = config.getInt("raft.command_max_size");
                 messageTracing = config.getBoolean("tracing.raft_messages");
-System.out.println("********** "+messageTracing);
                 heartbeatTracing = config.getBoolean("tracing.raft_heartbeats");
                 batching = config.getBoolean("gondola.batching");
             }
@@ -178,11 +176,11 @@ System.out.println("********** "+messageTracing);
     }
 
     public int getFromMemberId() {
-        return byteBuffer.getInt(3);
+        return byteBuffer.getShort(3);
     }
 
     public int getTerm() {
-        return byteBuffer.get(7);
+        return byteBuffer.get(5);
     }
 
     /****************************** ref counts ******************************/

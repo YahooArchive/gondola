@@ -61,6 +61,9 @@ public class Peer {
     // @lock This variable is reset to 0 after receiving an AppendEntry reply from the follower
     int backfillAhead;
 
+    // @lock This variable is set to 1 when fullSpeed is false. Otherwise it is set to BACKFILL_AHEAD_LIMIT.
+    int backfillAheadLimit;
+
     // @lock
     int backfillToIndex;
 
@@ -140,8 +143,10 @@ public class Peer {
     public void reset() {
         lock.lock();
         try {
+            fullSpeed = false;
             backfilling = false;
             backfillAhead = 0;
+            backfillAheadLimit = 1;
             backfillToIndex = 0;
             matchIndex = 0;
             nextIndex = -1;
@@ -163,24 +168,24 @@ public class Peer {
         // Start local threads
         assert threads.size() == 0
             : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
-        threads.add(new Sender());
-        threads.add(new Receiver());
+        threads.add(new Receiver()); // Close the receiver before sender to avoid "writer is closed" exc from pipedinputstream
         threads.add(new Backfiller());
+        threads.add(new Sender());
         threads.forEach(t -> t.start());
     }
 
     public void stop() {
         generation++;
-        channel.stop();
-        threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
+                t.interrupt();
                 t.join();
             } catch (InterruptedException e) {
                 logger.error(e.getMessage(), e);
             }
         }
         threads.clear();
+        channel.stop(); // Call after stopping the threads, otherwise possible NPE
     }
 
     /******************** methods *********************/
@@ -201,7 +206,7 @@ public class Peer {
         assert message.getType() == Message.TYPE_APPEND_ENTRY_REQ;
         lock.lock();
         try {
-            if (backfilling && backfillAhead < BACKFILL_AHEAD_LIMIT) {
+            if (backfilling) {
                 // Increase the backfill index to the new value
                 backfillToIndex = prevLogIndex + 2;
             } else if (channel.isOperational() && (message.isHeartbeat() || nextIndex == prevLogIndex + 1)) {
@@ -281,7 +286,7 @@ public class Peer {
                 // Determine where to start backfilling
                 lock.lock();
                 try {
-                    if (backfilling && backfillAhead < BACKFILL_AHEAD_LIMIT) {
+                    if (backfilling && backfillAhead < backfillAheadLimit) {
                         // Make sure the storage has caught up to the next index
                         if (nextIndex > savedRid.index) {
                             logger.info("[{}-{}] Backfilling {} at index {} paused to allow storage (index={}) to catch up",
@@ -373,7 +378,7 @@ public class Peer {
                         }
                         backfillAhead++;
                     }
-                    if (!backfilling || backfillAhead >= BACKFILL_AHEAD_LIMIT) {
+                    if (!backfilling || backfillAhead >= backfillAheadLimit) {
                         backfillCond.await(heartbeatPeriod, TimeUnit.MILLISECONDS);
                     }
                 } finally {
@@ -518,12 +523,13 @@ public class Peer {
                     }
 
                     fullSpeed = true;
+                    backfillAhead = BACKFILL_AHEAD_LIMIT;
                 } else {
                     // Update the next index
                     setNextIndex(mnIndex, cmember.sentRid.index + 1);
                 }
 
-                // Reset backfill ahead and send more entries
+                // Any reply, success or fail, resets the backfill ahead count so more entries can be sent
                 lock.lock();
                 try {
                     if (backfilling) {
@@ -570,6 +576,7 @@ public class Peer {
                 if (!backfilling && nextIndex < backfillToIndex) {
                     backfilling = true;
                     fullSpeed = false;
+                    backfillAhead = 1;
                     logger.info("[{}-{}] Backfilling {}, from {} to {}",
                             gondola.getHostId(), cmember.memberId, peerId, nextIndex, backfillToIndex - 1);
                     backfillCond.signal();
