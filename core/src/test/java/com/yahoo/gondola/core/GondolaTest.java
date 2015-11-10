@@ -32,8 +32,8 @@ import static org.testng.Assert.assertEquals;
  * All the unit tests assume a three-node cluster configuration.
  *
  * The test makes extensive use of GondolaRc and MemberRc objects (rc stands for remote control).
- * These objects are wrappers around the regular Gondola and Member instances and provide
- * provides methods that make it easier to set up a test case.
+ * These objects are wrappers around the regular Gondola and Member instances and provides methods 
+ * that make it easier to set up a test case.
  * For example, you can use MemberRc to initialize the Raft log of a particular member with a few entries.
  */
 public class GondolaTest {
@@ -46,21 +46,20 @@ public class GondolaTest {
     MemberRc member3;
     List<MemberRc> members = new ArrayList<>();
 
+    // Set to now at the start of a test case
     long startTimer;
+
+    // When > 0, causes the virtual clock to tick at the specified value (in ms)
     int runningTick;
-    int runningCommand;
 
-    // test name -> time in milliseconds
-    Map<String, Long> testTimings = new TreeMap<>();
-    long startTime;
-
+    // If non-null, the name of the currently running test
     String currentTest;
 
-    // When non-null, the main thread will throw this exception
+    // When non-null, the main thread will throw this exception at the earliest opportunity
     Throwable exceptionInAnotherThread;
 
     public GondolaTest() throws Exception {
-        PropertyConfigurator.configure("conf/log4j.properties");
+        PropertyConfigurator.configure("conf/gondola-rc.log4j.properties");
         gondolaRc = new GondolaRc();
         member1 = gondolaRc.getMember(1);
         member2 = gondolaRc.getMember(2);
@@ -81,7 +80,6 @@ public class GondolaTest {
         final String mname = m.getName();
         currentTest = this.getClass().getName() + "." + mname;
         logger.info(String.format("************************ %s *******************", currentTest));
-        startTime = startTimer = System.currentTimeMillis();
         gondolaRc.start();
     }
 
@@ -90,8 +88,6 @@ public class GondolaTest {
      */
     @AfterMethod(alwaysRun = true)
     public void doAfterMethod(ITestContext tc, ITestResult tr, Method m) throws Exception {
-        testTimings.put(currentTest, System.currentTimeMillis() - startTime);
-        runningCommand = 0;
         runningTick = 0;
 
         if (tr.getStatus() != ITestResult.SUCCESS) {
@@ -108,16 +104,6 @@ public class GondolaTest {
         gondolaRc.stop();
     }
 
-    @AfterTest(alwaysRun = true)
-    public void doAfterTest() {
-        // Print timings
-        logger.info("");
-        logger.info("----------- Test Timings ------------");
-        for (Map.Entry<String, Long> entry : testTimings.entrySet()) {
-            logger.info(String.format("%5.2fs - %30s", entry.getValue()/1000.0d, entry.getKey()));
-        }
-    }
-    
     /**
      * Convenience method to commit a string to a particular member.
      */
@@ -323,7 +309,7 @@ public class GondolaTest {
         // Exit when a leader has been elected
         long leaderCount = 0;
         while (leaderCount == 0) {
-            gondolaRc.tick(50);
+            gondolaRc.tick(10);
             leaderCount = members.stream().filter(m -> m.cmember.isLeader()).count();
         }
         assertTrue(leaderCount == 1, "More than one leader elected");
@@ -523,7 +509,7 @@ public class GondolaTest {
         // Exit when only one leader survives
         long leaderCount = 2;
         while (true) {
-            gondolaRc.tick(50);
+            gondolaRc.tick(10);
             leaderCount = members.stream().filter(m -> m.cmember.isLeader()).count();
             if (leaderCount == 1) {
                 break;
@@ -846,7 +832,7 @@ public class GondolaTest {
         member1.setLeader();
         runningTick = 50;
 
-        commitAsync(member1, "command 1", 500);
+        commitAsync(member1, "command 1", 300);
 
         // Retrieve the command from each member
         assertCommand(member1, -1, 1, "command 1");
@@ -912,9 +898,6 @@ public class GondolaTest {
             while (true) {
                 long now = System.currentTimeMillis();
                 try {
-                    if (runningCommand > 0) {
-                        commitAsync(members.get(runningCommand-1), "command "+now, 0);
-                    }
                     if (runningTick > 0) {
                         gondolaRc.tick(runningTick);
                     }
