@@ -75,6 +75,7 @@ public class SaveQueue implements Observer {
     // Used to parse and process incoming messages
     MessageHandler handler = new MyMessageHandler();
 
+    // Holds the maximum gap that can occur between the last continguous record written and the last record written
     int maxGap;
 
     // Config variables
@@ -223,15 +224,8 @@ public class SaveQueue implements Observer {
                              gondola.getHostId(), cmember.memberId, pid, gondola.getProcessId());
             }
 
-            // Get the max gap
-            int g = storage.getMaxGap(cmember.memberId);
-            if (g < maxGap) {
-                // The likely cause of this is a new instance starting up and overwriting maxGap
-                logger.error("[{}-{}] SaveQueue: the saved maxGap={} is < the maxGap variable {}. Using maxGap={}",
-                        gondola.getHostId(), cmember.memberId, g, maxGap, maxGap);
-            } else {
-                maxGap = g;
-            }
+            // Get the max gap. The maxGap variable is deliberately not initialized to zero in order to 
+            maxGap = storage.getMaxGap(cmember.memberId);
             logger.info("[{}-{}] Initializing save index with latest=({},{}) maxGap={}",
                     gondola.getHostId(), cmember.memberId, newLastTerm, lastIndex, maxGap);
 
