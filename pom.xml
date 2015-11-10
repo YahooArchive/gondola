@@ -150,6 +150,18 @@
                     </dependency>
                 </dependencies>
             </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>2.19</version>
+                <configuration>
+                    <properties>
+                        <property>
+                            <name>reporter</name>
+                            <value>org.testng.reporters.TextReporter</value>
+                        </property>
+                    </properties>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
