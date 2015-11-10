@@ -12,11 +12,9 @@ script: mvn verify
 after_success:
 - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
   --settings settings/maven/settings.xml
-addons:
-  artifacts:
-    paths:
-    - core/target/surefire-reports
-    - core/logs/gondola-rc.log
+after_failure:
+  - cat core/target/surefire-reports
+  - cat core/logs/gondola-rc.log
 env:
   global:
   - secure: irRhDhllxRHIDHT7wNxodkW0LkXjRW3eVVYS11nE48Pn+xPn9+5u7swNKOyEoXbod4E7ddC00PuLtyxQhOfxbm22ZxF0Hm6SgFlpr5rwrRukqO1RTRm35mu424ZxCPyXlQ1RVPzKHUAP+FUMlwgSpGMF5XATx+Wtg2N5ci8Gh5c7UJo6DJXM2nAN4cqUgO9x4fFAT0FU9uzYae9Ea6stK58+J9lbE3NDjuH8TJrGCBS3mnya6hFnrK6ky1KpzdBalEAlLyrhVNnJmOJCBq6p6lTCBIWJ5sHlD8LboAfT0Ru9h5QiB8teOtfpBCr+rMDN6+wpg49k5MQfjZWKZ7j4uNrVMopyN6kEnUIqboXhNaOrjCeH7a/QpjMoK5R2tXPXbjHu+5uc1A8+uo9w2kbd4jQZPlXZtmXtPRX4ZtTCsG7WbQ2L69mhI0WFisaNGAOfcIVe6WKrsd2tCKhqAppYgzHWzqP9WtaBwTMxHprHXUbFb28L3uieEZ45CycPLT3E2UlJTeOiR8Yr5NDP+J0c7adliVrPra1vOfbjKtIDa8Wp0jTqCpsiCV8XGpPtTwF8zNlPFo73VtTflbVzy0GGasfKx4X9jXMYKYBjvdNbgiKzSZ+bKxCYQAnY5r4bkJblIUbGpPEJFTDS8+q+WkEFUuWDz68xZVGsl+fqg3I8Myw=
