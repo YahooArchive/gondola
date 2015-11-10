@@ -156,8 +156,8 @@
                 <configuration>
                     <properties>
                         <property>
-                            <name>reporter</name>
-                            <value>org.testng.reporters.TextReporter</value>
+                            <name>listener</name>
+                            <value>org.testng.reporters.VerboseReporter</value>
                         </property>
                     </properties>
                 </configuration>
