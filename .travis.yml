@@ -13,7 +13,7 @@ after_success:
 - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
   --settings settings/maven/settings.xml
 after_failure:
-  - cat core/target/surefire-reports
+  - cat core/target/surefire-reports/TEST-TestSuite.xml
   - cat core/logs/gondola-rc.log
 env:
   global:
