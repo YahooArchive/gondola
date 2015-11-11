@@ -10,5 +10,7 @@
     <root level="info">
         <appender-ref ref="STDOUT" />
     </root>
-    <logger name="com.yahoo.gondola" level="INFO"/>
+    <logger name="com.yahoo.gondola" level="ERROR"/>
+    <logger name="com.yahoo.gondola.container" level="INFO"/>
+    <logger name="com.yahoo.gondola.demo" level="INFO"/>
 </configuration>

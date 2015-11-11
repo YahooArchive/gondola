@@ -11,12 +11,17 @@ import com.yahoo.gondola.container.RoutingFilter;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.net.URL;
 
 import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
+import javax.servlet.annotation.WebListener;
 import javax.ws.rs.core.Context;
 
 /**
@@ -29,8 +34,12 @@ import javax.ws.rs.core.Context;
  * 4. Register the resources
  */
 public class DemoApplication extends ResourceConfig {
+    Gondola gondola;
+    static DemoApplication instance;
+    static Logger logger = LoggerFactory.getLogger(DemoApplication.class);
+
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
-        Gondola gondola = initializeGondola();
+        gondola = initializeGondola();
 
         // Dependency injection to DemoResource
         DemoService demoService = new DemoService(gondola);
@@ -46,6 +55,11 @@ public class DemoApplication extends ResourceConfig {
 
         // register resources in the package
         packages(true, "com.yahoo.gondola.demo");
+        instance = this;
+    }
+
+    public static DemoApplication getInstance() {
+        return instance;
     }
 
     private Gondola initializeGondola() throws Exception {
@@ -59,5 +73,23 @@ public class DemoApplication extends ResourceConfig {
         Gondola gondola = new Gondola(config, hostId);
         gondola.start();
         return gondola;
+    }
+
+    /**
+     * Servlet 3.0 context listener, used to manage the lifecycle of the app.
+     */
+    @WebListener
+    public static class ContextListener implements ServletContextListener {
+        @Override
+        public void contextInitialized(ServletContextEvent sce) {
+            // doing nothing
+            logger.info("Demo application initialized");
+        }
+
+        @Override
+        public void contextDestroyed(ServletContextEvent sce) {
+            logger.info("Demo application destroyed");
+            DemoApplication.getInstance().gondola.stop();
+        }
     }
 }
