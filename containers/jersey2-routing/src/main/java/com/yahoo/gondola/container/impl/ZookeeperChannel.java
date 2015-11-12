@@ -10,7 +10,7 @@ import com.yahoo.gondola.container.Channel;
 import com.yahoo.gondola.container.client.StatClient;
 
 /**
- * Channel implementation using ZooKeeper
+ * Channel implementation using ZooKeeper.
  */
 public class ZookeeperChannel implements Channel, StatClient {
 

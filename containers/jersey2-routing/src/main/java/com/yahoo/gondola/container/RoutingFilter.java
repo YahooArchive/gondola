@@ -39,10 +39,11 @@ import javax.ws.rs.core.Response;
 
 
 /**
- * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
- * resource.
+ * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before
+ * hitting the resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
+    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     /**
      * The constant X_GONDOLA_LEADER_ADDRESS.
@@ -57,8 +58,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public static final String APP_SCHEME = "appScheme";
     public static final int RETRY = 3;
+
     /**
-     * Routing table Key: memberId, value: HTTP URL
+     * Routing table Key: memberId, value: HTTP URL.
      */
     RoutingHelper routingHelper;
 
@@ -66,17 +68,16 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * The Gondola.
      */
     Gondola gondola;
+
     /**
      * The My cluster ids.
      */
     Set<String> myClusterIds;
 
     /**
-     * The Routing table.
+     * The Routing table. clusterId --> list of available servers
      */
-// clusterId --> list of available servers
     Map<String, List<String>> routingTable;
-
 
     /**
      * The Snapshot manager.
@@ -84,15 +85,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     SnapshotManagerClient snapshotManagerClient;
 
     /**
-     * The Bucket request counters.
+     * The Bucket request counters. bucketId --> requestCounter
      */
-// bucketId --> requestCounter
     Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
-
-    /**
-     * The Logger.
-     */
-    Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     /**
      * The Command adaptor.
@@ -143,7 +138,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         });
     }
 
-
     /**
      * The Blocked buckets.
      */
@@ -164,8 +158,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             // Still under leader election
             if (leader == null) {
                 requestContext.abortWith(Response
-                                             .status(Response.Status.INTERNAL_SERVER_ERROR)
-                                             .entity("Under leader election")
+                                             .status(Response.Status.SERVICE_UNAVAILABLE)
+                                             .entity("No leader is available")
                                              .build());
                 return;
             } else if (leader.isLocal()) {
@@ -288,8 +282,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                       .build());
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
                 return;
-            } catch (IOException ignored) {
-                ignored.printStackTrace();
+            } catch (IOException e) {
+                // TODO: add a config to show stack trace
+                logger.error(String.format("Error while forwarding request to %s: %s", appUrl, e.getMessage()));
             }
         }
         request.abortWith(Response
@@ -338,7 +333,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     List<Range> bucketTable = new ArrayList<>();
 
     private class Range {
-
         Integer minimum;
         Integer maximum;
         String clusterId;
@@ -365,6 +359,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         for (String clusterId : config.getClusterIds()) {
             Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
             String bucketMapString = attributesForCluster.get("bucketMap");
+            if (bucketMapString == null) {
+                throw new IllegalStateException("The cluster definition in the config file is missing the 'bucketMap' attribute");
+            }
+
             for (String str : bucketMapString.trim().split(",")) {
                 String[] rangePair = str.trim().split("-");
                 switch (rangePair.length) {
@@ -422,8 +420,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Get the migration type by inspect config, DB -> if two clusters use different database APP -> if two clusters use
-     * same database
+     * Returns the migration type by inspect config, DB -> if two clusters use different database APP ->
+     * if two clusters use same database.
      */
     private MigrationType getMigrationType(String fromCluster, String toCluster) {
         //TODO: implement
@@ -431,7 +429,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * helper function to get clusterId of the bucketId
+     * Helper function to get clusterId of the bucketId.
      */
     private String getClusterIdByBucketId(int bucketId) {
         //TODO: implement
@@ -451,7 +449,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Find random clusterId in siteId
+     * Find random clusterId in siteId.
      */
     private String getAnyClusterInSite(String siteId) {
         //TODO: implement

@@ -104,12 +104,11 @@ public class GondolaTest {
             Throwable t = tr.getThrowable();
             if (t != null) {
                 logger.error("Test case failed.\n\n" + t.getMessage(), t);
-                System.exit(1);
             }
         }
         if (exceptionInAnotherThread != null) {
             logger.error("Test case failed.\n\n" + exceptionInAnotherThread.getMessage(), exceptionInAnotherThread);
-            System.exit(1);
+            tr.setStatus(ITestResult.FAILURE);
         }
         gondolaRc.stop();
     }

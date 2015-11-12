@@ -37,20 +37,12 @@ public class SystemClock implements Clock {
     }
 
     @Override
-    public void sleep(long delay) {
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException e) {
-            logger.error(e.getMessage(), e);
-        }
+    public void sleep(long delay) throws InterruptedException {
+        Thread.sleep(delay);
     }
 
     @Override
-    public void awaitCondition(Lock lock, Condition cond, long timeMs) {
-        try {
-            cond.await(timeMs, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException e) {
-            logger.error(e.getMessage(), e);
-        }
+    public void awaitCondition(Lock lock, Condition cond, long timeMs) throws InterruptedException {
+        cond.await(timeMs, TimeUnit.MILLISECONDS);
     }
 }
