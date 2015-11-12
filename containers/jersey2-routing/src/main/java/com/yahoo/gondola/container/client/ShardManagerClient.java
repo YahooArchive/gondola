@@ -27,9 +27,10 @@ public interface ShardManagerClient {
     void stopSnapshot(String siteId);
 
     /**
-     * Gets latest snapshot in the cluster.
+     * Returns the latest snapshot for this cluster.
      *
      * @param clusterId
+     * @return non-null location of the snapshot
      */
     URI getLatestSnapshot(String clusterId);
 

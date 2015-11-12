@@ -1,14 +1,14 @@
-# Key-Value server application
+# Key-Value Server Application
 
 This demo application implements a fault-tolerant hash table using a
-Raft cluster of three nodes.  The demo starts up three server's each
+Raft cluster of three nodes.  The demo starts up three servers, each
 implementing a RESTful API for setting and getting values.  The demo
 uses H2DB as the backing storage for the Raft log so that the updates
 are persistant.
 
 ## API
 
-This is RESTful API has two endpoints for retrieving and storing key-value pairs.
+This API has two endpoints for retrieving and storing key-value pairs.
 
 Get & Save entries:
   - GET /api/entries/{key}
