@@ -3,6 +3,7 @@
  * Copyrights licensed under the New BSD License.
  * See the accompanying LICENSE file for terms.
  */
+
 package com.yahoo.gondola.container.impl;
 
 import com.yahoo.gondola.container.Channel;
