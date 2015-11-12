@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -105,6 +106,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     ProxyClient proxyClient;
 
     /**
+     * Serialized command executor
+     */
+    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
+
+    /**
      * Disallow default constructor
      */
     private RoutingFilter() {
@@ -129,15 +135,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void watchGondolaEvent() {
-        ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
         gondola.registerForRoleChanges(roleChangeEvent -> {
             if (roleChangeEvent.leader != null && roleChangeEvent.leader.isLocal()) {
-                singleThreadExecutor.submit(() -> {
+                CompletableFuture.runAsync(() -> {
                     String clusterId = roleChangeEvent.cluster.getClusterId();
                     blockRequestOnCluster(clusterId);
                     routingHelper.clearState(clusterId);
                     waitSynced(clusterId);
                     unblockRequestOnCluster(clusterId);
+                }, singleThreadExecutor).exceptionally(throwable -> {
+                    logger.info("Errors while executing leader change event", throwable);
+                    return null;
                 });
             }
         });
@@ -606,7 +614,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         @Override
         public void mergeBucket(String fromCluster, String toCluster, long timeoutMs) {
-
         }
     }
 }
