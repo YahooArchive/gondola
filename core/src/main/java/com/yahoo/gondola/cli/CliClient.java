@@ -4,14 +4,14 @@
  * See the accompanying LICENSE file for terms.
  */
 
-package com.yahoo.gondola.tsunami;
+package com.yahoo.gondola.cli;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.EOFException;
 
-class CliClient {
+public class CliClient {
     static Logger logger = LoggerFactory.getLogger(CliClient.class);
 
     String hostname;
@@ -86,5 +86,9 @@ class CliClient {
         } catch (EOFException e) {
             // This is expected
         }
+    }
+
+    public int getPort() {
+        return port;
     }
 }
