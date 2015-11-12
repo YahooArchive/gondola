@@ -112,7 +112,7 @@
                         <id>validate</id>
                         <phase>validate</phase>
                         <configuration>
-                            <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                            <includeTestSourceDirectory>false</includeTestSourceDirectory>
                             <includes>**\/*</includes>
                             <resourceIncludes>**\/*</resourceIncludes>
                             <sourceDirectories>

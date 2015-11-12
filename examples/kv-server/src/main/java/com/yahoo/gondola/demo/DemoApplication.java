@@ -7,6 +7,7 @@ package com.yahoo.gondola.demo;
 
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.container.ProxyClientProvider;
 import com.yahoo.gondola.container.RoutingFilter;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
@@ -43,6 +44,7 @@ public class DemoApplication extends ResourceConfig {
 
         // Dependency injection to DemoResource
         DemoService demoService = new DemoService(gondola);
+
         register(new AbstractBinder() {
             @Override
             protected void configure() {
@@ -51,7 +53,10 @@ public class DemoApplication extends ResourceConfig {
         });
 
         // register routing filter
-        register(new RoutingFilter(gondola, new DemoIdCallback(gondola)));
+        RoutingFilter routingFilter = new RoutingFilter(gondola,
+                                                        new DemoRoutingHelper(gondola, demoService),
+                                                        new ProxyClientProvider());
+        register(routingFilter);
 
         // register resources in the package
         packages(true, "com.yahoo.gondola.demo");

@@ -11,13 +11,19 @@ import com.yahoo.gondola.core.Message;
 import com.yahoo.gondola.core.MessagePool;
 import com.yahoo.gondola.core.Peer;
 import com.yahoo.gondola.core.Stats;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.management.ManagementFactory;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.Consumer;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -55,13 +61,7 @@ public class Gondola implements Stoppable {
     Map<String, Cluster> clusterMap = new HashMap<>();
     Map<Integer, CoreMember> memberMap = new HashMap<>();
 
-    Observable roleChangeObservable = new Observable() {
-            @Override
-            public void notifyObservers(Object arg) {
-                super.setChanged();
-                super.notifyObservers(arg);
-            }
-        };
+    List<Consumer<RoleChangeEvent>> listeners = new CopyOnWriteArrayList<>();
 
     // Change events are done by a separate thread, to avoid delaying the gondola timeouts.
     // This queue is used to deliver the change events to the thread.
@@ -202,12 +202,12 @@ public class Gondola implements Stoppable {
         return stats;
     }
 
-    public void registerForRoleChanges(Observer observer) {
-        roleChangeObservable.addObserver(observer);
+    public void registerForRoleChanges(Consumer<RoleChangeEvent> listener) {
+        listeners.add(listener);
     }
 
-    public void unregisterForRoleChanges(Observer observer) {
-        roleChangeObservable.deleteObserver(observer);
+    public void unregisterForRoleChanges(Consumer<RoleChangeEvent> listener) {
+        listeners.remove(listener);
     }
 
     public void notifyRoleChange(RoleChangeEvent evt) {
@@ -219,7 +219,7 @@ public class Gondola implements Stoppable {
             while (true) {
                 try {
                     RoleChangeEvent evt = roleChangeEventQueue.take();
-                    roleChangeObservable.notifyObservers(evt);
+                    listeners.forEach(c -> c.accept(evt));
                 } catch (InterruptedException e) {
                     return;
                 } catch (Exception e) {
