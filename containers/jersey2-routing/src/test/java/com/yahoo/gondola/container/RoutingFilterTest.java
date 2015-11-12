@@ -73,10 +73,18 @@ public class RoutingFilterTest {
     @Mock
     Response proxedResponse;
 
+    @Mock
+    CommandListenerProvider commandListenerProvider;
+
+    @Mock
+    CommandListener commandListener;
+
     @Captor
     ArgumentCaptor<Consumer<RoleChangeEvent>> consumer;
 
     Config config = new Config(new File(getResourceFile("gondola.conf")));
+
+    LockManager lockManager;
 
     static {
         PropertyConfigurator.configure(getResourceFile("log4j.properties"));
@@ -91,7 +99,8 @@ public class RoutingFilterTest {
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
-        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider);
+        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
+        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
 
     private static String getResourceFile(String file) {
