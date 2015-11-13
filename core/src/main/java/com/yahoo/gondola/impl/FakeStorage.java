@@ -10,14 +10,13 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Map;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -28,7 +27,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * It only stores the currentTerm, votedFor, lastTerm, and lastIndex values.
  * Everything else is just made up.
  */
-public class FakeStorage implements Storage, Observer {
+public class FakeStorage implements Storage {
     Logger logger = LoggerFactory.getLogger(FakeStorage.class);
     Config config;
 
@@ -45,7 +44,9 @@ public class FakeStorage implements Storage, Observer {
     public FakeStorage(Gondola gondola, String hostId) throws Exception {
         logger.info("Initialize FakeStorage");
         this.config = gondola.getConfig();
-        config.registerForUpdates(this);
+        config.registerForUpdates(config1 -> {
+            maxCommandSize = config1.getInt("raft.command_max_size");
+        });
 
         // TODO: remove the hardcode. Need to figure out how to add properties to config, like JDBC.
         file = new File("/tmp/gondola-" + hostId + ".dat");
@@ -75,13 +76,6 @@ public class FakeStorage implements Storage, Observer {
         new Writer().start();
     }
 
-    /*
-     * Called at the time of registration and whenever the config file changes.
-     */
-    @Override
-    public void update(Observable obs, Object arg) {
-        maxCommandSize = config.getInt("raft.command_max_size");
-    }
 
     @Override
     public boolean isOperational() {

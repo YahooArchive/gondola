@@ -7,18 +7,19 @@
 package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.Config;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
 import java.util.Observable;
-import java.util.Observer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
-public class MessagePool implements Observer {
+public class MessagePool {
     final static Logger logger = LoggerFactory.getLogger(MessagePool.class);
 
     Config config;
@@ -42,16 +43,16 @@ public class MessagePool implements Observer {
         this.config = config;
         this.stats = stats;
 
-        config.registerForUpdates(this);
+        config.registerForUpdates(configListener);
     }
 
     /*
      * Called at the time of registration and whenever the config file changes.
      */
-    public void update(Observable obs, Object arg) {
-        warnThreshold = config.getInt("gondola.message_pool_warn_threshold");
-        leakTracing = config.getBoolean("tracing.message_leak");
-    }
+    Consumer<Config> configListener = config1 -> {
+        warnThreshold = config1.getInt("gondola.message_pool_warn_threshold");
+        leakTracing = config1.getBoolean("tracing.message_leak");
+    };
 
     public int size() {
         return pool.size();

@@ -6,20 +6,29 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.LogEntry;
+import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 /**
  */
-public class CommitQueue implements Observer {
+public class CommitQueue {
     final static Logger logger = LoggerFactory.getLogger(CommitQueue.class);
 
     final Gondola gondola;
@@ -69,18 +78,17 @@ public class CommitQueue implements Observer {
         this.pool = gondola.getMessagePool();
         this.savedIndex = null;//savedIndex;
         this.matchIndices = null;//matchIndices;
-        gondola.getConfig().registerForUpdates(this);
+        gondola.getConfig().registerForUpdates(configListener);
         stats = gondola.getStats();
     }
 
     /**
      * Called at the time of registration and whenever the config file changes.
      */
-    public void update(Observable obs, Object arg) {
-        Config config = (Config) arg;
+    Consumer<Config> configListener = config -> {
         commandTracing = config.getBoolean("tracing.command");
         storageTracing = config.getBoolean("tracing.storage");
-    }
+    };
 
     public void start() throws Exception {
         //reset();

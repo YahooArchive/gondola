@@ -93,7 +93,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * The Logger.
      */
-    Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
+    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     CommandListener commandListener;
     /**
@@ -102,14 +102,20 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     ProxyClient proxyClient;
 
     /**
-     * Serialized command executor
+     * Serialized command executor.
      */
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
     /**
-     * Lock manager
+     * Lock manager.
      */
     LockManager lockManager = new LockManager();
+
+
+    /**
+     * Flag to enable tracing.
+     */
+    boolean tracing = false;
 
     /**
      * Disallow default constructor
@@ -133,8 +139,18 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         commandListener.setShardManagerHandler(new CommandHandler());
         loadRoutingTable();
         loadBucketTable();
+        loadConfig();
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
+    }
+
+    private void loadConfig() {
+        Config config = gondola.getConfig();
+        tracing = config.getBoolean("tracing.router");
+        config.registerForUpdates(config1 -> {
+            tracing = config.getBoolean("tracing.router");
+        });
+
     }
 
     private void watchGondolaEvent() {
@@ -186,8 +202,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                              .status(Response.Status.SERVICE_UNAVAILABLE)
                                              .entity("No leader is available")
                                              .build());
+                if(tracing) {
+                    logger.info("Leader is not available");
+                }
                 return;
             } else if (leader.isLocal()) {
+                if(tracing) {
+                    logger.info("Processing this request");
+                }
                 return;
             }
         }
@@ -290,6 +312,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         for (String appUrl : appUrls) {
             try {
+                if (tracing) {
+                    logger.info("Proxy request to remote server, baseUri={}, method={}, URI={}", appUrl,
+                                request.getMethod(), request.getUriInfo().getPath());
+                }
                 Response proxiedResponse = proxyClient.proxyRequest(request, appUrl);
                 String
                     entity =
