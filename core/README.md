@@ -13,7 +13,7 @@ mvn test -Dtest=GondolaTest#missingEntry
 
 ## Tsunami Test
 
-This stress test is designed to find bugs in the Raft implementation. Here's how it works:
+This fuzz test is designed to find concurrency bugs in the Raft implementation. Here's how it works:
 
 1. The test creates N writer threads for each node in the Raft cluster.
 2. A writer thread has an id and a private counter and attempts to write its thread id and counter value to its assigned node. When a write succeeds, the counter is incremented. Writes by threads assigned to the current leader are expected to succeed whereas writes by threads threads assigned to non-leaders are expected to get exceptions.
@@ -137,17 +137,6 @@ If tsunami does find an issue, the test will exit and print one of two types of 
 TODO
 
 ## Usage
-
-#### Terminology
-
-| Term    | Description |
-|:--------|-------------|
-| Member  | A member refers a Raft node, which can be a follower, leader, or candidate. A member must be manually assigned a unique id in the config file. |
-| Cluster | A cluster is a collection of members, only one of which can be the leader. A member can be only part of a one cluster. A cluster must be manually assigned a unique id in the config file. |
-| Host    | Refers to a machine with an IP address and a port. A host can contain one or more clusters. All members are assigned a cluster and a primary host. All members running in the same host will share one port when communicating with the other memembers in the cluster. Hosts must be manually assigned a unique id in the config file. |
-| Config | The entire topology of all clusters in a system is defined in a single config file. At the moment, dynamic reconfiguration of the topology is not supported. |
-| Log Table | Each member has a logical log in which it writes all records to be committed. In Gondola, the log table contains a member_id column, which allows many members to share the same storage instance. At the moment, all logs are stored in a single database instance. We intend to enhance this so that each host can use a different database instance if needed. This means that all members running in a host will still share the same database instance.  |
-| Gondola Instance | is a process that is running all the members residing in a host. The gondola instance provides a single port through which all the members in the instance can communicate with any other member on any other host. The gondola instance also provides a storage instance for all its members logs. |
 
 #### Code
 

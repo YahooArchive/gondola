@@ -21,10 +21,76 @@ requests are especially welcome.
 
 ## Demo
 
-A simple fault-tolerant service for storing key/value pairs has been built to demonstrate Gondola capabilities.
+This demo is an example that uses the Gondola library to build a
+simple fault-tolerant web service that implements a strongly consistent
+key/value store.  The demo starts up three servers, each implementing
+a RESTful API for setting and getting values.  The demo uses H2DB as
+the backing storage for the Raft log so that the updates are
+persistant.
 
+#### Start the Servers
+
+Run the following commands in three different consoles in the same server. Each will
+start up one of the nodes in the three node cluster.
+
+```
+[console 1]> cd examples/kv-server
+[console 1]> bin/run host1
+
+[console 2]> cd examples/kv-server
+[console 2]> bin/run host2
+
+[console 3]> cd examples/kv-server
+[console 3]> bin/run host3
+```
+
+The servers will elect a leader and will print out their current role:
+
+```
+15:23:28.611 INFO - Current role: FOLLOWER
+15:23:28.911 INFO - Current role: CANDIDATE
+15:23:29.107 INFO - Current role: LEADER
+```
+
+#### Test
+
+In yet another console, run commands to set and retrieve values:
+
+```
+[console 4]> put_key host1 key_1 value_1
+[console 4]> put_key host2 key_2 value_2
+[console 4]> get_key host1 key_2
+[console 4]>  key2 value_2
+```
+
+If all is working correctly, sending commands to any server will route the request to the leader.
+You can see the non-leader route the request to the leader and see the leader process the request.
+
+```
+```
+
+You can continue testing the failover behavior by killing and restarting any of the three servers.
+
+## Gondola Terminology
+
+These are the terms used through the libraries and tools in the Gondola package:
+
+| Term      | Description |
+|:----------|-------------|
+| Member    | A member refers a Raft node, which can be a follower, leader, or candidate. Members have a preassigned or dynamically assigned id.
+| Shard     | A shard is a set of members, only one of which can be the leader. A member can be only part of a one shard. Shards have a manually assigned id.
+| Host      | Refers to a machine with an IP address and a port. A host can run members from one or more shards. All members are assigned a shard and a primary host. All members running in the same host will share one port when communicating with the other memembers in the shard. Hosts have a preassigned or dynamically assigned id. |
+| Site      | Refers to a set of hosts. A site can be roughly thought of as a data center. A host can only be in a one site. A site has a manually assigned id.
+| Storage   | Refers to the storage system holding the raft log. Every site has at least one storage instance. A member writes it's Raft log entries into a single storage instance in the same site. A storage instance has a manually assigned id. |
+| Config    | The entire topology of all clusters in a system is defined in a single config file. |
+| Log Table | Each member has a logical log in which it writes all records to be committed. In Gondola, the log table contains a member_id column, which allows many members to share the same storage instance. At the moment, all logs are stored in a single database instance. We intend to enhance this so that each host can use a different database instance if needed. This means that all members running in a host will still share the same database instance.  |
+| Gondola Instance | Is a process that is running all the members residing in a host. The gondola instance provides a single port through which all the members in the instance can communicate with any other member on any other host. |
+| Gondola Core | Refers to the Java package that strictly implements the Raft protocol. See the [Gondola.java](core/src/main/java/com/yahoo/gondola/Gondola.java) interface. |
+| Gondola Container | Refers to tools and libraries which help you build a complete web service based on the Gondola Core. It includes servlet filters that maintain a routing table and automatically routes requests to the leader. It contains management tools to help with adding shards. |
+| Gondola Registry | Is a component of the Gondola Container package and refers to a process that supports service discovery as well as config management. |
 
 ## How to use
+
 maven - pom.xml
 ```
   <dependencies>
@@ -38,7 +104,7 @@ maven - pom.xml
     </dependencies>
 ```
 
-## Build
+## Building This Package
 
 The package is built with the following command:
 ```
@@ -48,34 +114,19 @@ The command will also run all the unit tests to make sure the package is correct
 If all is well, you should see output that looks like:
 ```
 ...
-Tests run: 34, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 29.733 sec
-
-Results :
-
-Tests run: 34, Failures: 0, Errors: 0, Skipped: 0
-
+/com/yahoo/gondola/kvserver/0.2.8-SNAPSHOT/kvserver-0.2.8-SNAPSHOT-sources.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] Reactor Summary:
 [INFO] 
-[INFO] --- appassembler-maven-plugin:1.9:assemble (default) @ gondola ---
-[INFO] Installing artifact /Users/patc/.m2/repository/org/slf4j/slf4j-api/1.7.10/slf4j-api-1.7.10.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/slf4j-api-1.7.10.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/org/slf4j/slf4j-log4j12/1.7.10/slf4j-log4j12-1.7.10.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/slf4j-log4j12-1.7.10.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/log4j/log4j/1.2.17/log4j-1.2.17.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/log4j-1.2.17.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/com/typesafe/config/1.2.1/config-1.2.1.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/config-1.2.1.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/mysql/mysql-connector-java/5.1.35/mysql-connector-java-5.1.35.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/mysql-connector-java-5.1.35.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/com/h2database/h2/1.4.187/h2-1.4.187.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/h2-1.4.187.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/org/apache/commons/commons-exec/1.3/commons-exec-1.3.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/commons-exec-1.3.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/commons-cli/commons-cli/1.3/commons-cli-1.3.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/commons-cli-1.3.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/com/zaxxer/HikariCP/2.3.8/HikariCP-2.3.8.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/HikariCP-2.3.8.jar
-[INFO] Installing artifact /Users/patc/.m2/repository/org/javassist/javassist/3.18.2-GA/javassist-3.18.2-GA.jar to /Users/patc/projects/oss-gondola/target/appassembler/repo/javassist-3.18.2-GA.jar
-[INFO] Installing artifact /Users/patc/projects/oss-gondola/target/classes to /Users/patc/projects/oss-gondola/target/appassembler/repo/gondola-0.1-SNAPSHOT.jar
-[INFO] 
-[INFO] --- maven-jar-plugin:2.4:jar (default-jar) @ gondola ---
-[INFO] Building jar: /Users/patc/projects/oss-gondola/target/gondola-0.1-SNAPSHOT.jar
+[INFO] gondola ........................................... SUCCESS [3.340s]
+[INFO] gondola-core ...................................... SUCCESS [4.162s]
+[INFO] containers ........................................ SUCCESS [0.827s]
+[INFO] gondola-container-jersey2-routing ................. SUCCESS [4.454s]
+[INFO] registry .......................................... SUCCESS [2.694s]
+[INFO] examples .......................................... SUCCESS [0.524s]
+[INFO] gondola-example-kvserver .......................... SUCCESS [3.655s]
 [INFO] ------------------------------------------------------------------------
 [INFO] BUILD SUCCESS
-[INFO] ------------------------------------------------------------------------
-[INFO] Total time: 34.550s
-[INFO] Finished at: Sun Sep 27 10:10:47 PDT 2015
-[INFO] Final Memory: 18M/442M
 [INFO] ------------------------------------------------------------------------
 ```
 

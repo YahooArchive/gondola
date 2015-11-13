@@ -81,12 +81,11 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         Response.ResponseBuilder builder = Response
             .status(proxiedResponse.getStatusLine().getStatusCode());
 
-        String entity = EntityUtils.toString(proxiedResponse.getEntity());
-        if (entity != null) {
-            builder.entity(entity);
-        }
-        for (Header header : proxiedResponse.getAllHeaders()) {
-            builder.header(header.getName(), header.getValue());
+        if (proxiedResponse.getEntity() != null) {
+            builder.entity(EntityUtils.toString(proxiedResponse.getEntity()));
+            for (Header header : proxiedResponse.getAllHeaders()) {
+                builder.header(header.getName(), header.getValue());
+            }
         }
         return builder.build();
     }
