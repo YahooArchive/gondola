@@ -10,11 +10,13 @@ import com.yahoo.gondola.Cluster;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
+import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.slf4j.Logger;
@@ -25,6 +27,7 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.Response;
@@ -70,8 +73,18 @@ public class RoutingFilterTest {
     @Mock
     Response proxedResponse;
 
+    @Mock
+    CommandListenerProvider commandListenerProvider;
+
+    @Mock
+    CommandListener commandListener;
+
+    @Captor
+    ArgumentCaptor<Consumer<RoleChangeEvent>> consumer;
 
     Config config = new Config(new File(getResourceFile("gondola.conf")));
+
+    LockManager lockManager;
 
     static {
         PropertyConfigurator.configure(getResourceFile("log4j.properties"));
@@ -86,7 +99,8 @@ public class RoutingFilterTest {
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
-        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider);
+        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
+        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
 
     private static String getResourceFile(String file) {
@@ -137,11 +151,13 @@ public class RoutingFilterTest {
     }
 
     @Test
-    public void testRouting_reject_request_when_no_leader() throws Exception {
-    }
-
-    @Test
     public void testBecomeLeader_block_cluster() throws Exception {
+        verify(gondola).registerForRoleChanges(consumer.capture());
+        when(member.isLocal()).thenReturn(true);
+        RoleChangeEvent event = new RoleChangeEvent(cluster, member, member, null, null);
+        consumer.getValue().accept(event);
+        Thread.sleep(1000);
+        verify(routingHelper, times(1)).clearState(any());
     }
 
     @Test
