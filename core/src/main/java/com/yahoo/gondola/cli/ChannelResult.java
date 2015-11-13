@@ -4,7 +4,7 @@
  * See the accompanying LICENSE file for terms.
  */
 
-package com.yahoo.gondola.tsunami;
+package com.yahoo.gondola.cli;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

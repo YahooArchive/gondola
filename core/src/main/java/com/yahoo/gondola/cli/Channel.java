@@ -4,16 +4,14 @@
  * See the accompanying LICENSE file for terms.
  */
 
-package com.yahoo.gondola.tsunami;
+package com.yahoo.gondola.cli;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.net.SocketException;
 
 /**
  * This class is used to connect to GondolaCommand and GondolaAgent processes.
