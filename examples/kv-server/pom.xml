@@ -48,22 +48,18 @@
                     <webAppXml>${project.basedir}/src/main/webapp/WEB-INF/jetty-web.xml</webAppXml>
                     <webApp>
                         <contextPath>/api</contextPath>
+                        <extraClasspath>../../core/target/classes;../../containers/jersey2-routing/target/classes</extraClasspath>
                     </webApp>
                     <httpConnector>
                         <port>${jetty.port}</port>
                     </httpConnector>
+                    <scanTargets>
+                        <scanTarget>../../core/target/classes</scanTarget>
+                        <scanTarget>../../containers/jersey2-routing/target/classes</scanTarget>
+                    </scanTargets>
                     <env>
-                        <hostId>host2</hostId>
+                        <hostId>host1</hostId>
                     </env>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.2</version>
-                <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
                 </configuration>
             </plugin>
         </plugins>
