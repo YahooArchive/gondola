@@ -360,7 +360,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
             String bucketMapString = attributesForCluster.get("bucketMap");
             if (bucketMapString == null) {
-                throw new IllegalStateException("The cluster definition in the config file is missing the 'bucketMap' attribute");
+                throw new IllegalStateException(
+                    "The cluster definition in the config file is missing the 'bucketMap' attribute");
             }
 
             for (String str : bucketMapString.trim().split(",")) {
