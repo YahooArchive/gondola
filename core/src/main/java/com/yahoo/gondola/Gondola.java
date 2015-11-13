@@ -57,7 +57,6 @@ public class Gondola implements Stoppable {
     // Get the pid of this process
     final String processId = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 
-
     List<Cluster> clusters = new ArrayList<Cluster>();
     Map<String, Cluster> clusterMap = new HashMap<>();
     Map<Integer, CoreMember> memberMap = new HashMap<>();
@@ -71,7 +70,9 @@ public class Gondola implements Stoppable {
     // List of threads running in this class
     List<Thread> threads = new ArrayList<>();
 
-    static MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+    // JMX variables
+    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
+    final ObjectName jmxObjectName;
 
     /**
      * @param hostId the non-null id of the current host on which to start Gondola.
@@ -81,16 +82,13 @@ public class Gondola implements Stoppable {
         this.hostId = hostId;
         logger.info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
 
-        // Mbean
-        ObjectName objectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
-        mbs.registerMBean(stats, objectName);
-
         // Initialize static config values
         CoreCmd.initConfig(config);
         Message.initConfig(config);
         Peer.initConfig(config);
 
         messagePool = new MessagePool(config, stats);
+        jmxObjectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
 
         // Create implementations
         String clockClassName = config.get(config.get("clock.impl") + ".class");
@@ -116,7 +114,9 @@ public class Gondola implements Stoppable {
     }
 
     public void start() throws Exception {
-        logger.info("Starting up Gondola...");
+        logger.info("Starting up Gondola host {}...", hostId);
+        mbs.registerMBean(stats, jmxObjectName);
+
         clock.start();
         network.start();
         storage.start();
@@ -131,7 +131,12 @@ public class Gondola implements Stoppable {
     }
 
     public void stop() {
-        logger.info("Shutting down Gondola...");
+        logger.info("Shutting down Gondola host {}...", hostId);
+        try {
+            mbs.unregisterMBean(jmxObjectName);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+        }
 
         // Shut down all local threads
         threads.forEach(t -> t.interrupt());

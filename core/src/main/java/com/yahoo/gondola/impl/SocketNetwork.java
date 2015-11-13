@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.net.*;
 import java.util.*;
@@ -105,7 +106,7 @@ public class SocketNetwork implements Network, Observer {
             try {
                 t.join();
             } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
+                logger.error("Join thread " + t.getName() + " interrupted", e);
             }
         }
         threads.clear();
@@ -162,13 +163,29 @@ public class SocketNetwork implements Network, Observer {
      * This thread waits for connections from other members.
      */
     class Acceptor extends Thread {
+        ServerSocket listener = null;
+
         Acceptor() {
             setName("Acceptor-" + gondola.getHostId());
+            setDaemon(true);
+        }
+
+        @Override
+        public void interrupt() {
+            // The accept can't be interrupted so we have to close the server socket
+            ServerSocket ss = listener;
+            listener = null;
+            if (ss != null) {
+                try {
+                    ss.close();
+                } catch (IOException e) {
+                    logger.error("Unable to close acceptor thread " + getName(), e);
+                }
+            }
         }
 
         public void run() {
             InetSocketAddress addr = gondola.getConfig().getAddressForHost(hostId);
-            ServerSocket listener = null;
             int gen = generation;
 
             while (true) {

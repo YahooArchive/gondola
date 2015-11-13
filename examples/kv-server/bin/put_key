@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ $# -lt 3 ]; then
+  echo "Enter a key/value to the kv-server";
+  echo "";
+  echo "Usage: $0 [host1|host2|host3] key value";
+  exit;
+fi
+
+if [ "$1" = "host2" ]; then
+  port=8081
+elif [ "$1" = "host3" ]; then
+  port=8082
+else
+  port=8080
+fi
+curl -X PUT -d "$3" -v localhost:$port/api/entries/$2

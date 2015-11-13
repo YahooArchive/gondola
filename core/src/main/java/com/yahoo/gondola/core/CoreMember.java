@@ -245,7 +245,7 @@ public class CoreMember implements Observer, Stoppable {
             try {
                 t.join();
             } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
+                logger.error("Join thread " + t.getName() + " interrupted", e);
             }
         }
         threads.clear();
@@ -393,7 +393,7 @@ public class CoreMember implements Observer, Stoppable {
                 } catch (InterruptedException e) {
                     return;
                 } catch (Throwable e) {
-                    logger.error(e.getMessage(), e);
+                    logger.error("Unhandled exception in MainLoop", e);
                     actionQueue.add(Action.BECOME_FOLLOWER);
 
                     // Pause to avoid a spin loop
@@ -523,6 +523,11 @@ public class CoreMember implements Observer, Stoppable {
      */
 
     class CommandHandler extends Thread {
+        public CommandHandler() {
+            setName("CommandHandler-" + memberId);
+            setDaemon(true);
+        }
+        
         public void run() {
             while (true) {
                 try {
@@ -1167,7 +1172,6 @@ public class CoreMember implements Observer, Stoppable {
         public void tail(int index) {
             int i = headIndex.get();
             if (index >= i && headIndex.compareAndSet(i, Integer.MAX_VALUE - 1)) {
-                //System.out.println(index + " " +i);
                 latencyTime += (System.nanoTime() - headTs);
                 latencyCount++;
                 oldHeadIndex = i;

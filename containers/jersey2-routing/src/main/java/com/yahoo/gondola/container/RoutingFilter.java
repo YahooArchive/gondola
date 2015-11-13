@@ -41,10 +41,11 @@ import javax.ws.rs.core.Response;
 
 
 /**
- * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
- * resource.
+ * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before
+ * hitting the resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
+    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     /**
      * The constant X_GONDOLA_LEADER_ADDRESS.
@@ -59,8 +60,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public static final String APP_SCHEME = "appScheme";
     public static final int RETRY = 3;
+
     /**
-     * Routing table Key: memberId, value: HTTP URL
+     * Routing table Key: memberId, value: HTTP URL.
      */
     RoutingHelper routingHelper;
 
@@ -68,17 +70,16 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * The Gondola.
      */
     Gondola gondola;
+
     /**
      * The My cluster ids.
      */
     Set<String> myClusterIds;
 
     /**
-     * The Routing table.
+     * The Routing table. clusterId --> list of available servers
      */
-// clusterId --> list of available servers
     Map<String, List<String>> routingTable;
-
 
     /**
      * The Snapshot manager.
@@ -86,17 +87,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     SnapshotManagerClient snapshotManagerClient;
 
     /**
-     * The Bucket request counters.
+     * The Bucket request counters. bucketId --> requestCounter
      */
-// bucketId --> requestCounter
     Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
 
     /**
-     * The Logger.
+     * The Command adaptor.
      */
-    Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
-
     CommandListener commandListener;
+
     /**
      * Proxy client help to forward request to remote server.
      */
@@ -155,7 +154,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         });
     }
 
+    /**
+     * The Blocked buckets.
+     */
+    Set<Integer> blockedBuckets;
 
+    // Request Filter
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         int bucketId = routingHelper.getBucketId(requestContext);
@@ -176,8 +180,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             // Still under leader election
             if (leader == null) {
                 requestContext.abortWith(Response
-                                             .status(Response.Status.INTERNAL_SERVER_ERROR)
-                                             .entity("Under leader election")
+                                             .status(Response.Status.SERVICE_UNAVAILABLE)
+                                             .entity("No leader is available")
                                              .build());
                 return;
             } else if (leader.isLocal()) {
@@ -294,8 +298,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                       .build());
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
                 return;
-            } catch (IOException ignored) {
-                ignored.printStackTrace();
+            } catch (IOException e) {
+                // TODO: add a config to show stack trace
+                logger.error(String.format("Error while forwarding request to %s: %s", appUrl, e.getMessage()));
             }
         }
         request.abortWith(Response
@@ -343,9 +348,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     List<BucketEntry> bucketTable = new ArrayList<>();
 
+<<<<<<< HEAD
+    private class Range {
+        Integer minimum;
+        Integer maximum;
+=======
     private class BucketEntry {
 
         Range<Integer> range;
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
         String clusterId;
 
         public BucketEntry(Integer a, Integer b, String clusterId) {
@@ -364,6 +375,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         for (String clusterId : config.getClusterIds()) {
             Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
             String bucketMapString = attributesForCluster.get("bucketMap");
+            if (bucketMapString == null) {
+                String msg = "The cluster definition in the config file is missing the 'bucketMap' attribute";
+                throw new IllegalStateException(msg);
+            }
+
             for (String str : bucketMapString.trim().split(",")) {
                 String[] rangePair = str.trim().split("-");
                 switch (rangePair.length) {
@@ -400,8 +416,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         for (BucketEntry r : bucketTable) {
             if (prev == null) {
+<<<<<<< HEAD
+                if (r.minimum != 0) {
+                    throw new IllegalStateException("Range must start from 0, Found - " + r.minimum);
+=======
                 if (!r.range.contains(1)) {
                     throw new IllegalStateException("Range must start from 1, Found - " + r.range);
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
                 }
             } else {
                 if (r.range.lowerEndpoint() - prev.range.upperEndpoint() != 1) {
@@ -419,12 +440,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return r.clusterId;
             }
         }
-        return null;
+        throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
     /**
-     * Get the migration type by inspect config, DB -> if two clusters use different database APP -> if two clusters use
-     * same database
+     * Returns the migration type by inspect config, DB -> if two clusters use different database APP ->
+     * if two clusters use same database.
      */
     private MigrationType getMigrationType(String fromCluster, String toCluster) {
         //TODO: implement
@@ -432,7 +453,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * helper function to get clusterId of the bucketId
+     * Helper function to get clusterId of the bucketId.
      */
     private String getClusterIdByBucketId(int bucketId) {
         //TODO: implement
@@ -452,7 +473,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Find random clusterId in siteId
+     * Find random clusterId in siteId.
      */
     private String getAnyClusterInSite(String siteId) {
         //TODO: implement
@@ -500,12 +521,42 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
     }
 
+<<<<<<< HEAD
+    private void unblockRequestOnCluster(String clusterId) {
+        logger.info("Unblock request on cluster: {}", clusterId);
+        // TODO
+    }
+
+    private void blockRequestOnCluster(String clusterId) {
+        logger.info("Block requests on cluster: {}", clusterId);
+        // TODO
+    }
+
+    private void unblockRequest() {
+        logger.info("Unblock all requests");
+        // TODO:
+    }
+
+    private void blockRequest(long timeoutMs) {
+        logger.info("Block all requests");
+        // TODO:
+    }
+
+    private void unblockRequestOnBuckets(String splitRange) {
+        logger.info("Unblock requests on buckets: {}", splitRange);
+        // TODO:
+    }
+
+    private void blockRequestOnBuckets(String splitRange, long timeoutMs) {
+        logger.info("Block requests on buckets: {}", splitRange);
+=======
 
     private void reassignBuckets(Range<Integer> splitRange, String toCluster) {
         // TODO:
     }
 
     private void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs) {
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
         // TODO:
     }
 

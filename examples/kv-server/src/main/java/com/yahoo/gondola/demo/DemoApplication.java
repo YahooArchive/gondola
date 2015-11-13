@@ -10,6 +10,8 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.container.CommandListenerProvider;
 import com.yahoo.gondola.container.ProxyClientProvider;
+import static com.yahoo.gondola.Role.*;
+import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.container.RoutingFilter;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
@@ -20,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.net.URL;
+import java.util.function.Consumer;
 
 import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
@@ -37,9 +40,9 @@ import javax.ws.rs.core.Context;
  * 4. Register the resources
  */
 public class DemoApplication extends ResourceConfig {
+    static Logger logger = LoggerFactory.getLogger(DemoApplication.class);
     Gondola gondola;
     static DemoApplication instance;
-    static Logger logger = LoggerFactory.getLogger(DemoApplication.class);
 
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
         gondola = initializeGondola();
@@ -65,6 +68,17 @@ public class DemoApplication extends ResourceConfig {
         // register resources in the package
         packages(true, "com.yahoo.gondola.demo");
         instance = this;
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                try {
+                    Thread.sleep(2000);
+                    Runtime.getRuntime().halt(0);
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }
+        });
     }
 
     public static DemoApplication getInstance() {
@@ -72,14 +86,34 @@ public class DemoApplication extends ResourceConfig {
     }
 
     private Gondola initializeGondola() throws Exception {
+        // Find the config file
         URL gondolaConfURI = DemoApplication.class.getClassLoader().getResource("gondola.conf");
         if (gondolaConfURI == null) {
-            throw new FileNotFoundException("Gondola configuration not found");
+            throw new FileNotFoundException(String.format("Gondola configuration '%s' not found", "gondola.conf"));
         }
+
+        // Create the gondola instance
         File gondolaConf = new File(gondolaConfURI.getFile());
         Config config = new Config(gondolaConf);
         String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
         Gondola gondola = new Gondola(config, hostId);
+
+        // Register for role updates and start gondola
+        logger.info("Current role: FOLLOWER");
+        Consumer<RoleChangeEvent> listener = crevt -> {
+            switch (crevt.newRole) {
+                case CANDIDATE:
+                    logger.info("Current role: CANDIDATE");
+                    break;
+                case LEADER:
+                    logger.info("Current role: LEADER");
+                    break;
+                case FOLLOWER:
+                    logger.info("Current role: FOLLOWER");
+                    break;
+            }
+        };
+        gondola.registerForRoleChanges(listener);
         gondola.start();
         return gondola;
     }
@@ -91,14 +125,15 @@ public class DemoApplication extends ResourceConfig {
     public static class ContextListener implements ServletContextListener {
         @Override
         public void contextInitialized(ServletContextEvent sce) {
-            // doing nothing
-            logger.info("Demo application initialized");
+            logger.info("kv-server initialized");
         }
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
-            logger.info("Demo application destroyed");
-            DemoApplication.getInstance().gondola.stop();
+            logger.info("kv-server destroyed");
+            if (DemoApplication.getInstance() != null) {
+                DemoApplication.getInstance().gondola.stop();
+            }
         }
     }
 }
