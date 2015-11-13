@@ -41,8 +41,8 @@ import javax.ws.rs.core.Response;
 
 
 /**
- * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before
- * hitting the resource.
+ * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
+ * resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
@@ -202,12 +202,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                              .status(Response.Status.SERVICE_UNAVAILABLE)
                                              .entity("No leader is available")
                                              .build());
-                if(tracing) {
+                if (tracing) {
                     logger.info("Leader is not available");
                 }
                 return;
             } else if (leader.isLocal()) {
-                if(tracing) {
+                if (tracing) {
                     logger.info("Processing this request");
                 }
                 return;
@@ -459,8 +459,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Returns the migration type by inspect config, DB -> if two clusters use different database APP ->
-     * if two clusters use same database.
+     * Returns the migration type by inspect config, DB -> if two clusters use different database APP -> if two clusters
+     * use same database.
      */
     private MigrationType getMigrationType(String fromCluster, String toCluster) {
         //TODO: implement
