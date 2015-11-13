@@ -399,8 +399,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         Range prev = null;
         for (Range r : bucketTable) {
             if (prev == null) {
-                if (r.minimum != 1) {
-                    throw new IllegalStateException("Range must start from 1, Found - " + r.minimum);
+                if (r.minimum != 0) {
+                    throw new IllegalStateException("Range must start from 0, Found - " + r.minimum);
                 }
             } else {
                 if (r.minimum - prev.maximum != 1) {
@@ -417,7 +417,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return r.clusterId;
             }
         }
-        return null;
+        throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
     /**
