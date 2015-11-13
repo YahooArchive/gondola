@@ -923,6 +923,10 @@ public class CoreMember implements Observer, Stoppable {
         }
     }
 
+    public int getCommitIndex() {
+        return commitIndex;
+    }
+
     /**
      * ***************************** incoming messages *********************************
      */

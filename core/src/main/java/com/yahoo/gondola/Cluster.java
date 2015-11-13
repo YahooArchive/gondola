@@ -230,4 +230,11 @@ public class Cluster implements Stoppable {
             throw e;
         }
     }
+
+    /**
+     * Returns commitIndex.
+     */
+    public int getCommitIndex() {
+        return cmember.getCommitIndex();
+    }
 }
