@@ -148,7 +148,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                     routingHelper.clearState(clusterId);
                     logger.info("Wait until all the logs applied to storage...");
                     waitSynced(clusterId);
-                    logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}", routingHelper.getAppliedIndex(clusterId));
+                    logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
+                                routingHelper.getAppliedIndex(clusterId));
                     lockManager.unblockRequestOnCluster(clusterId);
                 }, singleThreadExecutor).exceptionally(throwable -> {
                     logger.info("Errors while executing leader change event", throwable);
