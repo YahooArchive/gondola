@@ -28,8 +28,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class H2dbStorage implements Storage {
     Logger logger = LoggerFactory.getLogger(H2dbStorage.class);
 
-    Gondola gondola;
-    String hostId;
     Queue<LogEntry> pool = new ConcurrentLinkedQueue<>();
     Connection c;
 
@@ -37,14 +35,18 @@ public class H2dbStorage implements Storage {
     int maxCommandSize;
 
     public H2dbStorage(Gondola gondola, String hostId) throws Exception {
-        this.gondola = gondola;
-        this.hostId = hostId;
-        
         // Get configs
         maxCommandSize = gondola.getConfig().getInt("raft.command_max_size");
+        String user = gondola.getConfig().get("storage_h2.user");
+        String password = gondola.getConfig().get("storage_h2.password");
+        String url = gondola.getConfig().get("storage_h2.url");
+        url = url.replace("$hostId", hostId);
+
+        logger.info("Initializing H2DB storage. maxCommandSize={} url={}", maxCommandSize, url);
 
         Class.forName("org.h2.Driver");
-        createConnection();
+        c = DriverManager.getConnection(url, user, password);
+        c.setAutoCommit(true);
         logger.info("H2DB autoCommit={}", c.getAutoCommit());
 
         Statement statement = c.createStatement();
@@ -69,39 +71,14 @@ public class H2dbStorage implements Storage {
                           + "pid VARCHAR(256) DEFAULT NULL,"
                           + "PRIMARY KEY (memberId)"
                           + ")");
-        statement.close();
-    }
-
-    void createConnection() throws Exception {
-        String url = gondola.getConfig().get("storage_h2.url");
-        String user = gondola.getConfig().get("storage_h2.user");
-        String password = gondola.getConfig().get("storage_h2.password");
-        url = url.replace("$hostId", hostId);
-        logger.info("Initializing H2DB storage. maxCommandSize={} url={} user={}", maxCommandSize, url, user);
-
-        c = DriverManager.getConnection(url, user, password);
-        c.setAutoCommit(true);
     }
 
     @Override
     public void start() {
-        try {
-            if (c == null) {
-                createConnection();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
     }
 
     @Override
     public void stop() {
-        try {
-            c.close();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-        c = null;
     }
 
     // TODO: this is slow

@@ -9,14 +9,14 @@
         <!-- encoders are assigned the type
              ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %level - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
+
     <root level="info">
         <appender-ref ref="STDOUT" />
     </root>
-
-    <logger name="com.yahoo.gondola" level="error"/>
-    <logger name="com.yahoo.gondola.container" level="info"/>
-    <logger name="com.yahoo.gondola.demo" level="info"/>
+    <logger name="com.yahoo.gondola" level="ERROR"/>
+    <logger name="com.yahoo.gondola.container" level="INFO"/>
+    <logger name="com.yahoo.gondola.demo" level="INFO"/>
 </configuration>

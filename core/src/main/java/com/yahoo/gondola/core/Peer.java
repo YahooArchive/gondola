@@ -182,7 +182,7 @@ public class Peer {
                 t.interrupt();
                 t.join();
             } catch (InterruptedException e) {
-                logger.error("Join thread " + t.getName() + " interrupted", e);
+                logger.error(e.getMessage(), e);
             }
         }
         threads.clear();

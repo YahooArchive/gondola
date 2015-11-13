@@ -10,22 +10,20 @@ import com.yahoo.gondola.Cluster;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.NotLeaderException;
-import com.yahoo.gondola.Role;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
  * The core business logic of demo service.
  */
 public class DemoService {
-    Logger logger = LoggerFactory.getLogger(DemoService.class);
 
     // The map holding all the entries
     Map<String, String> entries = new ConcurrentHashMap<>();
@@ -33,66 +31,65 @@ public class DemoService {
     // Gondola cluster, used for replication
     Cluster cluster;
 
-    ChangeLogProcessor clProcessor;
+    Replicator replicator;
+
+    Logger logger = LoggerFactory.getLogger(DemoService.class);
 
     public DemoService(Gondola gondola) throws Exception {
         cluster = gondola.getClustersOnHost().get(0);
 
-        clProcessor = new ChangeLogProcessor();
-        clProcessor.start();
+        replicator = new Replicator();
+        replicator.start();
     }
 
     /**
-     * Returns the value stored at the specified key.
+     * Get entry data, read directly from internal data structure.
      *
-     * @param key
-     * @return The non-null value of the key
-     * @throws NotFoundException
+     * @param entryId
+     * @return the value of the resource
+     * @throws RecordNotFoundException
      */
-    public String getValue(String key) throws NotFoundException, NotLeaderException {
-        if (cluster.getLocalRole() != Role.LEADER) {
-            throw new NotLeaderException();
+    public String getValue(String entryId) throws RecordNotFoundException {
+        if (!entries.containsKey(entryId)) {
+            throw new RecordNotFoundException();
         }
-        if (!entries.containsKey(key)) {
-            throw new NotFoundException();
-        }
-        String value = entries.get(key);
-        logger.info(String.format("Get key %s: %s", key, value));
-        return value;
+        return entries.get(entryId);
     }
 
     /**
      * Commits the entry to Raft log. The entries map is not updated; it is updated by the Replicator thread.
-     * @param key The non-null key
-     * @param value The non-null value
      */
-    public void putValue(String key, String value) throws NotLeaderException {
+    public void putValue(String key, String value) {
         try {
             Command command = cluster.checkoutCommand();
-            byte[] bytes = (key + ":" + value).getBytes(); // TODO implement better separator
+            byte[] bytes = (key + ":" + value).getBytes();
             command.commit(bytes, 0, bytes.length);
-            logger.info(String.format("Put key %s=%s", key, value));
-        } catch (com.yahoo.gondola.NotLeaderException e) {
-            logger.info(String.format("Failed to put %s/%s because not a leader", key, value));
-        } catch (InterruptedException e) {
+        } catch (InterruptedException | NotLeaderException e) {
             throw new RuntimeException(e);
         }
     }
 
     /**
-     * Returns the applied index.
-     *
+     * get appliedIndex.
      * @return applied index.
      */
     public int getAppliedIndex() {
-       return clProcessor.getAppliedIndex();
+       return replicator.getAppliedIndex();
+    }
+
+    /***
+     * Used by the replicator to update internal data structure.
+     */
+    private void setData(String key, String value) {
+        entries.put(key, value);
     }
 
     /**
      * Background thread that continuously reads committed commands from the Gondola cluster, and updates the entries
      * map. TODO: prevent reads until the map is fully updated.
      */
-    public class ChangeLogProcessor extends Thread {
+    public class Replicator extends Thread {
+
         int appliedIndex = 1;
         List<Consumer<String>> listeners = new ArrayList<>();
 
@@ -106,15 +103,16 @@ public class DemoService {
             while (true) {
                 try {
                     string = cluster.getCommittedCommand(appliedIndex).getString();
-                    logger.info("Processed command {}: {}", appliedIndex, string);
+                    logger.info("Received command {} - {}", appliedIndex, string);
                     String[] pair = string.split(":", 2);
                     if (pair.length == 2) {
-                        entries.put(pair[0], pair[1]);
+                        setData(pair[0], pair[1]);
                     }
-                    appliedIndex++;
-                } catch (Throwable e) {
-                    logger.error(e.getMessage(), e);
+                } catch (Exception e) {
+                    e.printStackTrace();
                     break;
+                } finally {
+                    appliedIndex++;
                 }
             }
         }
@@ -129,14 +127,8 @@ public class DemoService {
     }
 
     /**
-     * Thrown when the key for a GET request does not exist.
+     * Exception for record does not exists in the system.
      */
-    public static class NotFoundException extends Throwable {
-    }
-
-    /**
-     * Thrown when the current node is not the leader.
-     */
-    public static class NotLeaderException extends Throwable {
+    public static class RecordNotFoundException extends Throwable {
     }
 }

@@ -14,23 +14,21 @@ import java.net.URI;
 public interface SnapshotManagerClient {
 
     /**
-     * Starts the snapshot process of the storage for the specified site.
-     *
+     * Start taking snapshot on storage
      * @param siteId
-     * @return the non-null location of the snapshot.
      */
     URI startSnapshot(String siteId);
 
     /**
-     * Stops the snapshot process for the specified location.
+     * Stop taking snapshot on storage
      * @param snapshotUri
      */
     void stopSnapshot(URI snapshotUri);
 
     /**
-     * Returns the snapshot status at the specified location.
+     * Gets snapshot status
      * @param snapshotUri
-     * @return the non-null status of the snapshot.
+     * @return
      */
     SnapshotStatus getSnapshotStatus(URI snapshotUri);
 

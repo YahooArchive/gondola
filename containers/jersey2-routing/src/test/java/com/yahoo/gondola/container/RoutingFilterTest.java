@@ -114,7 +114,7 @@ public class RoutingFilterTest {
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertEquals(response.getValue().getEntity().toString(), "No leader is available");
+        assertEquals(response.getValue().getEntity().toString(), "Under leader election");
 
     }
 
