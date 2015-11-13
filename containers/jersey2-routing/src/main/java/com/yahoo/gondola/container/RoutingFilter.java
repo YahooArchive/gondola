@@ -360,8 +360,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
             String bucketMapString = attributesForCluster.get("bucketMap");
             if (bucketMapString == null) {
-                throw new IllegalStateException(
-                    "The cluster definition in the config file is missing the 'bucketMap' attribute");
+                String msg = "The cluster definition in the config file is missing the 'bucketMap' attribute";
+                throw new IllegalStateException(msg);
             }
 
             for (String str : bucketMapString.trim().split(",")) {
@@ -499,32 +499,32 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void unblockRequestOnCluster(String clusterId) {
-        logger.info("unblock request on cluster : {}", clusterId);
+        logger.info("Unblock request on cluster: {}", clusterId);
         // TODO
     }
 
     private void blockRequestOnCluster(String clusterId) {
-        logger.info("block requests on cluster : {}", clusterId);
+        logger.info("Block requests on cluster: {}", clusterId);
         // TODO
     }
 
     private void unblockRequest() {
-        logger.info("unblock all requests");
+        logger.info("Unblock all requests");
         // TODO:
     }
 
     private void blockRequest(long timeoutMs) {
-        logger.info("block all requests");
+        logger.info("Block all requests");
         // TODO:
     }
 
     private void unblockRequestOnBuckets(String splitRange) {
-        logger.info("unblock requests on buckets : {}", splitRange);
+        logger.info("Unblock requests on buckets: {}", splitRange);
         // TODO:
     }
 
     private void blockRequestOnBuckets(String splitRange, long timeoutMs) {
-        logger.info("block requests on buckets : {}", splitRange);
+        logger.info("Block requests on buckets: {}", splitRange);
         // TODO:
     }
 
