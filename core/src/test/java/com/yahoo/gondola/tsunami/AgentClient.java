@@ -6,6 +6,10 @@
 
 package com.yahoo.gondola.tsunami;
 
+import com.yahoo.gondola.cli.Channel;
+import com.yahoo.gondola.cli.ChannelResult;
+import com.yahoo.gondola.cli.CliClient;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +37,7 @@ class AgentClient {
     public void createInstance() {
         try {
             channel.send(String.format("create %s -hostid %s -clusterid cluster1 -port %d -config %s start",
-                                       hostId, hostId, gondolaCc.port, "conf/gondola-tsunami.conf"));
+                                       hostId, hostId, gondolaCc.getPort(), "conf/gondola-tsunami.conf"));
             up = true;
         } catch (Exception e) {
             logger.error("Create {} failed: {}", hostId, e.getMessage());

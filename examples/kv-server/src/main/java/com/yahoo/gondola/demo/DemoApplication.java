@@ -8,6 +8,7 @@ package com.yahoo.gondola.demo;
 
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.container.CommandListenerProvider;
 import com.yahoo.gondola.container.ProxyClientProvider;
 import static com.yahoo.gondola.Role.*;
 import com.yahoo.gondola.RoleChangeEvent;
@@ -59,7 +60,9 @@ public class DemoApplication extends ResourceConfig {
         // register routing filter
         RoutingFilter routingFilter = new RoutingFilter(gondola,
                                                         new DemoRoutingHelper(gondola, demoService),
-                                                        new ProxyClientProvider());
+                                                        new ProxyClientProvider(),
+                                                        new CommandListenerProvider()
+        );
         register(routingFilter);
 
         // register resources in the package

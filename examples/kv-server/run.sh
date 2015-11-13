@@ -1,5 +1,5 @@
-#!/bin/bash 
+#!/bin/bash
 rm /tmp/gondola*
 /usr/bin/killall java
-./run.sh host2 2>&1 > host2 &
-./run.sh host3 2>&1 > host3 &
+./bin/run.sh host2 2>&1 > target/host2 &
+./bin/run.sh host3 2>&1 > target/host3 &

@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.google.common.collect.Range;
 import com.yahoo.gondola.Cluster;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -92,12 +94,22 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * The Command adaptor.
      */
-    CommandAdaptor commandAdaptor;
+    CommandListener commandListener;
 
     /**
      * Proxy client help to forward request to remote server.
      */
     ProxyClient proxyClient;
+
+    /**
+     * Serialized command executor
+     */
+    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
+
+    /**
+     * Lock manager
+     */
+    LockManager lockManager = new LockManager();
 
     /**
      * Disallow default constructor
@@ -112,11 +124,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * @param routingHelper the routing helper
      * @throws ServletException the servlet exception
      */
-    public RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider)
+    public RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
+                         CommandListenerProvider commandListenerProvider)
         throws ServletException {
         this.gondola = gondola;
         this.routingHelper = routingHelper;
-        commandAdaptor = new CommandAdaptor(new CommandHandler());
+        commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
+        commandListener.setShardManagerHandler(new CommandHandler());
         loadRoutingTable();
         loadBucketTable();
         watchGondolaEvent();
@@ -124,15 +138,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void watchGondolaEvent() {
-        ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
         gondola.registerForRoleChanges(roleChangeEvent -> {
             if (roleChangeEvent.leader != null && roleChangeEvent.leader.isLocal()) {
-                singleThreadExecutor.submit(() -> {
+                CompletableFuture.runAsync(() -> {
                     String clusterId = roleChangeEvent.cluster.getClusterId();
-                    blockRequestOnCluster(clusterId);
+                    lockManager.blockRequestOnCluster(clusterId);
                     routingHelper.clearState(clusterId);
                     waitSynced(clusterId);
-                    unblockRequestOnCluster(clusterId);
+                    lockManager.unblockRequestOnCluster(clusterId);
+                }, singleThreadExecutor).exceptionally(throwable -> {
+                    logger.info("Errors while executing leader change event", throwable);
+                    return null;
                 });
             }
         });
@@ -147,9 +163,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         int bucketId = routingHelper.getBucketId(requestContext);
-        blockRequestIfNeeded(bucketId);
-        incrementBucketCounter(routingHelper.getBucketId(requestContext));
         String clusterId = getClusterId(requestContext);
+
+        try {
+            lockManager.filterRequest(bucketId, clusterId);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        }
+
+        incrementBucketCounter(routingHelper.getBucketId(requestContext));
 
         if (isMyCluster(clusterId)) {
             Member leader = getLeader(clusterId);
@@ -171,10 +193,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         proxyRequestToLeader(requestContext, clusterId);
     }
 
-    private void blockRequestIfNeeded(int bucketId) {
-        // TODO
-    }
-
     // Response filter
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
@@ -184,8 +202,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     /**
      * A compatibility checking tool for routing module.
-     *
-     * @param config
      */
     public static void configCheck(Config config) {
         StringBuilder sb = new StringBuilder();
@@ -195,7 +211,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             }
         }
 
-        for (String hostId :config.getHostIds()) {
+        for (String hostId : config.getHostIds()) {
             Map<String, String> attributes = config.getAttributesForHost(hostId);
             if (!attributes.containsKey("appScheme") || !attributes.containsKey("appPort")) {
                 sb.append("Host attributes appScheme and appPort is missing on Host - " + hostId + "\n");
@@ -330,32 +346,32 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * bucketId -> clusterId bucket size is fixed and shouldn't change, and should be prime number
      */
-    List<Range> bucketTable = new ArrayList<>();
+    List<BucketEntry> bucketTable = new ArrayList<>();
 
+<<<<<<< HEAD
     private class Range {
         Integer minimum;
         Integer maximum;
+=======
+    private class BucketEntry {
+
+        Range<Integer> range;
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
         String clusterId;
 
-        public Range(Integer minimum, Integer maximum, String clusterId) {
-            this.minimum = minimum;
-            this.maximum = maximum;
+        public BucketEntry(Integer a, Integer b, String clusterId) {
+            if (b == null) {
+                this.range = Range.closed(a, a);
+            } else {
+                this.range = Range.closed(a, b);
+            }
             this.clusterId = clusterId;
-        }
-
-        public boolean inRange(int i) {
-            return i >= minimum && i <= maximum;
-        }
-
-        @Override
-        public String toString() {
-            return "[" + minimum + ", " + maximum + "]";
         }
     }
 
     private void loadBucketTable() {
         Config config = gondola.getConfig();
-        Range range;
+        BucketEntry range;
         for (String clusterId : config.getClusterIds()) {
             Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
             String bucketMapString = attributesForCluster.get("bucketMap");
@@ -368,7 +384,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 String[] rangePair = str.trim().split("-");
                 switch (rangePair.length) {
                     case 1:
-                        range = new Range(Integer.parseInt(rangePair[0]), null, clusterId);
+                        range = new BucketEntry(Integer.parseInt(rangePair[0]), null, clusterId);
                         break;
                     case 2:
                         Integer min, max;
@@ -382,7 +398,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         if (min.equals(max)) {
                             max = null;
                         }
-                        range = new Range(min, max, clusterId);
+                        range = new BucketEntry(min, max, clusterId);
                         break;
                     default:
                         throw new IllegalStateException("Range format: x - y or  x, but get " + str);
@@ -395,16 +411,23 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void bucketMapCheck() {
-        bucketTable.sort((o1, o2) -> o1.minimum > o2.minimum ? 1 : -1);
-        Range prev = null;
-        for (Range r : bucketTable) {
+        BucketEntry prev = null;
+        bucketTable.sort((o1, o2) -> o1.range.lowerEndpoint() > o2.range.lowerEndpoint() ? 1 : -1);
+
+        for (BucketEntry r : bucketTable) {
             if (prev == null) {
+<<<<<<< HEAD
                 if (r.minimum != 0) {
                     throw new IllegalStateException("Range must start from 0, Found - " + r.minimum);
+=======
+                if (!r.range.contains(1)) {
+                    throw new IllegalStateException("Range must start from 1, Found - " + r.range);
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
                 }
             } else {
-                if (r.minimum - prev.maximum != 1) {
-                    throw new IllegalStateException("Range must continuous, Found - " + prev + " - " + r);
+                if (r.range.lowerEndpoint() - prev.range.upperEndpoint() != 1) {
+                    throw new IllegalStateException(
+                        "Range must be continuous, Found - " + prev.range + " - " + r.range);
                 }
             }
             prev = r;
@@ -412,8 +435,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private String lookupBucketTable(int bucketId) {
-        for (Range r : bucketTable) {
-            if (r.inRange(bucketId)) {
+        for (BucketEntry r : bucketTable) {
+            if (r.range.contains(bucketId)) {
                 return r.clusterId;
             }
         }
@@ -498,6 +521,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
     }
 
+<<<<<<< HEAD
     private void unblockRequestOnCluster(String clusterId) {
         logger.info("Unblock request on cluster: {}", clusterId);
         // TODO
@@ -525,18 +549,18 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     private void blockRequestOnBuckets(String splitRange, long timeoutMs) {
         logger.info("Block requests on buckets: {}", splitRange);
+=======
+
+    private void reassignBuckets(Range<Integer> splitRange, String toCluster) {
         // TODO:
     }
 
-    private void reassignBuckets(String splitRange, String toCluster) {
+    private void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs) {
+>>>>>>> 58eaa1296b301691f28c9e2e87933acbc670c4c0
         // TODO:
     }
 
-    private void waitNoRequestsOnBuckets(String splitRange, long timeoutMs) {
-        // TODO:
-    }
-
-    private String getSplitRange(String fromCluster) {
+    private Range<Integer> getSplitRange(String fromCluster) {
         // TODO:
         return null;
     }
@@ -573,18 +597,18 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         @Override
         public void splitBucket(String fromCluster, String toCluster, long timeoutMs) {
-            String splitRange = getSplitRange(fromCluster);
+            Range<Integer> splitRange = getSplitRange(fromCluster);
             MigrationType migrationType = getMigrationType(fromCluster, toCluster);
             switch (migrationType) {
                 case APP:
                     for (int i = 0; i < RETRY; i++) {
                         try {
-                            blockRequestOnBuckets(splitRange, 5000L);
+                            lockManager.blockRequestOnBuckets(splitRange);
                             waitNoRequestsOnBuckets(splitRange, 5000L);
                             reassignBuckets(splitRange, toCluster);
                             break;
                         } finally {
-                            unblockRequestOnBuckets(splitRange);
+                            lockManager.unblockRequestOnBuckets(splitRange);
                         }
                     }
                     break;
@@ -592,11 +616,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                     for (int i = 0; i < RETRY; i++) {
                         try {
                             statClient.waitApproaching(toCluster, -1L);
-                            blockRequest(5000L);
+                            lockManager.blockRequest();
                             statClient.waitSynced(toCluster, 5000L);
                             reassignBuckets(splitRange, toCluster);
                         } finally {
-                            unblockRequest();
+                            lockManager.unblockRequest();
                         }
                         break;
                     }
@@ -605,7 +629,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         @Override
         public void mergeBucket(String fromCluster, String toCluster, long timeoutMs) {
-
         }
     }
 }

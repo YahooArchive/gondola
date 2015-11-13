@@ -7,6 +7,8 @@
 package com.yahoo.gondola.tsunami;
 
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.cli.CliClient;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -18,19 +20,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -138,7 +135,7 @@ public class Tsunami {
             for (int w = 0; w < numWriters; w++) {
                 String writerId = String.format("%c%d", (char) ('A' + a), w);
 
-                executorService.execute(new Writer(writerId, agent.hostname, agent.gondolaCc.port));
+                executorService.execute(new Writer(writerId, agent.hostname, agent.gondolaCc.getPort()));
             }
         }
     }
@@ -240,7 +237,7 @@ public class Tsunami {
             CliClient[] clients = new CliClient[agents.length];
             try {
                 for (int i = 0; i < clients.length; i++) {
-                    clients[i] = new CliClient(agents[i].hostname, agents[i].gondolaCc.port, 60000);
+                    clients[i] = new CliClient(agents[i].hostname, agents[i].gondolaCc.getPort(), 60000);
                 }
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
