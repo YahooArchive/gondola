@@ -419,7 +419,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return r.clusterId;
             }
         }
-        return null;
+        throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
     /**
