@@ -50,7 +50,7 @@ class LockManager {
     }
 
     void unblockRequestOnCluster(String clusterId) {
-        logger.info("unblock requests on cluster : {}", clusterId);
+        logger.info("Unblock requests on cluster : {}", clusterId);
         CountDownLatch lock = clusters.remove(clusterId);
         if (lock != null) {
             lock.countDown();
@@ -58,12 +58,12 @@ class LockManager {
     }
 
     void blockRequestOnCluster(String clusterId) {
-        logger.info("block requests on cluster : {}", clusterId);
+        logger.info("Block requests on cluster : {}", clusterId);
         clusters.putIfAbsent(clusterId, new CountDownLatch(1));
     }
 
     void unblockRequest() {
-        logger.info("unblock all requests");
+        logger.info("Unblock all requests");
         if (globalLock != null) {
             globalLock.countDown();
             globalLock = null;
@@ -71,12 +71,12 @@ class LockManager {
     }
 
     void blockRequest() {
-        logger.info("block all requests");
+        logger.info("Block all requests");
         globalLock = new CountDownLatch(1);
     }
 
     void unblockRequestOnBuckets(Range<Integer> splitRange) {
-        logger.info("unblock requests on buckets : {}", splitRange);
+        logger.info("Unblock requests on buckets : {}", splitRange);
         CountDownLatch lock = buckets.remove(splitRange);
         if (lock != null) {
             lock.countDown();
@@ -85,7 +85,7 @@ class LockManager {
 
 
     void blockRequestOnBuckets(Range<Integer> splitRange) {
-        logger.info("block requests on buckets : {}", splitRange);
+        logger.info("Block requests on buckets : {}", splitRange);
         buckets.putIfAbsent(splitRange, new CountDownLatch(1));
     }
 

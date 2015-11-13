@@ -9,16 +9,15 @@ package com.yahoo.gondola.demo;
 import com.yahoo.gondola.Cluster;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.NotLeaderException;
 import com.yahoo.gondola.Role;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -93,25 +92,21 @@ public class DemoService {
      * map. TODO: prevent reads until the map is fully updated.
      */
     public class ChangeLogProcessor extends Thread {
-        int appliedIndex = 1;
+        int appliedIndex = 0;
         List<Consumer<String>> listeners = new ArrayList<>();
-
-        void addListener(Consumer<String> listener) {
-            listeners.add(listener);
-        }
 
         @Override
         public void run() {
             String string;
             while (true) {
                 try {
-                    string = cluster.getCommittedCommand(appliedIndex).getString();
+                    string = cluster.getCommittedCommand(appliedIndex + 1).getString();
+                    appliedIndex++;
                     logger.info("Processed command {}: {}", appliedIndex, string);
                     String[] pair = string.split(":", 2);
                     if (pair.length == 2) {
                         entries.put(pair[0], pair[1]);
                     }
-                    appliedIndex++;
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
                     break;
@@ -125,7 +120,7 @@ public class DemoService {
     }
 
     public void clearState() {
-        entries.clear();
+        logger.info("In demo application, no need to clear the internal storage.");
     }
 
     /**

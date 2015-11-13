@@ -142,9 +142,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (roleChangeEvent.leader != null && roleChangeEvent.leader.isLocal()) {
                 CompletableFuture.runAsync(() -> {
                     String clusterId = roleChangeEvent.cluster.getClusterId();
+                    logger.info("Preparing for serving...");
                     lockManager.blockRequestOnCluster(clusterId);
+                    logger.info("Clearing internal state...");
                     routingHelper.clearState(clusterId);
+                    logger.info("Wait until all the logs applied to storage...");
                     waitSynced(clusterId);
+                    logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
+                                routingHelper.getAppliedIndex(clusterId));
                     lockManager.unblockRequestOnCluster(clusterId);
                 }, singleThreadExecutor).exceptionally(throwable -> {
                     logger.info("Errors while executing leader change event", throwable);
@@ -159,6 +164,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public void filter(ContainerRequestContext requestContext) throws IOException {
         int bucketId = routingHelper.getBucketId(requestContext);
         String clusterId = getClusterId(requestContext);
+        if (clusterId == null) {
+            throw new IllegalStateException("ClusterID cannot be null.");
+        }
 
         try {
             lockManager.filterRequest(bucketId, clusterId);
@@ -294,8 +302,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
                 return;
             } catch (IOException e) {
-                // TODO: add a config to show stack trace
-                logger.error(String.format("Error while forwarding request to %s: %s", appUrl, e.getMessage()));
+                logger.error("Error while forwarding request to cluster:{} {}", clusterId, appUrl, e);
             }
         }
         request.abortWith(Response
@@ -305,14 +312,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void updateRoutingTableIfNeeded(String clusterId, Response proxiedResponse) {
-        String headerString = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
-        setClusterLeader(clusterId, headerString);
+        String newAppUrl = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
+        if (newAppUrl != null) {
+            setClusterLeader(clusterId, newAppUrl);
+        }
     }
 
     /**
      * Moves newAppUrl to the first entry of the routing table.
      */
     private void setClusterLeader(String clusterId, String newAppUrl) {
+        logger.info("New leader found, correct routing table with : clusterId={}, appUrl={}", clusterId, newAppUrl);
         List<String> appUrls = lookupRoutingTable(clusterId);
         List<String> newAppUrls = new ArrayList<>(appUrls.size());
         newAppUrls.add(newAppUrl);
@@ -488,12 +498,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             try {
                 Thread.sleep(500);
                 long now = System.currentTimeMillis();
-                int diff = gondola.getCluster(clusterId).getLastSavedIndex() - routingHelper.getAppliedIndex(clusterId);
-                if (checkTime - now > 10000) {
+                int diff = gondola.getCluster(clusterId).getCommitIndex() - routingHelper.getAppliedIndex(clusterId);
+                if (now - checkTime > 10000) {
                     checkTime = now;
-                    logger.warn("Recovery running for {} seconds, {} logs left", now - startTime, diff);
+                    logger.warn("Recovery running for {} seconds, {} logs left", (now - startTime) / 1000, diff);
                 }
-                synced = diff == 0;
+                synced = diff <= 0;
             } catch (Exception e) {
                 logger.info("Unknown error", e);
             }

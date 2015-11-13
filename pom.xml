@@ -38,6 +38,7 @@
         <checkstyle.suppressions.location>settings/checkstyle-suppressions.xml</checkstyle.suppressions.location>
         <checkstyle.header.file>settings/java.header</checkstyle.header.file>
         <slf4j.version>1.7.10</slf4j.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <licenses>
