@@ -77,6 +77,8 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         return getResponse(proxiedResponse);
     }
 
+    // TODO: implement header forwarding.
+
     private Response getResponse(CloseableHttpResponse proxiedResponse) throws IOException {
         Response.ResponseBuilder builder = Response
             .status(proxiedResponse.getStatusLine().getStatusCode());

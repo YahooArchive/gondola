@@ -105,6 +105,7 @@ public class RoutingFilterTest {
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
+
         router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
 
@@ -159,6 +160,7 @@ public class RoutingFilterTest {
     public void testBecomeLeader_block_cluster() throws Exception {
         verify(gondola).registerForRoleChanges(consumer.capture());
         when(member.isLocal()).thenReturn(true);
+        when(member.getMemberId()).thenReturn(81);
         RoleChangeEvent event = new RoleChangeEvent(cluster, member, member, null, null);
         consumer.getValue().accept(event);
         Thread.sleep(1000);
@@ -167,6 +169,11 @@ public class RoutingFilterTest {
 
     @Test
     public void testBucketSplit_migrate_app_block_buckets() throws Exception {
+        URL resource = Gondola.class.getClassLoader().getResource("gondola_design.png");
+        System.out.println(Gondola.class.getClassLoader());
+        System.out.println(RoutingFilterTest.class.getClassLoader());
+
+        System.out.println(resource);
     }
 
     @Test

@@ -214,6 +214,13 @@ public class Config {
         return getAddressForHost(cm.hostId);
     }
 
+    public ConfigMember getMember(int memberId) {
+        ConfigMember cm = configData.members.get(memberId);
+        if (cm == null) {
+            throw new IllegalArgumentException(String.format("member '%s' not found in config", memberId));
+        }
+        return cm;
+    }
     public InetSocketAddress getAddressForHost(String hostId) {
         InetSocketAddress addr = configData.addrs.get(hostId);
         if (addr == null) {

@@ -29,21 +29,31 @@ class LockManager {
     Map<String, CountDownLatch> clusters = new ConcurrentHashMap<>();
     Map<Range<Integer>, CountDownLatch> buckets = new HashMap<>();
     ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    static Logger logger = LoggerFactory.getLogger(LockManager.class);
+    boolean tracing;
 
-    Logger logger = LoggerFactory.getLogger(LockManager.class);
     void filterRequest(int bucketId, String clusterId) throws InterruptedException {
         if (globalLock != null) {
+            if (tracing) {
+                logger.info("Request blocked by global lock");
+            }
             globalLock.await();
         }
 
         CountDownLatch clusterLock = clusters.get(clusterId);
         if (clusterLock != null) {
+            if (tracing) {
+                logger.info("Request blocked by cluster lock - clusterId={}", clusterId);
+            }
             clusterLock.await();
         }
 
         List<CountDownLatch> bucketLocks = getBucketLocks(bucketId);
         if (bucketLocks.size() != 0) {
             for (CountDownLatch bucketLock : bucketLocks) {
+                if (tracing) {
+                    logger.info("Request blocked by bucket lock - bucketId={}", bucketId);
+                }
                 bucketLock.await();
             }
         }
