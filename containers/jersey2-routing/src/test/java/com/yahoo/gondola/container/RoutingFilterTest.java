@@ -45,6 +45,8 @@ import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
 public class RoutingFilterTest {
+
+    public static final String MY_APP_URI = "http://localhost:8080/";
     RoutingFilter router;
 
     @Mock
@@ -103,13 +105,14 @@ public class RoutingFilterTest {
         when(gondola.getConfig()).thenReturn(this.config);
         when(gondola.getCluster(any())).thenReturn(cluster);
         when(gondola.getClustersOnHost()).thenReturn(Arrays.asList(cluster, cluster));
+        when(gondola.getHostId()).thenReturn("host1");
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(new MultivaluedHashMap<>());
-        when(request.getRequestUri()).thenReturn(URI.create("http://localhost:8080/"));
+        when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
 
         router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
@@ -173,12 +176,16 @@ public class RoutingFilterTest {
     }
 
     @Test
-    public void testBucketSplit_migrate_app_block_buckets() throws Exception {
-        URL resource = Gondola.class.getClassLoader().getResource("gondola_design.png");
-        System.out.println(Gondola.class.getClassLoader());
-        System.out.println(RoutingFilterTest.class.getClassLoader());
+    public void testRoutingLoop() throws Exception {
+        when(request.getHeaderString(any())).thenReturn("foo;" + MY_APP_URI + ";bar");
+        router.filter(request);
+        ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
+        verify(request, times(1)).abortWith(response.capture());
+        assertEquals(response.getValue().getStatus(), Response.Status.BAD_REQUEST.getStatusCode());
+    }
 
-        System.out.println(resource);
+    @Test
+    public void testBucketSplit_migrate_app_block_buckets() throws Exception {
     }
 
     @Test

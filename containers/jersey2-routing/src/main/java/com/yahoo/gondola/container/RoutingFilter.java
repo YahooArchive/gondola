@@ -193,6 +193,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
+        if (hasRoutingLoop(requestContext)) {
+            requestContext.abortWith(
+                Response.status(Response.Status.BAD_REQUEST)
+                .build()
+            );
+            return;
+        }
+
         int bucketId = routingHelper.getBucketId(requestContext);
         String clusterId = getClusterId(requestContext);
         if (clusterId == null) {
@@ -238,6 +246,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         // Proxy the request to other server
         proxyRequestToLeader(requestContext, clusterId);
+    }
+
+    private boolean hasRoutingLoop(ContainerRequestContext requestContext) {
+        return requestContext.getHeaderString(X_FORWARDED_BY).contains(myAppUri);
     }
 
     // Response filter
