@@ -98,6 +98,8 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
             {"POST"},
             {"PUT"},
             {"DELETE"},
+            //TODO: apache http component test server does not support PATCH method, skip the test for now.
+            // {"PATCH"},
         };
     }
 
