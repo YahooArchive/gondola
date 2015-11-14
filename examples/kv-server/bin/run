@@ -20,4 +20,7 @@ fi
 
 export hostId
 export JAVA_TOOL_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
-mvn jetty:run -Djetty.port=$port
+mvn jetty:run -Djetty.port=$port &
+pid=$!
+trap "echo 'Stopping java process...'; kill $pid; wait"  SIGINT SIGTERM
+wait
