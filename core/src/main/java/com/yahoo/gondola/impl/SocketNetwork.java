@@ -10,15 +10,23 @@ import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Network;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InterruptedIOException;
 import java.io.OutputStream;
-import java.net.*;
-import java.util.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Observable;
+import java.util.Observer;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,7 +53,7 @@ import java.util.regex.Pattern;
  * caller: B should call A
  * callee: ok
  */
-public class SocketNetwork implements Network, Observer {
+public class SocketNetwork implements Network {
     final static Logger logger = LoggerFactory.getLogger(SocketNetwork.class);
 
     final Gondola gondola;
@@ -68,7 +76,10 @@ public class SocketNetwork implements Network, Observer {
     public SocketNetwork(Gondola gondola, String hostId) throws SocketException {
         this.gondola = gondola;
         this.hostId = hostId;
-        gondola.getConfig().registerForUpdates(this);
+        gondola.getConfig().registerForUpdates(config -> {
+            networkTracing = config.getBoolean("tracing.network");
+            connTimeout = config.getInt("network_socket.connect_timeout");
+        });
 
         InetSocketAddress address = gondola.getConfig().getAddressForHost(hostId);
         if (!isLocalAddress(address.getAddress())) {
@@ -80,16 +91,6 @@ public class SocketNetwork implements Network, Observer {
             throw new IllegalStateException(String.format("Another process is actively listening to %s",
                     getAddress()));
         }
-    }
-
-    /*
-     * Called at the time of registration and whenever the config file changes.
-     */
-    @Override
-    public void update(Observable obs, Object arg) {
-        Config config = (Config) arg;
-        networkTracing = config.getBoolean("tracing.network");
-        connTimeout = config.getInt("network_socket.connect_timeout");
     }
 
     @Override

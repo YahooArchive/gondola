@@ -40,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * continuously trying to connect to the peer.
  * - when socketValid is false, socket, in, and out will all be null.
  */
-public class SocketChannel implements Channel, Observer {
+public class SocketChannel implements Channel {
     final static Logger logger = LoggerFactory.getLogger(SocketChannel.class);
 
     Gondola gondola;
@@ -73,23 +73,18 @@ public class SocketChannel implements Channel, Observer {
         this.gondola = gondola;
         this.memberId = memberId;
         this.peerId = toMemberId;
-        gondola.getConfig().registerForUpdates(this);
+        gondola.getConfig().registerForUpdates(config -> {
+            networkTracing = config.getBoolean("tracing.network");
+            createSocketRetryPeriod = config.getInt("network_socket.create_socket_retry_period");
+            heartbeatPeriod = config.getInt("raft.heartbeat_period");
+            connTimeout = config.getInt("network_socket.connect_timeout");
+        });
 
         logger.info("[{}-{}] Creating connection to {}", gondola.getHostId(), memberId, toMemberId);
         inetSocketAddress = gondola.getConfig().getAddressForMember(peerId);
         reconnect();
     }
 
-    /*
-     * Called at the time of registration and whenever the config file changes.
-     */
-    public void update(Observable obs, Object arg) {
-        Config config = (Config) arg;
-        networkTracing = config.getBoolean("tracing.network");
-        createSocketRetryPeriod = config.getInt("network_socket.create_socket_retry_period");
-        heartbeatPeriod = config.getInt("raft.heartbeat_period");
-        connTimeout = config.getInt("network_socket.connect_timeout");
-    }
 
     /**
      * See Stoppable.start().

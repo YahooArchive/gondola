@@ -16,12 +16,14 @@ import com.yahoo.gondola.container.client.SnapshotManagerClient;
 import com.yahoo.gondola.container.client.StatClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
+import org.glassfish.jersey.server.ContainerRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,8 +43,8 @@ import javax.ws.rs.core.Response;
 
 
 /**
- * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before
- * hitting the resource.
+ * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
+ * resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
@@ -59,6 +61,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public static final String APP_SCHEME = "appScheme";
     public static final int RETRY = 3;
+    public static final String X_FORWARDED_BY = "X-Forwarded-By";
 
     /**
      * Routing table Key: memberId, value: HTTP URL.
@@ -76,7 +79,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     Set<String> myClusterIds;
 
     /**
-     * The Routing table. clusterId --> list of available servers
+     * The Routing table. clusterId --> list of available servers. (URI)
      */
     Map<String, List<String>> routingTable;
 
@@ -93,7 +96,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * The Logger.
      */
-    Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
+    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     CommandListener commandListener;
     /**
@@ -102,14 +105,30 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     ProxyClient proxyClient;
 
     /**
-     * Serialized command executor
+     * Serialized command executor.
      */
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
     /**
-     * Lock manager
+     * Lock manager.
      */
     LockManager lockManager = new LockManager();
+
+    /**
+     * Mapping table for serviceUris. hostId --> service URL
+     */
+    Map<String, String> serviceUris = new HashMap<>();
+
+    /**
+     * Flag to enable tracing.
+     */
+    boolean tracing = false;
+
+
+    /**
+     * The App URI of the server
+     */
+    String myAppUri;
 
     /**
      * Disallow default constructor
@@ -133,28 +152,40 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         commandListener.setShardManagerHandler(new CommandHandler());
         loadRoutingTable();
         loadBucketTable();
+        loadConfig();
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
     }
 
+    private void loadConfig() {
+        gondola.getConfig().registerForUpdates(config -> {
+            tracing = config.getBoolean("tracing.router");
+        });
+    }
+
     private void watchGondolaEvent() {
         gondola.registerForRoleChanges(roleChangeEvent -> {
-            if (roleChangeEvent.leader != null && roleChangeEvent.leader.isLocal()) {
-                CompletableFuture.runAsync(() -> {
-                    String clusterId = roleChangeEvent.cluster.getClusterId();
-                    logger.info("Preparing for serving...");
-                    lockManager.blockRequestOnCluster(clusterId);
-                    logger.info("Clearing internal state...");
-                    routingHelper.clearState(clusterId);
-                    logger.info("Wait until all the logs applied to storage...");
-                    waitSynced(clusterId);
-                    logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
-                                routingHelper.getAppliedIndex(clusterId));
-                    lockManager.unblockRequestOnCluster(clusterId);
-                }, singleThreadExecutor).exceptionally(throwable -> {
-                    logger.info("Errors while executing leader change event", throwable);
-                    return null;
-                });
+            if (roleChangeEvent.leader != null) {
+                Config config = gondola.getConfig();
+                String appUri = getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
+                updateClusterRoutingEntries(roleChangeEvent.cluster.getClusterId(), appUri);
+                if (roleChangeEvent.leader.isLocal()) {
+                    CompletableFuture.runAsync(() -> {
+                        String clusterId = roleChangeEvent.cluster.getClusterId();
+                        logger.info("Preparing for serving...");
+                        lockManager.blockRequestOnCluster(clusterId);
+                        logger.info("Clearing internal state...");
+                        routingHelper.clearState(clusterId);
+                        logger.info("Wait until all the logs applied to storage...");
+                        waitSynced(clusterId);
+                        logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
+                                    routingHelper.getAppliedIndex(clusterId));
+                        lockManager.unblockRequestOnCluster(clusterId);
+                    }, singleThreadExecutor).exceptionally(throwable -> {
+                        logger.info("Errors while executing leader change event", throwable);
+                        return null;
+                    });
+                }
             }
         });
     }
@@ -176,6 +207,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         incrementBucketCounter(routingHelper.getBucketId(requestContext));
 
+        if (tracing) {
+            List<String> forwardedBy = requestContext.getHeaders().get(X_FORWARDED_BY);
+            logger.info("Processing request: {} of cluster={}, forwarded={}",
+                        requestContext.getUriInfo().getAbsolutePath(), clusterId,
+                        forwardedBy != null ? forwardedBy.toString() : "");
+        }
+
         if (isMyCluster(clusterId)) {
             Member leader = getLeader(clusterId);
 
@@ -186,8 +224,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                              .status(Response.Status.SERVICE_UNAVAILABLE)
                                              .entity("No leader is available")
                                              .build());
+                if (tracing) {
+                    logger.info("Leader is not available");
+                }
                 return;
             } else if (leader.isLocal()) {
+                if (tracing) {
+                    logger.info("Processing this request");
+                }
                 return;
             }
         }
@@ -232,29 +276,37 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         Config config = gondola.getConfig();
         for (String hostId : config.getHostIds()) {
             if (hostId.equals(gondola.getHostId())) {
+                myAppUri = getAppUri(config, hostId);
                 continue;
             }
+            String appUri = getAppUri(config, hostId);
+            serviceUris.put(hostId, appUri);
             for (String clusterId : config.getClusterIds(hostId)) {
-                InetSocketAddress address = config.getAddressForHost(hostId);
                 List<String> addresses = newRoutingTable.get(clusterId);
                 if (addresses == null) {
                     addresses = new ArrayList<>();
                     newRoutingTable.put(clusterId, addresses);
                 }
-                Map<String, String> attrs = config.getAttributesForHost(hostId);
-                if (attrs.get(APP_PORT) == null || attrs.get(APP_SCHEME) == null) {
-                    throw new IllegalStateException(
-                        String
-                            .format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT,
-                                    APP_SCHEME));
-                }
-                String
-                    appUri =
-                    String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
+
                 addresses.add(appUri);
             }
         }
         routingTable = newRoutingTable;
+    }
+
+    private String getAppUri(Config config, String hostId) {
+        InetSocketAddress address = config.getAddressForHost(hostId);
+        Map<String, String> attrs = config.getAttributesForHost(hostId);
+        String
+            appUri =
+            String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
+        if (!attrs.containsKey(APP_PORT) || !attrs.containsKey(APP_SCHEME)) {
+            throw new IllegalStateException(
+                String
+                    .format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT,
+                            APP_SCHEME));
+        }
+        return appUri;
     }
 
 
@@ -286,23 +338,39 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void proxyRequestToLeader(ContainerRequestContext request, String clusterId) throws IOException {
-        List<String> appUrls = lookupRoutingTable(clusterId);
+        List<String> appUris = lookupRoutingTable(clusterId);
 
-        for (String appUrl : appUrls) {
+        boolean fail = false;
+        for (String appUri : appUris) {
             try {
-                Response proxiedResponse = proxyClient.proxyRequest(request, appUrl);
+                if (tracing) {
+                    String requestPath = ((ContainerRequest) request).getRequestUri().getPath();
+                    logger.info("Proxy request to remote server, method={}, URI={}",
+                                request.getMethod(), appUri + requestPath);
+                }
+                List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
+                if (forwardedBy == null) {
+                    forwardedBy = new ArrayList<>();
+                }
+                forwardedBy.add(myAppUri);
+
+                Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
                 String
                     entity =
                     proxiedResponse.getEntity() != null ? proxiedResponse.getEntity().toString() : "";
                 request.abortWith(Response
                                       .status(proxiedResponse.getStatus())
                                       .entity(entity)
-                                      .header(X_GONDOLA_LEADER_ADDRESS, appUrl)
+                                      .header(X_GONDOLA_LEADER_ADDRESS, appUri)
                                       .build());
                 updateRoutingTableIfNeeded(clusterId, proxiedResponse);
+                if (fail) {
+                    updateClusterRoutingEntries(clusterId, appUri);
+                }
                 return;
             } catch (IOException e) {
-                logger.error("Error while forwarding request to cluster:{} {}", clusterId, appUrl, e);
+                fail = true;
+                logger.error("Error while forwarding request to cluster:{} {}", clusterId, appUri, e);
             }
         }
         request.abortWith(Response
@@ -312,26 +380,27 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private void updateRoutingTableIfNeeded(String clusterId, Response proxiedResponse) {
-        String newAppUrl = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
-        if (newAppUrl != null) {
-            setClusterLeader(clusterId, newAppUrl);
+        String appUri = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
+        if (appUri != null) {
+            logger.info("New leader found, correct routing table with : clusterId={}, appUrl={}", clusterId, appUri);
+            updateClusterRoutingEntries(clusterId, appUri);
         }
     }
 
     /**
      * Moves newAppUrl to the first entry of the routing table.
      */
-    private void setClusterLeader(String clusterId, String newAppUrl) {
-        logger.info("New leader found, correct routing table with : clusterId={}, appUrl={}", clusterId, newAppUrl);
-        List<String> appUrls = lookupRoutingTable(clusterId);
-        List<String> newAppUrls = new ArrayList<>(appUrls.size());
-        newAppUrls.add(newAppUrl);
-        for (String appUrl : appUrls) {
-            if (!appUrl.equals(newAppUrl)) {
-                newAppUrls.add(appUrl);
+    private void updateClusterRoutingEntries(String clusterId, String appUri) {
+        List<String> appUris = lookupRoutingTable(clusterId);
+        List<String> newAppUris = new ArrayList<>(appUris.size());
+        newAppUris.add(appUri);
+        for (String appUrl : appUris) {
+            if (!appUrl.equals(appUri)) {
+                newAppUris.add(appUrl);
             }
         }
-        routingTable.put(clusterId, newAppUrls);
+        logger.info("Update cluster '{}' leader as {}", clusterId, appUri);
+        routingTable.put(clusterId, newAppUris);
     }
 
     /**
@@ -433,8 +502,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Returns the migration type by inspect config, DB -> if two clusters use different database APP ->
-     * if two clusters use same database.
+     * Returns the migration type by inspect config, DB -> if two clusters use different database APP -> if two clusters
+     * use same database.
      */
     private MigrationType getMigrationType(String fromCluster, String toCluster) {
         //TODO: implement

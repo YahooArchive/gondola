@@ -6,7 +6,13 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Channel;
+import com.yahoo.gondola.Clock;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.LogEntry;
+import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,8 +20,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -126,19 +130,13 @@ public class Peer {
      * Must be called before peer objects can be created.
      */
     public static void initConfig(Config config) {
-        config.registerForUpdates(new Observer() {
-            /*
-             * Called at the time of registration and whenever the config file changes.
-             */
-            @Override
-            public void update(Observable obs, Object arg) {
-                Config config = (Config) arg;
-                storageTracing = config.getBoolean("tracing.storage");
-                networkTracing = config.getBoolean("tracing.network");
-                heartbeatPeriod = config.getInt("raft.heartbeat_period");
-                socketInactivityTimeout = config.getInt("network.channel_inactivity_timeout");
-            }
-        });
+        config.registerForUpdates(config1 -> {
+                                      storageTracing = config1.getBoolean("tracing.storage");
+                                      networkTracing = config1.getBoolean("tracing.network");
+                                      heartbeatPeriod = config1.getInt("raft.heartbeat_period");
+                                      socketInactivityTimeout = config1.getInt("network.channel_inactivity_timeout");
+                                  }
+        );
     }
 
     public void reset() {

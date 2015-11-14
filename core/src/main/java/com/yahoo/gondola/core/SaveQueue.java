@@ -10,16 +10,22 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 /**
  * This class parallelizes the insertion of log entries into the storage system.
@@ -34,7 +40,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * If so, it removes the entry from saved and advances savedIndex.
  * It continues checking and removing contiguous entries until there are no more.
  */
-public class SaveQueue implements Observer {
+public class SaveQueue {
     final static Logger logger = LoggerFactory.getLogger(SaveQueue.class);
     final Gondola gondola;
     final Storage storage;
@@ -86,7 +92,7 @@ public class SaveQueue implements Observer {
     SaveQueue(Gondola gondola, CoreMember cmember) throws Exception {
         this.gondola = gondola;
         this.cmember = cmember;
-        gondola.getConfig().registerForUpdates(this);
+        gondola.getConfig().registerForUpdates(configListener);
         storage = gondola.getStorage();
         stats = gondola.getStats();
         numWorkers = gondola.getConfig().getInt("storage.save_queue_workers");
@@ -105,10 +111,9 @@ public class SaveQueue implements Observer {
     /*
      * Called at the time of registration and whenever the config file changes.
      */
-    public void update(Observable obs, Object arg) {
-        Config config = (Config) arg;
+    Consumer<Config> configListener = config -> {
         storageTracing = config.getBoolean("tracing.storage");
-    }
+    };
 
     public void start() {
         // Create worker threads

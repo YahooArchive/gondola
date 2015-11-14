@@ -128,18 +128,11 @@ public class Message {
      * Must be called before message objects can be created.
      */
     public static void initConfig(Config config) {
-        config.registerForUpdates(new Observer() {
-            /*
-             * Called at the time of registration and whenever the config file changes.
-             */
-            @Override
-            public void update(Observable obs, Object arg) {
-                Config config = (Config) arg;
-                maxCommandSize = config.getInt("raft.command_max_size");
-                messageTracing = config.getBoolean("tracing.raft_messages");
-                heartbeatTracing = config.getBoolean("tracing.raft_heartbeats");
-                batching = config.getBoolean("gondola.batching");
-            }
+        config.registerForUpdates(config1 -> {
+                maxCommandSize = config1.getInt("raft.command_max_size");
+                messageTracing = config1.getBoolean("tracing.raft_messages");
+                heartbeatTracing = config1.getBoolean("tracing.raft_heartbeats");
+                batching = config1.getBoolean("gondola.batching");
         });
     }
 

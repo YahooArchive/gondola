@@ -6,29 +6,45 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Clock;
+import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Role;
+import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.Stoppable;
+import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.RandomAccessFile;
-import java.lang.management.ManagementFactory;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
 /**
  * This class is an actor inboxes - the command queue and incoming messages.
  * The command queue contains commands that need to be reliably persisted.
  * The incoming message queue contains messages from the other members of this cluster.
  */
-public class CoreMember implements Observer, Stoppable {
+public class CoreMember implements Stoppable {
     final static Logger logger = LoggerFactory.getLogger(CoreMember.class);
 
     final Gondola gondola;
@@ -136,7 +152,7 @@ public class CoreMember implements Observer, Stoppable {
         this.cluster = cluster;
         this.memberId = memberId;
         this.isPrimary = isPrimary;
-        gondola.getConfig().registerForUpdates(this);
+        gondola.getConfig().registerForUpdates(configListener);
 
         acquireFileLock();
 
@@ -162,8 +178,7 @@ public class CoreMember implements Observer, Stoppable {
     /*
      * Called at the time of registration and whenever the config file changes.
      */
-    public void update(Observable obs, Object arg) {
-        Config config = (Config) arg;
+    Consumer<Config> configListener = config -> {
         storageTracing = config.getBoolean("tracing.storage");
         commandTracing = config.getBoolean("tracing.command");
 
@@ -180,9 +195,9 @@ public class CoreMember implements Observer, Stoppable {
         // Some validations
         if (heartbeatPeriod >= electionTimeout) {
             throw new IllegalStateException(String.format("heartbeat period (%d) must be < election timeout (%d)",
-                    heartbeatPeriod, electionTimeout));
+                                                          heartbeatPeriod, electionTimeout));
         }
-    }
+    };
 
     /**
      * Reinitializes the members after changing the contents of storage.

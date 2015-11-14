@@ -6,13 +6,16 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
+import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Command;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.NotLeaderException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,16 +83,9 @@ public class CoreCmd {
      * Must be called before command objects are created.
      */
     public static void initConfig(Config config) {
-        config.registerForUpdates(new Observer() {
-            /*
-             * Called at the time of registration and whenever the config file changes.
-             */
-            @Override
-            public void update(Observable obs, Object arg) {
-                Config config = (Config) arg;
-                commandTracing = config.getBoolean("tracing.command");
-                maxCommandSize = config.getInt("raft.command_max_size");
-            }
+        config.registerForUpdates( config1 -> {
+            commandTracing = config1.getBoolean("tracing.command");
+            maxCommandSize = config1.getInt("raft.command_max_size");
         });
     }
 

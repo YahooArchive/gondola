@@ -1,12 +1,23 @@
 #!/bin/bash
 if [ $1 = "host1" ]; then
-env hostId=host1 mvn jetty:run -Djetty.port=8080
+hostId=host1 
+port=8080
+debugPort=10000
 elif [ $1 = "host2" ]; then
-env hostId=host2 mvn jetty:run -Djetty.port=8081
+hostId=host2
+port=8081
+debugPort=10001
 elif [ $1 = "host3" ]; then
-env hostId=host3 mvn jetty:run -Djetty.port=8082
+hostId=host3
+port=8082
+debugPort=10002
 else
   echo "Run service ";
   echo "";
   echo "Usage: $0 [host1|host2|host3]";
+  exit;
 fi
+
+export hostId
+export JAVA_TOOL_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
+mvn jetty:run -Djetty.port=$port

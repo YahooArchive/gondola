@@ -18,8 +18,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Observable;
-import java.util.Observer;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -69,15 +69,8 @@ public class Config {
     // is set into this variable
     ConfigData configData;
 
-    // Listeners for config changes
-    Observable observable = new Observable() {
-        @Override
-        public void notifyObservers() {
-            // Hack to set the change flag so that the notification will take place
-            super.setChanged();
-            super.notifyObservers(Config.this);
-        }
-    };
+    // Listeners.
+    List<Consumer<Config>> listeners = new ArrayList<>();
 
     // The number of ms to check the config file for changes
     int watchPeriod;
@@ -168,9 +161,9 @@ public class Config {
      * The observer's update() method will be called whenever the config file is changed and reloaded.
      * The arg will be this Config object.
      */
-    public void registerForUpdates(Observer obs) {
-        observable.addObserver(obs);
-        obs.update(observable, this);
+    public void registerForUpdates(Consumer<Config> listener) {
+        listener.accept(this);
+        listeners.add(listener);
     }
 
     public void registerSecretHelper(Function<String, String> helper) {
@@ -221,6 +214,13 @@ public class Config {
         return getAddressForHost(cm.hostId);
     }
 
+    public ConfigMember getMember(int memberId) {
+        ConfigMember cm = configData.members.get(memberId);
+        if (cm == null) {
+            throw new IllegalArgumentException(String.format("member '%s' not found in config", memberId));
+        }
+        return cm;
+    }
     public InetSocketAddress getAddressForHost(String hostId) {
         InetSocketAddress addr = configData.addrs.get(hostId);
         if (addr == null) {
@@ -243,7 +243,7 @@ public class Config {
         Map<String, InetSocketAddress> newMap = new HashMap<>(configData.addrs);
         newMap.put(hostId, socketAddress);
         configData.addrs = newMap;
-        observable.notifyObservers();
+        notifyListener(this);
     }
 
     public String getSiteIdForHost(String hostId) {
@@ -320,6 +320,10 @@ public class Config {
         }
     }
 
+    private void notifyListener(Config config) {
+        listeners.forEach(l -> l.accept(config));
+    }
+
     public class Watcher extends Thread {
         final File file;
 
@@ -339,7 +343,7 @@ public class Config {
                     if (file.lastModified() != lastModified) {
                         // Parse and update observers
                         process(com.typesafe.config.ConfigFactory.parseFile(file));
-                        observable.notifyObservers();
+                        notifyListener(Config.this);
 
                         logger.info("Reloaded config file {}", file);
                         lastModified = file.lastModified();
