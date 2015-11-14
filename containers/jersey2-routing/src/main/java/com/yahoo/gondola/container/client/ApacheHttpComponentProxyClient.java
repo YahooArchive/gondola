@@ -11,6 +11,7 @@ import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
@@ -63,6 +64,9 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
                 break;
             case "DELETE":
                 proxiedResponse = executeRequest(new HttpDelete(baseUri + requestURI), request);
+                break;
+            case "PATCH":
+                proxiedResponse = executeRequest(new HttpPatch(baseUri + requestURI), request);
                 break;
             default:
                 throw new IllegalStateException("Method not supported: " + method);
