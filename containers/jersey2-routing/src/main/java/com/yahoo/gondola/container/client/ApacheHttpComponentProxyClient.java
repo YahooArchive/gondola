@@ -82,6 +82,10 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         // Forward all the headers
         for (Map.Entry<String, List<String>> e : request.getHeaders().entrySet()) {
             for (String headerValue : e.getValue()) {
+                // TODO: Should have a safer way to treat some non-forwardable header.
+                if (e.getKey().equalsIgnoreCase("Content-Length")) {
+                    continue;
+                }
                 httpRequest.setHeader(e.getKey(), headerValue);
             }
         }

@@ -245,7 +245,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     private boolean hasRoutingLoop(ContainerRequestContext requestContext) {
-        return requestContext.getHeaderString(X_FORWARDED_BY).contains(myAppUri);
+        String headerString = requestContext.getHeaderString(X_FORWARDED_BY);
+        return headerString != null && headerString.contains(myAppUri);
     }
 
     // Response filter
