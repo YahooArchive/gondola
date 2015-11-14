@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container.client;
 
+import org.apache.http.Header;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -34,14 +35,18 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 
+import javax.ws.rs.core.MultivaluedHashMap;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 
 public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
-
     public static final String RESPONSE_CONTENT = "foo";
+    public static final String TEST_HEADER_NAME = "test_header_name";
+    public static final String TEST_HEADER_VALUE = "test_header_value";
+    public static final String TEST_PATH = "/test";
     @Mock
     ContainerRequest request;
 
@@ -70,10 +75,13 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
         targetUri = getTargetUri(target);
 
         MockitoAnnotations.initMocks(this);
-        URI uri = URI.create(targetUri + "/test");
+        URI uri = URI.create(targetUri + TEST_PATH);
         when(uriInfo.getRequestUri()).thenReturn(uri);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getEntityStream()).thenReturn(new ByteArrayInputStream(RESPONSE_CONTENT.getBytes()));
+        MultivaluedMap<String, String> headers = new MultivaluedHashMap<>();
+        headers.add(TEST_HEADER_NAME, TEST_HEADER_VALUE);
+        when(request.getHeaders()).thenReturn(headers);
 
         client = new ApacheHttpComponentProxyClient();
     }
@@ -98,8 +106,9 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
         when(request.getMethod()).thenReturn(method);
         Response response = client.proxyRequest(request, targetUri + "/");
         int status = response.getStatus();
-        assertEquals(RESPONSE_CONTENT, response.getEntity().toString());
-        assertEquals(200, status);
+        assertEquals(response.getEntity().toString(), RESPONSE_CONTENT);
+        assertEquals(status, 200);
+        assertEquals(response.getHeaderString(TEST_HEADER_NAME), TEST_HEADER_VALUE);
     }
 
     class Handler implements HttpRequestHandler {
@@ -109,6 +118,8 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
             throws HttpException, IOException {
             response.setStatusCode(200);
             response.setEntity(new StringEntity(RESPONSE_CONTENT));
+            Header header = request.getFirstHeader(TEST_HEADER_NAME);
+            response.setHeader(header.getName(), header.getValue());
         }
     }
 }
