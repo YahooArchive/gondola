@@ -15,6 +15,9 @@ import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.apache.log4j.PropertyConfigurator;
+import org.glassfish.jersey.server.ContainerRequest;
+import org.glassfish.jersey.server.ContainerResponse;
+import org.glassfish.jersey.server.ExtendedUriInfo;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -25,13 +28,13 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
-import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.reset;
@@ -53,10 +56,10 @@ public class RoutingFilterTest {
     RoutingHelper routingHelper;
 
     @Mock
-    ContainerRequestContext request;
+    ContainerRequest request;
 
     @Mock
-    ContainerRequestContext response;
+    ContainerResponse response;
 
     @Mock
     ProxyClientProvider proxyClientProvider;
@@ -92,7 +95,7 @@ public class RoutingFilterTest {
     }
 
     @Mock
-    UriInfo uriInfo;
+    ExtendedUriInfo uriInfo;
 
     @BeforeMethod
     public void setUp() throws Exception {
@@ -105,6 +108,8 @@ public class RoutingFilterTest {
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
+        when(request.getHeaders()).thenReturn(new MultivaluedHashMap<>());
+        when(request.getRequestUri()).thenReturn(URI.create("http://localhost:8080/"));
 
         router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
