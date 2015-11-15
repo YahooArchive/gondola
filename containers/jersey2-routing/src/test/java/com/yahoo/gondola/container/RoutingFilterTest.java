@@ -42,7 +42,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
 
 public class RoutingFilterTest {
 
@@ -150,9 +149,11 @@ public class RoutingFilterTest {
         when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertNotNull(response.getValue().getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS));
     }
 
+    /**
+     * The test will test if the request sending to another cluster. (clusterId = 2)
+     */
     @Test
     public void testRouting_redirect_request_another_cluster() throws Exception {
         reset(routingHelper);
@@ -161,10 +162,15 @@ public class RoutingFilterTest {
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
         when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
+
+
+        // request traget is a follower
+        when(proxedResponse.getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS)).thenReturn("foo_remote_addr");
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertNotNull(response.getValue().getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS));
         assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
+        assertEquals(router.routingTable.get("cluster2").get(0), "foo_remote_addr");
+
     }
 
     @Test
