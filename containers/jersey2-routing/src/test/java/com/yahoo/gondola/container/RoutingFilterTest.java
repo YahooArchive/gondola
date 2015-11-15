@@ -28,6 +28,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
@@ -146,9 +147,13 @@ public class RoutingFilterTest {
         when(cluster.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
-        when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
+        when(proxyClient.proxyRequest(any(),any()))
+            .thenThrow(new IOException(""))
+            .thenReturn(proxedResponse);
+        String newLeaderUri = router.routingTable.get("cluster1").get(1);
         router.filter(request);
         verify(request).abortWith(response.capture());
+        assertEquals(router.routingTable.get("cluster1").get(0), newLeaderUri);
     }
 
     /**
