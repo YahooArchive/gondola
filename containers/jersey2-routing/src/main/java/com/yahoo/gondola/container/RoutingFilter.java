@@ -217,9 +217,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         if (tracing) {
             List<String> forwardedBy = requestContext.getHeaders().get(X_FORWARDED_BY);
-            logger.info("Processing request: {} of cluster={}, forwarded={}",
+            logger.info("Processing request: {} of cluster={}, forward_by={}",
                         requestContext.getUriInfo().getAbsolutePath(), clusterId,
-                        forwardedBy != null ? forwardedBy.toString() : "");
+                        forwardedBy != null ? forwardedBy.toString() : "n/a");
         }
 
         if (isMyCluster(clusterId)) {
@@ -364,6 +364,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
                 if (forwardedBy == null) {
                     forwardedBy = new ArrayList<>();
+                    request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
                 }
                 forwardedBy.add(myAppUri);
 

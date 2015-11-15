@@ -46,7 +46,7 @@ import static org.testng.Assert.assertNotNull;
 
 public class RoutingFilterTest {
 
-    public static final String MY_APP_URI = "http://localhost:8080/";
+    public static final String MY_APP_URI = "http://localhost:8080";
     RoutingFilter router;
 
     @Mock
@@ -99,6 +99,8 @@ public class RoutingFilterTest {
     @Mock
     ExtendedUriInfo uriInfo;
 
+    MultivaluedHashMap<String, String> headersMap = new MultivaluedHashMap<>();
+
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
@@ -111,7 +113,7 @@ public class RoutingFilterTest {
         when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
-        when(request.getHeaders()).thenReturn(new MultivaluedHashMap<>());
+        when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
 
         router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
@@ -162,6 +164,7 @@ public class RoutingFilterTest {
         router.filter(request);
         verify(request).abortWith(response.capture());
         assertNotNull(response.getValue().getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS));
+        assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
     }
 
     @Test

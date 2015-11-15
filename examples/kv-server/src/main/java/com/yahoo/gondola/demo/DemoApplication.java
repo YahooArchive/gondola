@@ -39,9 +39,12 @@ import javax.ws.rs.core.Context;
  * 4. Register the resources
  */
 public class DemoApplication extends ResourceConfig {
+
     static Logger logger = LoggerFactory.getLogger(DemoApplication.class);
     Gondola gondola;
     static DemoApplication instance;
+
+    static String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
 
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
         gondola = initializeGondola();
@@ -94,7 +97,6 @@ public class DemoApplication extends ResourceConfig {
         // Create the gondola instance
         File gondolaConf = new File(gondolaConfURI.getFile());
         Config config = new Config(gondolaConf);
-        String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
         Gondola gondola = new Gondola(config, hostId);
 
         // Register for role updates and start gondola
@@ -124,15 +126,16 @@ public class DemoApplication extends ResourceConfig {
     public static class ContextListener implements ServletContextListener {
         @Override
         public void contextInitialized(ServletContextEvent sce) {
-            logger.info("kv-server initialized");
+            if (DemoApplication.getInstance() != null) {
+                logger.info("[{}] kv-server hostId={} initialized", hostId);
+            }
         }
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
-            logger.info("kv-server destroyed");
-            if (DemoApplication.getInstance() != null) {
-                DemoApplication.getInstance().gondola.stop();
-            }
+            DemoApplication instance = DemoApplication.getInstance();
+            logger.info("[{}] kv-server destroyed", hostId);
+            instance.gondola.stop();
         }
     }
 }

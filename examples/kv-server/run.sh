@@ -1,6 +1,6 @@
 #!/bin/bash
 rm /tmp/gondola*
-./bin/run host1 2>&1 > target/host2 &
+./bin/run host1 2>&1 > target/host1 &
 pid1=$!
 ./bin/run host2 2>&1 > target/host2 &
 pid2=$!
