@@ -1,0 +1,9 @@
+com.yahoo.gondola
+com.yahoo.gondola.cli
+com.yahoo.gondola.container
+com.yahoo.gondola.container.client
+com.yahoo.gondola.container.impl
+com.yahoo.gondola.container.spi
+com.yahoo.gondola.core
+com.yahoo.gondola.demo
+com.yahoo.gondola.impl
