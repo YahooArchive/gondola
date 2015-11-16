@@ -56,7 +56,7 @@ public class DemoApplication extends ResourceConfig {
             }
         });
 
-        // register routing filter
+        // Register routing filter
         RoutingFilter routingFilter = new RoutingFilter(gondola,
                                                         new DemoRoutingHelper(gondola, demoService),
                                                         new ProxyClientProvider(),
@@ -68,16 +68,18 @@ public class DemoApplication extends ResourceConfig {
         packages(true, "com.yahoo.gondola.demo");
         instance = this;
 
+        /*
         Runtime.getRuntime().addShutdownHook(new Thread() {
             public void run() {
                 try {
                     Thread.sleep(2000);
                     Runtime.getRuntime().halt(0);
                 } catch (InterruptedException e) {
-                    // ignore
+                    e.printStackTrace(); // ignore
                 }
             }
         });
+        */
     }
 
     public static DemoApplication getInstance() {
@@ -129,10 +131,10 @@ public class DemoApplication extends ResourceConfig {
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
-            logger.info("kv-server destroyed");
             if (DemoApplication.getInstance() != null) {
                 DemoApplication.getInstance().gondola.stop();
             }
+            logger.info("kv-server destroyed");
         }
     }
 }

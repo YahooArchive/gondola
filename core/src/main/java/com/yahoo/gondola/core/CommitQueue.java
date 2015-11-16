@@ -86,8 +86,8 @@ public class CommitQueue {
      * Called at the time of registration and whenever the config file changes.
      */
     Consumer<Config> configListener = config -> {
-        commandTracing = config.getBoolean("tracing.command");
-        storageTracing = config.getBoolean("tracing.storage");
+        commandTracing = config.getBoolean("gondola.tracing.command");
+        storageTracing = config.getBoolean("gondola.tracing.storage");
     };
 
     public void start() throws Exception {
@@ -99,16 +99,22 @@ public class CommitQueue {
         threads.forEach(t -> t.start());
     }
 
-    public void stop() {
+    public boolean stop() {
+        boolean status = true;
         threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
-                t.join();
+                t.join(1000);
+                if (t.isAlive()) {
+                    logger.error("Could not stop thread " + t.getName());
+                    status = false;
+                }
             } catch (InterruptedException e) {
                 logger.error(e.getMessage(), e);
             }
         }
         threads.clear();
+        return status;
     }
 
     /**

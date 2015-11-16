@@ -7,7 +7,7 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
-import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
@@ -47,6 +47,7 @@ import javax.ws.rs.core.Response;
  * resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
+    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     /**
      * The constant X_GONDOLA_LEADER_ADDRESS.
@@ -74,12 +75,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     Gondola gondola;
 
     /**
-     * The My cluster ids.
+     * The My shard ids.
      */
-    Set<String> myClusterIds;
+    Set<String> myShardIds;
 
     /**
-     * The Routing table. clusterId --> list of available servers. (URI)
+     * The Routing table. shardId --> list of available servers. (URI)
      */
     Map<String, List<String>> routingTable;
 
@@ -92,11 +93,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * The Bucket request counters. bucketId --> requestCounter
      */
     Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
-
-    /**
-     * The Logger.
-     */
-    static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     CommandListener commandListener;
     /**
@@ -168,19 +164,19 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (roleChangeEvent.leader != null) {
                 Config config = gondola.getConfig();
                 String appUri = getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
-                updateClusterRoutingEntries(roleChangeEvent.cluster.getClusterId(), appUri);
+                updateShardRoutingEntries(roleChangeEvent.shard.getShardId(), appUri);
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
-                        String clusterId = roleChangeEvent.cluster.getClusterId();
+                        String shardId = roleChangeEvent.shard.getShardId();
                         logger.info("Preparing for serving...");
-                        lockManager.blockRequestOnCluster(clusterId);
+                        lockManager.blockRequestOnShard(shardId);
                         logger.info("Clearing internal state...");
-                        routingHelper.clearState(clusterId);
-                        logger.info("Wait until all the logs applied to storage...");
-                        waitSynced(clusterId);
+                        routingHelper.clearState(shardId);
+                        logger.info("Wait until all the log entries are applied to storage...");
+                        waitSynced(shardId);
                         logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
-                                    routingHelper.getAppliedIndex(clusterId));
-                        lockManager.unblockRequestOnCluster(clusterId);
+                                    routingHelper.getAppliedIndex(shardId));
+                        lockManager.unblockRequestOnShard(shardId);
                     }, singleThreadExecutor).exceptionally(throwable -> {
                         logger.info("Errors while executing leader change event", throwable);
                         return null;
@@ -194,13 +190,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         int bucketId = routingHelper.getBucketId(requestContext);
-        String clusterId = getClusterId(requestContext);
-        if (clusterId == null) {
-            throw new IllegalStateException("ClusterID cannot be null.");
+        String shardId = getShardId(requestContext);
+        if (shardId == null) {
+            throw new IllegalStateException("ShardID cannot be null.");
         }
 
         try {
-            lockManager.filterRequest(bucketId, clusterId);
+            lockManager.filterRequest(bucketId, shardId);
         } catch (InterruptedException e) {
             throw new IOException(e);
         }
@@ -209,13 +205,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         if (tracing) {
             List<String> forwardedBy = requestContext.getHeaders().get(X_FORWARDED_BY);
-            logger.info("Processing request: {} of cluster={}, forwarded={}",
-                        requestContext.getUriInfo().getAbsolutePath(), clusterId,
+            logger.info("Processing request: {} of shard={}, forwarded={}",
+                        requestContext.getUriInfo().getAbsolutePath(), shardId,
                         forwardedBy != null ? forwardedBy.toString() : "");
         }
 
-        if (isMyCluster(clusterId)) {
-            Member leader = getLeader(clusterId);
+        if (isMyShard(shardId)) {
+            Member leader = getLeader(shardId);
 
             // Those are the condition that the server should process this request
             // Still under leader election
@@ -237,7 +233,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
 
         // Proxy the request to other server
-        proxyRequestToLeader(requestContext, clusterId);
+        proxyRequestToLeader(requestContext, shardId);
     }
 
     // Response filter
@@ -252,9 +248,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public static void configCheck(Config config) {
         StringBuilder sb = new StringBuilder();
-        for (String clusterId : config.getClusterIds()) {
-            if (!config.getAttributesForCluster(clusterId).containsKey("bucketMap")) {
-                sb.append("Cluster bucketMap attribute is missing on Cluster - " + clusterId + "\n");
+        for (String shardId : config.getShardIds()) {
+            if (!config.getAttributesForShard(shardId).containsKey("bucketMap")) {
+                sb.append("Shard bucketMap attribute is missing on Shard - " + shardId + "\n");
             }
         }
 
@@ -281,11 +277,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             }
             String appUri = getAppUri(config, hostId);
             serviceUris.put(hostId, appUri);
-            for (String clusterId : config.getClusterIds(hostId)) {
-                List<String> addresses = newRoutingTable.get(clusterId);
+            for (String shardId : config.getShardIds(hostId)) {
+                List<String> addresses = newRoutingTable.get(shardId);
                 if (addresses == null) {
                     addresses = new ArrayList<>();
-                    newRoutingTable.put(clusterId, addresses);
+                    newRoutingTable.put(shardId, addresses);
                 }
 
                 addresses.add(appUri);
@@ -310,35 +306,35 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
-    private String getClusterId(ContainerRequestContext request) {
+    private String getShardId(ContainerRequestContext request) {
         if (routingHelper != null) {
             int bucketId = routingHelper.getBucketId(request);
             if (bucketId == -1 && routingHelper != null) {
-                return getAffinityColoCluster(request);
+                return getAffinityColoShard(request);
             } else {
                 return lookupBucketTable(bucketId);
             }
         } else {
-            return gondola.getClustersOnHost().get(0).getClusterId();
+            return gondola.getShardsOnHost().get(0).getShardId();
         }
     }
 
 
-    private boolean isMyCluster(String clusterId) {
-        if (myClusterIds == null) {
-            myClusterIds = gondola.getClustersOnHost().stream()
-                .map(Cluster::getClusterId)
+    private boolean isMyShard(String shardId) {
+        if (myShardIds == null) {
+            myShardIds = gondola.getShardsOnHost().stream()
+                .map(Shard::getShardId)
                 .collect(Collectors.toSet());
         }
-        return myClusterIds.contains(clusterId);
+        return myShardIds.contains(shardId);
     }
 
-    private Member getLeader(String clusterId) {
-        return gondola.getCluster(clusterId).getLeader();
+    private Member getLeader(String shardId) {
+        return gondola.getShard(shardId).getLeader();
     }
 
-    private void proxyRequestToLeader(ContainerRequestContext request, String clusterId) throws IOException {
-        List<String> appUris = lookupRoutingTable(clusterId);
+    private void proxyRequestToLeader(ContainerRequestContext request, String shardId) throws IOException {
+        List<String> appUris = lookupRoutingTable(shardId);
 
         boolean fail = false;
         for (String appUri : appUris) {
@@ -363,35 +359,35 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                       .entity(entity)
                                       .header(X_GONDOLA_LEADER_ADDRESS, appUri)
                                       .build());
-                updateRoutingTableIfNeeded(clusterId, proxiedResponse);
+                updateRoutingTableIfNeeded(shardId, proxiedResponse);
                 if (fail) {
-                    updateClusterRoutingEntries(clusterId, appUri);
+                    updateShardRoutingEntries(shardId, appUri);
                 }
                 return;
             } catch (IOException e) {
                 fail = true;
-                logger.error("Error while forwarding request to cluster:{} {}", clusterId, appUri, e);
+                logger.error("Error while forwarding request to shard:{} {}", shardId, appUri, e);
             }
         }
         request.abortWith(Response
                               .status(Response.Status.BAD_GATEWAY)
-                              .entity("All servers are not available in Cluster: " + clusterId)
+                              .entity("All servers are not available in Shard: " + shardId)
                               .build());
     }
 
-    private void updateRoutingTableIfNeeded(String clusterId, Response proxiedResponse) {
+    private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
         String appUri = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
         if (appUri != null) {
-            logger.info("New leader found, correct routing table with : clusterId={}, appUrl={}", clusterId, appUri);
-            updateClusterRoutingEntries(clusterId, appUri);
+            logger.info("New leader found, correct routing table with : shardId={}, appUrl={}", shardId, appUri);
+            updateShardRoutingEntries(shardId, appUri);
         }
     }
 
     /**
      * Moves newAppUrl to the first entry of the routing table.
      */
-    private void updateClusterRoutingEntries(String clusterId, String appUri) {
-        List<String> appUris = lookupRoutingTable(clusterId);
+    private void updateShardRoutingEntries(String shardId, String appUri) {
+        List<String> appUris = lookupRoutingTable(shardId);
         List<String> newAppUris = new ArrayList<>(appUris.size());
         newAppUris.add(appUri);
         for (String appUrl : appUris) {
@@ -399,55 +395,55 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 newAppUris.add(appUrl);
             }
         }
-        logger.info("Update cluster '{}' leader as {}", clusterId, appUri);
-        routingTable.put(clusterId, newAppUris);
+        logger.info("Update shard '{}' leader as {}", shardId, appUri);
+        routingTable.put(shardId, newAppUris);
     }
 
     /**
      * Finds the leader's URL in the routing table.
      *
-     * @param clusterId The non-null Gondola cluster id
+     * @param shardId The non-null Gondola shard id
      * @return leader App URL. e.g. http://app1.yahoo.com:4080/
      */
-    private List<String> lookupRoutingTable(String clusterId) {
-        List<String> appUrls = routingTable.get(clusterId);
+    private List<String> lookupRoutingTable(String shardId) {
+        List<String> appUrls = routingTable.get(shardId);
         if (appUrls == null) {
-            throw new IllegalStateException("Cannot find routing information for cluster ID - " + clusterId);
+            throw new IllegalStateException("Cannot find routing information for shard ID - " + shardId);
         }
         return appUrls;
     }
 
     /**
-     * bucketId -> clusterId bucket size is fixed and shouldn't change, and should be prime number
+     * bucketId -> shardId bucket size is fixed and shouldn't change, and should be prime number
      */
     List<BucketEntry> bucketTable = new ArrayList<>();
 
     private class BucketEntry {
 
         Range<Integer> range;
-        String clusterId;
+        String shardId;
 
-        public BucketEntry(Integer a, Integer b, String clusterId) {
+        public BucketEntry(Integer a, Integer b, String shardId) {
             if (b == null) {
                 this.range = Range.closed(a, a);
             } else {
                 this.range = Range.closed(a, b);
             }
-            this.clusterId = clusterId;
+            this.shardId = shardId;
         }
     }
 
     private void loadBucketTable() {
         Config config = gondola.getConfig();
         BucketEntry range;
-        for (String clusterId : config.getClusterIds()) {
-            Map<String, String> attributesForCluster = config.getAttributesForCluster(clusterId);
-            String bucketMapString = attributesForCluster.get("bucketMap");
+        for (String shardId : config.getShardIds()) {
+            Map<String, String> attributesForShard = config.getAttributesForShard(shardId);
+            String bucketMapString = attributesForShard.get("bucketMap");
             for (String str : bucketMapString.trim().split(",")) {
                 String[] rangePair = str.trim().split("-");
                 switch (rangePair.length) {
                     case 1:
-                        range = new BucketEntry(Integer.parseInt(rangePair[0]), null, clusterId);
+                        range = new BucketEntry(Integer.parseInt(rangePair[0]), null, shardId);
                         break;
                     case 2:
                         Integer min, max;
@@ -461,7 +457,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         if (min.equals(max)) {
                             max = null;
                         }
-                        range = new BucketEntry(min, max, clusterId);
+                        range = new BucketEntry(min, max, shardId);
                         break;
                     default:
                         throw new IllegalStateException("Range format: x - y or  x, but get " + str);
@@ -495,25 +491,25 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private String lookupBucketTable(int bucketId) {
         for (BucketEntry r : bucketTable) {
             if (r.range.contains(bucketId)) {
-                return r.clusterId;
+                return r.shardId;
             }
         }
         throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
     /**
-     * Returns the migration type by inspect config, DB -> if two clusters use different database APP -> if two clusters
+     * Returns the migration type by inspect config, DB -> if two shards use different database APP -> if two shards
      * use same database.
      */
-    private MigrationType getMigrationType(String fromCluster, String toCluster) {
+    private MigrationType getMigrationType(String fromShard, String toShard) {
         //TODO: implement
         return MigrationType.APP;
     }
 
     /**
-     * Helper function to get clusterId of the bucketId.
+     * Helper function to get shardId of the bucketId.
      */
-    private String getClusterIdByBucketId(int bucketId) {
+    private String getShardIdByBucketId(int bucketId) {
         //TODO: implement
         return null;
     }
@@ -526,14 +522,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         DB
     }
 
-    private String getAffinityColoCluster(ContainerRequestContext request) {
-        return getAnyClusterInSite(routingHelper.getSiteId(request));
+    private String getAffinityColoShard(ContainerRequestContext request) {
+        return getAnyShardInSite(routingHelper.getSiteId(request));
     }
 
     /**
-     * Find random clusterId in siteId.
+     * Find random shardId in siteId.
      */
-    private String getAnyClusterInSite(String siteId) {
+    private String getAnyShardInSite(String siteId) {
         //TODO: implement
         return null;
     }
@@ -558,7 +554,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return counter;
     }
 
-    private void waitSynced(String clusterId) {
+    private void waitSynced(String shardId) {
         boolean synced = false;
 
         long startTime = System.currentTimeMillis();
@@ -567,7 +563,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             try {
                 Thread.sleep(500);
                 long now = System.currentTimeMillis();
-                int diff = gondola.getCluster(clusterId).getCommitIndex() - routingHelper.getAppliedIndex(clusterId);
+                int diff = gondola.getShard(shardId).getCommitIndex() - routingHelper.getAppliedIndex(shardId);
                 if (now - checkTime > 10000) {
                     checkTime = now;
                     logger.warn("Recovery running for {} seconds, {} logs left", (now - startTime) / 1000, diff);
@@ -580,7 +576,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
-    private void reassignBuckets(Range<Integer> splitRange, String toCluster) {
+    private void reassignBuckets(Range<Integer> splitRange, String toShard) {
         // TODO:
     }
 
@@ -588,7 +584,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         // TODO:
     }
 
-    private Range<Integer> getSplitRange(String fromCluster) {
+    private Range<Integer> getSplitRange(String fromShard) {
         // TODO:
         return null;
     }
@@ -614,26 +610,26 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
 
         @Override
-        public void startObserving(String clusterId) {
+        public void startObserving(String shardId) {
             // TODO: gondola start observing
         }
 
         @Override
-        public void stopObserving(String clusterId) {
+        public void stopObserving(String shardId) {
             // TODO: gondola stop observing
         }
 
         @Override
-        public void splitBucket(String fromCluster, String toCluster, long timeoutMs) {
-            Range<Integer> splitRange = getSplitRange(fromCluster);
-            MigrationType migrationType = getMigrationType(fromCluster, toCluster);
+        public void splitBucket(String fromShard, String toShard, long timeoutMs) {
+            Range<Integer> splitRange = getSplitRange(fromShard);
+            MigrationType migrationType = getMigrationType(fromShard, toShard);
             switch (migrationType) {
                 case APP:
                     for (int i = 0; i < RETRY; i++) {
                         try {
                             lockManager.blockRequestOnBuckets(splitRange);
                             waitNoRequestsOnBuckets(splitRange, 5000L);
-                            reassignBuckets(splitRange, toCluster);
+                            reassignBuckets(splitRange, toShard);
                             break;
                         } finally {
                             lockManager.unblockRequestOnBuckets(splitRange);
@@ -643,10 +639,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 case DB:
                     for (int i = 0; i < RETRY; i++) {
                         try {
-                            statClient.waitApproaching(toCluster, -1L);
+                            statClient.waitApproaching(toShard, -1L);
                             lockManager.blockRequest();
-                            statClient.waitSynced(toCluster, 5000L);
-                            reassignBuckets(splitRange, toCluster);
+                            statClient.waitSynced(toShard, 5000L);
+                            reassignBuckets(splitRange, toShard);
                         } finally {
                             lockManager.unblockRequest();
                         }
@@ -656,7 +652,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
 
         @Override
-        public void mergeBucket(String fromCluster, String toCluster, long timeoutMs) {
+        public void mergeBucket(String fromShard, String toShard, long timeoutMs) {
         }
     }
 }

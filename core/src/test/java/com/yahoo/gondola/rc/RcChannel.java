@@ -70,12 +70,13 @@ public class RcChannel implements Channel {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
         pauseDelivery = false;
         messages.forEach(Message::release);
         messages.clear();
         inputStreams.remove(key);
         outputStreams.remove(key);
+        return true;
     }
 
     static void createPipes(String key) throws Exception {
@@ -197,7 +198,9 @@ public class RcChannel implements Channel {
                 }
             } catch (Exception e) {
                 message.release();
-                throw new IOException("key=" + key, e);
+                if (!"Read end dead".equals(e.getMessage())) {
+                    throw new IOException("key=" + key, e);
+                }
             }
         }
 

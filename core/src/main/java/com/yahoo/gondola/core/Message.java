@@ -130,8 +130,8 @@ public class Message {
     public static void initConfig(Config config) {
         config.registerForUpdates(config1 -> {
                 maxCommandSize = config1.getInt("raft.command_max_size");
-                messageTracing = config1.getBoolean("tracing.raft_messages");
-                heartbeatTracing = config1.getBoolean("tracing.raft_heartbeats");
+                messageTracing = config1.getBoolean("gondola.tracing.raft_messages");
+                heartbeatTracing = config1.getBoolean("gondola.tracing.raft_heartbeats");
                 batching = config1.getBoolean("gondola.batching");
         });
     }

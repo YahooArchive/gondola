@@ -112,7 +112,7 @@ public class SaveQueue {
      * Called at the time of registration and whenever the config file changes.
      */
     Consumer<Config> configListener = config -> {
-        storageTracing = config.getBoolean("tracing.storage");
+        storageTracing = config.getBoolean("gondola.tracing.storage");
     };
 
     public void start() {
@@ -125,17 +125,24 @@ public class SaveQueue {
         threads.forEach(t -> t.start());
     }
 
-    public void stop() {
+    public boolean stop() {
+        boolean status = true;
+
         savedIndex = 0;
         threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
-                t.join();
+                t.join(1000);
+                if (t.isAlive()) {
+                    logger.error("Could not interrupt thread " + t.getName());
+                    status = false;
+                }
             } catch (InterruptedException e) {
                 logger.error(e.getMessage(), e);
             }
         }
         threads.clear();
+        return status;
     }
 
     /**
@@ -225,7 +232,7 @@ public class SaveQueue {
 
             // Quick safety check to see if another process might be sharing the same tables
             String pid = storage.getPid(cmember.memberId);
-            if (!gondola.getProcessId().equals(pid)) {
+            if (pid != null && !gondola.getProcessId().equals(pid)) {
                 logger.warn("[{}-{}] SaveQueue: another process pid={} may be updating the same tables. Current pid={}",
                              gondola.getHostId(), cmember.memberId, pid, gondola.getProcessId());
             }

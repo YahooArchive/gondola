@@ -37,8 +37,9 @@ public class RcNetwork implements Network {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
         channels.clear();
+        return true;
     }
 
     @Override

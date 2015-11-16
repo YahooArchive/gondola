@@ -22,8 +22,9 @@ public interface Stoppable {
     public void start() throws Exception;
 
     /**
-     * Stops all threads in the object. After this call, it should be possible to call start() to restart
-     * the threads. Can be called after a failed start() to try and clean up any 
+     * Stops all threads in the object and release all resources. After this call, the object should be discarded.
+     * Returns true if no errors were detected during the stop operaion. Returns false if an error was detected.
+     * @return true if no errors were detected.
      */
-    public void stop();
+    public boolean stop();
 }

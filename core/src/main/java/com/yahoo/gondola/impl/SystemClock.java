@@ -28,7 +28,8 @@ public class SystemClock implements Clock {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
+        return true;
     }
 
     @Override

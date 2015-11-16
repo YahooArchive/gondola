@@ -34,8 +34,8 @@ public class NastyStorage implements Storage {
     }
 
     @Override
-    public void stop() {
-        storage.stop();
+    public boolean stop() {
+        return storage.stop();
     }
 
     @Override

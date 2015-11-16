@@ -74,10 +74,10 @@ public class SocketChannel implements Channel {
         this.memberId = memberId;
         this.peerId = toMemberId;
         gondola.getConfig().registerForUpdates(config -> {
-            networkTracing = config.getBoolean("tracing.network");
-            createSocketRetryPeriod = config.getInt("network_socket.create_socket_retry_period");
+            networkTracing = config.getBoolean("gondola.tracing.network");
+            createSocketRetryPeriod = config.getInt("network.socket.create_socket_retry_period");
             heartbeatPeriod = config.getInt("raft.heartbeat_period");
-            connTimeout = config.getInt("network_socket.connect_timeout");
+            connTimeout = config.getInt("network.socket.connect_timeout");
         });
 
         logger.info("[{}-{}] Creating connection to {}", gondola.getHostId(), memberId, toMemberId);
@@ -99,7 +99,8 @@ public class SocketChannel implements Channel {
      * See Stoppable.stop().
      */
     @Override
-    public void stop() {
+    public boolean stop() {
+        return true;
     }
 
     /**
@@ -116,8 +117,8 @@ public class SocketChannel implements Channel {
     @Override
     public String getRemoteAddress() {
         return String.format("%s:%d",
-                             inetSocketAddress.getAddress().getCanonicalHostName(),
-                             inetSocketAddress.getPort());
+                inetSocketAddress.getAddress().getCanonicalHostName(),
+                inetSocketAddress.getPort());
     }
 
     /**
@@ -260,7 +261,7 @@ public class SocketChannel implements Channel {
         Socket socket;
         InputStream in;
         OutputStream out;
-        
+
         Closer(Socket socket, InputStream in, OutputStream out) {
             this.socket = socket;
             this.in = in;

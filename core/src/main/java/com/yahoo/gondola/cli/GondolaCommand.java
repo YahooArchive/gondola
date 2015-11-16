@@ -33,14 +33,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-// TODO: will eventually be command line tool for users to quickly bring up a gondola cluster in their 
+// TODO: will eventually be command line tool for users to quickly bring up a gondola shard in their 
 // environment and do some quick performance tests. They would 
 // 1. create a config file and 2. start this command on the different hosts.
 // Right now this is just a quick and dirty test command to test the prototype.
 public class GondolaCommand {
     final static Logger logger = LoggerFactory.getLogger(GondolaCommand.class);
 
-    Cluster cluster;
+    Shard shard;
     Config config;
     Gondola gondola;
 
@@ -51,7 +51,7 @@ public class GondolaCommand {
     boolean serverMode = false;
     int port = 1099;
     String hostId;
-    String clusterId;
+    String shardId;
     int delay = 1000;
     File configFile = new File("conf/gondola-sample.conf");
 
@@ -73,7 +73,7 @@ public class GondolaCommand {
 
     public void printUsage() {
         // Stop is implemented in the shell script
-        System.out.println("Usage: gondola.sh -hostid <host-id> -clusterid <cluster-id> [-port <port>] [-workers <num>] [start|stop]");
+        System.out.println("Usage: gondola.sh -hostid <host-id> -shardid <shard-id> [-port <port>] [-workers <num>] [start|stop]");
         if (config != null) {
             System.out.println("    Available host ids: " + config.getHostIds());
         }
@@ -101,11 +101,11 @@ public class GondolaCommand {
                 }
                 hostId = args[++i];
             }
-            if (args[i].equals("-clusterid")) {
+            if (args[i].equals("-shardid")) {
                 if (args.length == i - 1) {
                     printUsage();
                 }
-                clusterId = args[++i];
+                shardId = args[++i];
             }
             if (args[i].equals("-workers")) {
                 if (args.length == i - 1) {
@@ -127,7 +127,7 @@ public class GondolaCommand {
             }
         }
         config = new Config(configFile);
-        if (hostId == null || clusterId == null) {
+        if (hostId == null || shardId == null) {
             printUsage();
         }
 
@@ -138,7 +138,7 @@ public class GondolaCommand {
         try {
             gondola = new Gondola(config, hostId);
             gondola.start();
-            cluster = gondola.getCluster(clusterId);
+            shard = gondola.getShard(shardId);
         } catch (Exception e) {
             logger.error("Could not initialize gondola", e);
             System.exit(1);
@@ -163,7 +163,7 @@ public class GondolaCommand {
                 long start = requests.get();
                 Thread.sleep(5000);
                 double avgLatency = 1.0 * waitTime.get() / requests.get();
-                if (cluster.getLocalMember().isLeader()) {
+                if (shard.getLocalMember().isLeader()) {
                     logger.info(String.format("commits: %.2f/s  latency: %.2f ms (%.2fms)",
                                               (requests.get() - start) / 5.0, avgLatency, latency.get()));
                 }
@@ -186,7 +186,7 @@ public class GondolaCommand {
 
             int index = 0;
             try {
-                index = Math.max(1, cluster.getLastSavedIndex());
+                index = Math.max(1, shard.getLastSavedIndex());
             } catch (Exception e) {
                 e.printStackTrace();
                 return;
@@ -197,7 +197,7 @@ public class GondolaCommand {
             long startTs = System.currentTimeMillis();
             while (true) {
                 try {
-                    command = cluster.getCommittedCommand(index, 5000);
+                    command = shard.getCommittedCommand(index, 5000);
                     System.arraycopy(command.getBuffer(), 0, buffer, 0, command.getSize());
                     command.release();
                     index++;
@@ -238,8 +238,8 @@ public class GondolaCommand {
 
             while (true) {
                 try {
-                    if (cluster.getLocalMember().isLeader()) {
-                        Command command = cluster.checkoutCommand();
+                    if (shard.getLocalMember().isLeader()) {
+                        Command command = shard.checkoutCommand();
                         bbuffer.clear();
                         bbuffer.putInt(id);
                         bbuffer.putInt(value);
@@ -376,7 +376,7 @@ public class GondolaCommand {
                     if (args.length < 2) {
                         return "ERROR: c <command>";
                     }
-                    Command command = cluster.checkoutCommand();
+                    Command command = shard.checkoutCommand();
                     try {
                         byte[] buffer = line.substring(2).getBytes("UTF-8");
                         if (buffer.length > command.getCapacity()) {
@@ -391,8 +391,8 @@ public class GondolaCommand {
                     }
                     return String.format("SUCCESS: index %d", command.getIndex());
                 case "F":
-                    Role role = cluster.getLocalRole();
-                    if (cluster.getLocalRole() == Role.LEADER) {
+                    Role role = shard.getLocalRole();
+                    if (shard.getLocalRole() == Role.LEADER) {
                         logger.info("This member is already a leader");
                     } else {
                         logger.info("Forcing {} to be a leader...", role);
@@ -400,12 +400,12 @@ public class GondolaCommand {
                         if (args.length >= 2) {
                             timeout = Integer.parseInt(args[1]);
                         }
-                        cluster.forceLeader(timeout);
+                        shard.forceLeader(timeout);
                     }
-                    return "SUCCESS: This member is now " + cluster.getLocalRole();
+                    return "SUCCESS: This member is now " + shard.getLocalRole();
                 case "m":
                     // return the current role
-                    return String.format("SUCCESS: %s", cluster.getLocalRole());
+                    return String.format("SUCCESS: %s", shard.getLocalRole());
                 case "g":
                     // get command by index
                     if (args.length < 2) {
@@ -413,7 +413,7 @@ public class GondolaCommand {
                     }
                     int index = Integer.parseInt(args[1]);
                     int timeout = args.length > 2 ? Integer.parseInt(args[2]) : -1;
-                    command = cluster.getCommittedCommand(index, timeout);
+                    command = shard.getCommittedCommand(index, timeout);
                     try {
                         return String.format("SUCCESS: %s", command.getString());
                     } finally {
@@ -421,14 +421,14 @@ public class GondolaCommand {
                     }
                 case "s":
                     // Status
-                    LogEntry le = gondola.getStorage().getLastLogEntry(cluster.getLocalMember().getMemberId());
+                    LogEntry le = gondola.getStorage().getLastLogEntry(shard.getLocalMember().getMemberId());
                     int savedIndex = 0;
                     if (le != null) {
                         savedIndex = le.index;
                         le.release();
                     }
                     return String.format("SUCCESS: Mode=%s, commitIndex=%d, savedIndex=%d",
-                            cluster.getLocalRole(), cluster.getLastSavedIndex(), savedIndex);
+                            shard.getLocalRole(), shard.getLastSavedIndex(), savedIndex);
                 case "n":
                     if (args.length < 2) {
                         return "ERROR: n <on|off>";
@@ -447,7 +447,7 @@ public class GondolaCommand {
                     return "SUCCESS: Nasty mode " + args[1];
                 case "q":
                     // Exit immediately
-                    le = gondola.getStorage().getLastLogEntry(cluster.getLocalMember().getMemberId());
+                    le = gondola.getStorage().getLastLogEntry(shard.getLocalMember().getMemberId());
                     if (le != null) {
                         logger.info("lastTerm={}, lastIndex={}", le.term, le.index);
                     }

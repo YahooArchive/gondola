@@ -87,7 +87,8 @@ public class MySqlStorage implements Storage {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
+        return true;
     }
 
     // TODO: this is slow

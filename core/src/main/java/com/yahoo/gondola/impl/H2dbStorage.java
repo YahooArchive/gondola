@@ -73,9 +73,9 @@ public class H2dbStorage implements Storage {
     }
 
     void createConnection() throws Exception {
-        String url = gondola.getConfig().get("storage_h2.url");
-        String user = gondola.getConfig().get("storage_h2.user");
-        String password = gondola.getConfig().get("storage_h2.password");
+        String url = gondola.getConfig().get("storage.h2.url");
+        String user = gondola.getConfig().get("storage.h2.user");
+        String password = gondola.getConfig().get("storage.h2.password");
         url = url.replace("$hostId", hostId);
         logger.info("Initializing H2DB storage. maxCommandSize={} url={} user={}", maxCommandSize, url, user);
 
@@ -85,23 +85,16 @@ public class H2dbStorage implements Storage {
 
     @Override
     public void start() {
-        try {
-            if (c == null) {
-                createConnection();
-            }
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
         try {
             c.close();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
-        c = null;
+        return true;
     }
 
     // TODO: this is slow

@@ -31,34 +31,37 @@ import javax.management.ObjectName;
 
 /**
  * Usage to commit a command:
- * Config config = Config.fromFile(confFile));
- * Gondola gondola = new Gondola(config, hostId);
- * Cluster cluster = gondola.getCluster(clusterId);
- * Command command = cluster.checkoutCommand();
- * byte[] buffer = new byte[]{0, 1, 2, 3}; // some data to commit
- * // Blocks until command has been committed
- * command.commit(buffer, 0, buffer.length);
- * <p>
+ * <pre>
+ *   Config config = Config.fromFile(confFile));
+ *   Gondola gondola = new Gondola(config, hostId);
+ *   Shard shard = gondola.getShard(shardId);
+ *   Command command = shard.checkoutCommand();
+ *   byte[] buffer = new byte[]{0, 1, 2, 3}; // some data to commit
+ *   // Blocks until command has been committed
+ *   command.commit(buffer, 0, buffer.length);
+ * </pre>
  * Usage to get a committed command:
- * // Blocks until command at index 500 has been committed
- * Command command = cluster.getCommittedCommand(500);
+ * <pre>
+ *   // Blocks until command at index 500 has been committed
+ *   Command command = shard.getCommittedCommand(500);
+ * </pre>
  */
 public class Gondola implements Stoppable {
     final static Logger logger = LoggerFactory.getLogger(Gondola.class);
 
-    final Config config;
-    final String hostId;
-    final Stats stats = new Stats();
-    final MessagePool messagePool;
-    final Clock clock;
-    final Network network;
-    final Storage storage;
+    Config config;
+    String hostId;
+    Stats stats = new Stats();
+    MessagePool messagePool;
+    Clock clock;
+    Network network;
+    Storage storage;
 
     // Get the pid of this process
     final String processId = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 
-    List<Cluster> clusters = new ArrayList<Cluster>();
-    Map<String, Cluster> clusterMap = new HashMap<>();
+    List<Shard> shards = new ArrayList<Shard>();
+    Map<String, Shard> shardMap = new HashMap<>();
     Map<Integer, CoreMember> memberMap = new HashMap<>();
 
     List<Consumer<RoleChangeEvent>> listeners = new CopyOnWriteArrayList<>();
@@ -71,8 +74,7 @@ public class Gondola implements Stoppable {
     List<Thread> threads = new ArrayList<>();
 
     // JMX variables
-    MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
-    final ObjectName jmxObjectName;
+    final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
     /**
      * @param hostId the non-null id of the current host on which to start Gondola.
@@ -81,6 +83,14 @@ public class Gondola implements Stoppable {
         this.config = config;
         this.hostId = hostId;
         logger.info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
+        mbs.registerMBean(stats, new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats"));
+    }
+
+    /**
+     * Starts all threads and enables the Gondola instance.
+     */
+    public void start() throws Exception {
+        logger.info("Starting up Gondola host {}...", hostId);
 
         // Initialize static config values
         CoreCmd.initConfig(config);
@@ -88,7 +98,6 @@ public class Gondola implements Stoppable {
         Peer.initConfig(config);
 
         messagePool = new MessagePool(config, stats);
-        jmxObjectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
 
         // Create implementations
         String clockClassName = config.get(config.get("clock.impl") + ".class");
@@ -103,24 +112,20 @@ public class Gondola implements Stoppable {
         storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
                 .newInstance(this, hostId);
 
-        // Create the clusters running on a host
-        List<String> clusterIds = config.getClusterIds(hostId);
-        for (String clusterId : clusterIds) {
-            Cluster cluster = new Cluster(this, clusterId);
+        // Create the shards running on a host
+        List<String> shardIds = config.getShardIds(hostId);
+        for (String shardId : shardIds) {
+            Shard shard = new Shard(this, shardId);
 
-            clusters.add(cluster);
-            clusterMap.put(clusterId, cluster);
+            shards.add(shard);
+            shardMap.put(shardId, shard);
         }
-    }
 
-    public void start() throws Exception {
-        logger.info("Starting up Gondola host {}...", hostId);
-        mbs.registerMBean(stats, jmxObjectName);
-
+        // Start all objects
         clock.start();
         network.start();
         storage.start();
-        for (Cluster c : clusters) {
+        for (Shard c : shards) {
             c.start();
         }
 
@@ -130,33 +135,47 @@ public class Gondola implements Stoppable {
         threads.forEach(t -> t.start());
     }
 
-    public void stop() {
-        logger.info("Shutting down Gondola host {}...", hostId);
-        try {
-            mbs.unregisterMBean(jmxObjectName);
-        } catch (Exception e) {
-            logger.error(e.getMessage(), e);
-        }
+    /**
+     * Stops all threads and releases all resources. After this call, start() can be called again.
+     *
+     * @return true if no errors were detected.
+     */
+    public boolean stop() {
+        boolean status = true;
+        logger.info("Stopping Gondola instance for host {}...", hostId);
 
         // Shut down all local threads
         threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
-                t.join();
+                t.join(1000);
+                if (t.isAlive()) {
+                    logger.error("Could not stop thread " + t.getName());
+                    status = false;
+                }
             } catch (InterruptedException e) {
                 logger.error(e.getMessage(), e);
+                status = false;
             }
         }
-        threads.clear();
 
         // Shut down threads in all dependencies
-        clusters.forEach(Cluster::stop);
-        storage.stop();
-        network.stop();
-        clock.stop();
+        for (Shard shard : shards) {
+            status = shard.stop() & status;
+        }
+        status = storage.stop() & status;
+        status = network.stop() & status;
+        status = clock.stop() & status;
+
+        threads.clear();
+        shards.clear();
+        shardMap.clear();
+        return status;
     }
 
-    /******************** methods *********************/
+    /********************
+     * methods
+     *********************/
 
     public String getHostId() {
         return hostId;
@@ -167,21 +186,21 @@ public class Gondola implements Stoppable {
     }
 
     /**
-     * Returns the clusters that reside on the host as specified in the constructor.
+     * Returns the shards that reside on the host as specified in the constructor.
      *
-     * @return non-null list of clusters.
+     * @return non-null list of shards.
      * @throw IllegalArgumentException if host is not found
      */
-    public List<Cluster> getClustersOnHost() {
-        return clusters;
+    public List<Shard> getShardsOnHost() {
+        return shards;
     }
 
-    public Cluster getCluster(String id) {
-        return clusterMap.get(id);
+    public Shard getShard(String id) {
+        return shardMap.get(id);
     }
 
-    Cluster get(String id) {
-        return clusterMap.get(id);
+    Shard get(String id) {
+        return shardMap.get(id);
     }
 
     public Storage getStorage() {

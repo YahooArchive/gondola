@@ -141,22 +141,22 @@ TODO
 #### Code
 
 The first step in using Gondola is to copy the config file
-```conf/gondola-sample.conf```. It contains a sample of a host/cluster
+```conf/gondola-sample.conf```. It contains a sample of a host/shard
 topology that you can modify to hold your topology.
 From this config file, you can create a Gondola instance.
 The following are the lines of code to commit a command to the Raft log:
 ```
 Config config = new Config(new File(configFile));
 Gondola gondola = new Gondola(config, hostId);
-Cluster cluster = gondola.getCluster(clusterId);
-Command command = cluster.checkoutCommand();
+Shard shard = gondola.getShard(shardId);
+Command command = shard.checkoutCommand();
 command.commit(bytes, offset, len);
 ```
 
 The following lines of code is used to retrieve committed commands from the Raft log:
 ```
-Cluster cluster = gondola.getCluster(clusterId);
-Command command = cluster.getCommittedCommand(index); // index starting from 1
+Shard shard = gondola.getCluster(shardId);
+Command command = shard.getCommittedCommand(index); // index starting from 1
 String value = command.getString();
 ```
 
@@ -167,7 +167,7 @@ These are the major classes in the implementation:
 | Class   | Description |
 |:--------|-------------|
 | Client  | Represents the client code. It is assumed that the client has many threads writing to the Raft log. |
-| Cluster | Represents a set of Raft nodes, only one of which can be a leader. The Cluster object also has a pool of Command object which are used for committing and reading Raft commands. The Command objects are pooled to avoid needless garbage collection. |
+| Shard | Represents a set of Raft nodes, only one of which can be a leader. The Shard object also has a pool of Command object which are used for committing and reading Raft commands. The Command objects are pooled to avoid needless garbage collection. |
 | Config | Is an interface that provides access to all configuration information. The Config implementation can be a file or an adapter retrieving configs from some storage. |
 | Connection | Represents a channel of communication between the local and remote member. |
 | Exchange | Is reponsible for creating a Connection between the local and remote member. |

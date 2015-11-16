@@ -30,7 +30,7 @@ persistant.
 
 #### Start the Servers
 
-Run the following commands in three different consoles in the same server. Each will
+Run the following commands in three different consoles on the same host machine. Each will
 start up one of the nodes in the three node cluster.
 
 ```

@@ -6,23 +6,18 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Clock;
-import com.yahoo.gondola.Cluster;
-import com.yahoo.gondola.Command;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.Role;
-import com.yahoo.gondola.RoleChangeEvent;
-import com.yahoo.gondola.Stoppable;
-import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.*;
+import com.yahoo.gondola.Shard;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -42,13 +37,13 @@ import java.util.function.Consumer;
 /**
  * This class is an actor inboxes - the command queue and incoming messages.
  * The command queue contains commands that need to be reliably persisted.
- * The incoming message queue contains messages from the other members of this cluster.
+ * The incoming message queue contains messages from the other members of this shard.
  */
 public class CoreMember implements Stoppable {
     final static Logger logger = LoggerFactory.getLogger(CoreMember.class);
 
     final Gondola gondola;
-    final Cluster cluster;
+    final Shard shard;
     final Clock clock;
     final Storage storage;
     final MessagePool pool;
@@ -146,15 +141,19 @@ public class CoreMember implements Stoppable {
     int incomingQueueSize;
     int waitQueueThrottleSize;
     File fileLockDir;
+    FileChannel fileLockChannel;
+    FileLock fileLock;
+    boolean writeEmptyCommandAfterElection;
 
-    public CoreMember(Gondola gondola, Cluster cluster, int memberId, List<Integer> peerIds, boolean isPrimary) throws Exception {
+    public CoreMember(Gondola gondola, Shard shard, int memberId, List<Integer> peerIds, boolean isPrimary) throws Exception {
         this.gondola = gondola;
-        this.cluster = cluster;
+        this.shard = shard;
         this.memberId = memberId;
         this.isPrimary = isPrimary;
         gondola.getConfig().registerForUpdates(configListener);
 
-        acquireFileLock();
+        // Acquire file lock
+        fileLock(true);
 
         clock = gondola.getClock();
         pool = gondola.getMessagePool();
@@ -179,14 +178,15 @@ public class CoreMember implements Stoppable {
      * Called at the time of registration and whenever the config file changes.
      */
     Consumer<Config> configListener = config -> {
-        storageTracing = config.getBoolean("tracing.storage");
-        commandTracing = config.getBoolean("tracing.command");
+        storageTracing = config.getBoolean("gondola.tracing.storage");
+        commandTracing = config.getBoolean("gondola.tracing.command");
 
         heartbeatPeriod = config.getInt("raft.heartbeat_period");
         requestVotePeriod = config.getInt("raft.request_vote_period");
-        summaryTracingPeriod = config.getInt("tracing.summary_period");
+        summaryTracingPeriod = config.getInt("gondola.tracing.summary_period");
         electionTimeout = config.getInt("raft.election_timeout");
         leaderTimeout = config.getInt("raft.leader_timeout");
+        writeEmptyCommandAfterElection = config.getBoolean("raft.write_empty_command_after_election");
 
         incomingQueueSize = config.getInt("gondola.incoming_queue_size");
         waitQueueThrottleSize = config.getInt("gondola.wait_queue_throttle_size");
@@ -251,29 +251,48 @@ public class CoreMember implements Stoppable {
         threads.forEach(t -> t.start());
     }
 
-    public void stop() {
-        peers.forEach(p -> p.stop());
-        saveQueue.stop();
-        commitQueue.stop();
+    public boolean stop() {
+        boolean status = true;
+
+        for (Peer peer : peers) {
+            status &= peer.stop();
+        }
+        status &= saveQueue.stop();
+        status &= commitQueue.stop();
         threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
                 t.join();
             } catch (InterruptedException e) {
                 logger.error("Join thread " + t.getName() + " interrupted", e);
+                status = false;
             }
         }
         threads.clear();
+        try {
+            fileLock(false);
+        } catch (IOException e) {
+            logger.error("Could not release file lock", e);
+            status = false;
+        }
+        return status;
     }
 
     /**
      * Throws an exception if the file lock can't be acquired.
      */
-    void acquireFileLock() throws Exception {
-        File file = new File(fileLockDir, String.format("gondola-lock-%s-%s", gondola.getHostId(), memberId));
-        FileChannel channel = new RandomAccessFile(file, "rw").getChannel();
-        if (channel.tryLock() == null) {
-            throw new IllegalStateException(String.format("Another process has the lock on %s", file));
+    void fileLock(boolean acquire) throws IOException {
+        if (acquire) {
+            File file = new File(fileLockDir, String.format("gondola-lock-%s-%s", gondola.getHostId(), memberId));
+            fileLockChannel = new RandomAccessFile(file, "rw").getChannel();
+            fileLock = fileLockChannel.tryLock();
+            if (fileLock == null) {
+                throw new IllegalStateException(String.format("Another process has the lock on %s", file));
+            }
+        } else {
+            if (fileLock != null) {
+                fileLock.release();
+            }
         }
     }
 
@@ -633,7 +652,7 @@ public class CoreMember implements Stoppable {
         // Notify gondola listeners of role change.
         if (role != oldRole) {
             gondola.notifyRoleChange(
-                    new RoleChangeEvent(cluster, cluster.getMember(memberId), cluster.getMember(leaderId),
+                    new RoleChangeEvent(shard, shard.getMember(memberId), shard.getMember(leaderId),
                             oldRole, role));
         }
     }
@@ -651,8 +670,11 @@ public class CoreMember implements Stoppable {
         }
 
         // If command queue is empty, add a no-op command to commit entries from the previous term
-        if (commandQueue.size() == 0 && sentRid.term > 0 && sentRid.term < currentTerm) {
-            commandQueue.add(new CoreCmd(gondola, cluster, this));
+        if (writeEmptyCommandAfterElection
+              && commandQueue.size() == 0
+              && sentRid.term > 0
+              && sentRid.term < currentTerm) {
+            commandQueue.add(new CoreCmd(gondola, shard, this));
         }
     }
 
@@ -1159,14 +1181,14 @@ public class CoreMember implements Stoppable {
     /**
      * Used by tests to get the Member object from a Cluster, which is not public for clients.
      *
-     * @param cluster non-null Cluster object.
+     * @param shard non-null Cluster object.
      * @return non-null CoreCmd object.
      */
-    public static CoreMember getCoreMember(Cluster cluster) {
+    public static CoreMember getCoreMember(Shard shard) {
         try {
-            Field field = Cluster.class.getDeclaredField("cmember");
+            Field field = Shard.class.getDeclaredField("cmember");
             field.setAccessible(true);
-            return (CoreMember) field.get(cluster);
+            return (CoreMember) field.get(shard);
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

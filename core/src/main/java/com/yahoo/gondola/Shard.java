@@ -21,25 +21,25 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
-public class Cluster implements Stoppable {
-    final static Logger logger = LoggerFactory.getLogger(Cluster.class);
+public class Shard implements Stoppable {
+    final static Logger logger = LoggerFactory.getLogger(Shard.class);
 
     final Gondola gondola;
     final Config config;
     final Stats stats;
-    final String clusterId;
+    final String shardId;
     final List<Peer> peers = new ArrayList<>();
     final List<Member> members = new ArrayList<>();
     Member localMember;
     CoreMember cmember;
 
-    Cluster(Gondola gondola, String clusterId) throws Exception {
+    Shard(Gondola gondola, String shardId) throws Exception {
         this.gondola = gondola;
-        this.clusterId = clusterId;
+        this.shardId = shardId;
 
         config = gondola.getConfig();
         stats = gondola.getStats();
-        List<Config.ConfigMember> configMembers = config.getMembersInCluster(clusterId);
+        List<Config.ConfigMember> configMembers = config.getMembersInShard(shardId);
 
         List<Integer> peerIds = configMembers.stream()
                 .filter(cm -> !cm.hostId.equals(gondola.getHostId()))
@@ -71,8 +71,8 @@ public class Cluster implements Stoppable {
         cmember.start();
     }
 
-    public void stop() {
-        cmember.stop();
+    public boolean stop() {
+        return cmember.stop();
     }
 
     /******************** methods *********************/
@@ -82,8 +82,8 @@ public class Cluster implements Stoppable {
      *
      * @return non-null cluster id.
      */
-    public String getClusterId() {
-        return clusterId;
+    public String getShardId() {
+        return shardId;
     }
 
     /**

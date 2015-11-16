@@ -35,12 +35,12 @@ public class Command {
     public final static int STATUS_ERROR = 3;       // Storage or system error
     public final static int STATUS_TIMEOUT = 4;
 
-    final Cluster cluster;
+    final Shard shard;
     final CoreCmd ccmd;
 
-    Command(Gondola gondola, Cluster cluster, CoreMember cmember) {
-        this.cluster = cluster;
-        ccmd = new CoreCmd(gondola, cluster, cmember);
+    Command(Gondola gondola, Shard shard, CoreMember cmember) {
+        this.shard = shard;
+        ccmd = new CoreCmd(gondola, shard, cmember);
     }
 
     /**
@@ -128,6 +128,6 @@ public class Command {
      * Returns this command object back to the pool.
      */
     public void release() {
-        cluster.checkinCommand(this);
+        shard.checkinCommand(this);
     }
 }

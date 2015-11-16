@@ -38,7 +38,7 @@ public class RcClock implements Clock {
         now = 0;
     }
 
-    public void stop() {
+    public boolean stop() {
         generation++;
 
         lock.lock();
@@ -52,6 +52,7 @@ public class RcClock implements Clock {
         // Wake waiters that have timed out
         waiters.forEach((k, w) -> w.signalAll());
         waiters.clear();
+        return true;
     }
     
     /******************** methods *********************/

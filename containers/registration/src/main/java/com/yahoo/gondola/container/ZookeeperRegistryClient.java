@@ -130,10 +130,10 @@ public class ZookeeperRegistryClient implements RegistryClient {
 
     private Set<String> getRelatedHostIds() {
         return myHostIds.stream()
-            .map(hostId -> config.getClusterIds(hostId))
+            .map(hostId -> config.getShardIds(hostId))
             .flatMap(Collection::stream)
             .distinct()
-            .map(clusterId -> config.getMembersInCluster(clusterId))
+            .map(shardId -> config.getMembersInShard(shardId))
             .flatMap(Collection::stream)
             .map(Config.ConfigMember::getHostId)
             .collect(Collectors.toSet());
