@@ -7,18 +7,22 @@
 package com.yahoo.gondola.container.client;
 
 import org.apache.http.Header;
+import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.protocol.HTTP;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.Response;
@@ -50,25 +54,19 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         CloseableHttpResponse proxiedResponse;
         switch (method) {
             case "GET":
-                HttpGet httpGet = new HttpGet(baseUri + requestURI);
-                proxiedResponse = httpClient.execute(httpGet);
+                proxiedResponse = executeRequest(new HttpGet(baseUri + requestURI), request);
                 break;
             case "PUT":
-                HttpPut httpPut = new HttpPut(baseUri + requestURI);
-                httpPut.setHeader(HTTP.CONTENT_TYPE, request.getHeaderString("Content-Type"));
-                httpPut.setEntity(new InputStreamEntity(request.getEntityStream()));
-                proxiedResponse = httpClient.execute(httpPut);
+                proxiedResponse = executeRequest(new HttpPut(baseUri + requestURI), request);
                 break;
             case "POST":
-                HttpPost httpPost = new HttpPost(baseUri + requestURI);
-                httpPost.setHeader(HTTP.CONTENT_TYPE, request.getHeaderString("Content-Type"));
-                httpPost.setEntity(new InputStreamEntity(request.getEntityStream()));
-                proxiedResponse = httpClient.execute(httpPost);
+                proxiedResponse = executeRequest(new HttpPost(baseUri + requestURI), request);
                 break;
             case "DELETE":
-                HttpDelete httpDelete = new HttpDelete(baseUri + requestURI);
-                httpDelete.setHeader(HTTP.CONTENT_TYPE, request.getHeaderString("Content-Type"));
-                proxiedResponse = httpClient.execute(httpDelete);
+                proxiedResponse = executeRequest(new HttpDelete(baseUri + requestURI), request);
+                break;
+            case "PATCH":
+                proxiedResponse = executeRequest(new HttpPatch(baseUri + requestURI), request);
                 break;
             default:
                 throw new IllegalStateException("Method not supported: " + method);
@@ -77,7 +75,27 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         return getResponse(proxiedResponse);
     }
 
-    // TODO: implement header forwarding.
+    private CloseableHttpResponse executeRequest(HttpRequestBase httpRequest, ContainerRequestContext request)
+        throws IOException {
+        CloseableHttpResponse proxiedResponse;
+
+        // Forward all the headers
+        for (Map.Entry<String, List<String>> e : request.getHeaders().entrySet()) {
+            for (String headerValue : e.getValue()) {
+                // TODO: Should have a safer way to treat some non-forwardable header.
+                if (e.getKey().equalsIgnoreCase("Content-Length")) {
+                    continue;
+                }
+                httpRequest.setHeader(e.getKey(), headerValue);
+            }
+        }
+
+        if (httpRequest instanceof HttpEntityEnclosingRequest) {
+            ((HttpEntityEnclosingRequest) httpRequest).setEntity(new InputStreamEntity(request.getEntityStream()));
+        }
+        proxiedResponse = httpClient.execute(httpRequest);
+        return proxiedResponse;
+    }
 
     private Response getResponse(CloseableHttpResponse proxiedResponse) throws IOException {
         Response.ResponseBuilder builder = Response

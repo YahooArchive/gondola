@@ -12,6 +12,9 @@ import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.apache.log4j.PropertyConfigurator;
+import org.glassfish.jersey.server.ContainerRequest;
+import org.glassfish.jersey.server.ContainerResponse;
+import org.glassfish.jersey.server.ExtendedUriInfo;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -22,13 +25,14 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
-import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.reset;
@@ -36,9 +40,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNotNull;
 
 public class RoutingFilterTest {
+
+    public static final String MY_APP_URI = "http://localhost:8080";
     RoutingFilter router;
 
     @Mock
@@ -50,10 +55,10 @@ public class RoutingFilterTest {
     RoutingHelper routingHelper;
 
     @Mock
-    ContainerRequestContext request;
+    ContainerRequest request;
 
     @Mock
-    ContainerRequestContext response;
+    ContainerResponse response;
 
     @Mock
     ProxyClientProvider proxyClientProvider;
@@ -89,7 +94,9 @@ public class RoutingFilterTest {
     }
 
     @Mock
-    UriInfo uriInfo;
+    ExtendedUriInfo uriInfo;
+
+    MultivaluedHashMap<String, String> headersMap = new MultivaluedHashMap<>();
 
     @BeforeMethod
     public void setUp() throws Exception {
@@ -97,10 +104,13 @@ public class RoutingFilterTest {
         when(gondola.getConfig()).thenReturn(this.config);
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
+        when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
+        when(request.getHeaders()).thenReturn(headersMap);
+        when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
 
         router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
     }
@@ -133,12 +143,18 @@ public class RoutingFilterTest {
         when(shard.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
-        when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
+        when(proxyClient.proxyRequest(any(),any()))
+            .thenThrow(new IOException(""))
+            .thenReturn(proxedResponse);
+        String newLeaderUri = router.routingTable.get("cluster1").get(1);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertNotNull(response.getValue().getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS));
+        assertEquals(router.routingTable.get("cluster1").get(0), newLeaderUri);
     }
 
+    /**
+     * The test will test if the request sending to another cluster. (clusterId = 2)
+     */
     @Test
     public void testRouting_redirect_request_another_cluster() throws Exception {
         reset(routingHelper);
@@ -147,9 +163,15 @@ public class RoutingFilterTest {
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
         when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
+
+
+        // request traget is a follower
+        when(proxedResponse.getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS)).thenReturn("foo_remote_addr");
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertNotNull(response.getValue().getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS));
+        assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
+        assertEquals(router.routingTable.get("cluster2").get(0), "foo_remote_addr");
+
     }
 
     @Test
@@ -164,12 +186,16 @@ public class RoutingFilterTest {
     }
 
     @Test
-    public void testBucketSplit_migrate_app_block_buckets() throws Exception {
-        URL resource = Gondola.class.getClassLoader().getResource("gondola_design.png");
-        System.out.println(Gondola.class.getClassLoader());
-        System.out.println(RoutingFilterTest.class.getClassLoader());
+    public void testRoutingLoop() throws Exception {
+        when(request.getHeaderString(any())).thenReturn("foo;" + MY_APP_URI + ";bar");
+        router.filter(request);
+        ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
+        verify(request, times(1)).abortWith(response.capture());
+        assertEquals(response.getValue().getStatus(), Response.Status.BAD_REQUEST.getStatusCode());
+    }
 
-        System.out.println(resource);
+    @Test
+    public void testBucketSplit_migrate_app_block_buckets() throws Exception {
     }
 
     @Test

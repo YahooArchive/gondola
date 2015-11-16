@@ -189,6 +189,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
+        if (hasRoutingLoop(requestContext)) {
+            requestContext.abortWith(
+                Response.status(Response.Status.BAD_REQUEST)
+                .build()
+            );
+            return;
+        }
+
         int bucketId = routingHelper.getBucketId(requestContext);
         String shardId = getShardId(requestContext);
         if (shardId == null) {
@@ -207,7 +215,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             List<String> forwardedBy = requestContext.getHeaders().get(X_FORWARDED_BY);
             logger.info("Processing request: {} of shard={}, forwarded={}",
                         requestContext.getUriInfo().getAbsolutePath(), shardId,
-                        forwardedBy != null ? forwardedBy.toString() : "");
+                        forwardedBy != null ? forwardedBy.toString() : "n/a");
         }
 
         if (isMyShard(shardId)) {
@@ -234,6 +242,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         // Proxy the request to other server
         proxyRequestToLeader(requestContext, shardId);
+    }
+
+    private boolean hasRoutingLoop(ContainerRequestContext requestContext) {
+        String headerString = requestContext.getHeaderString(X_FORWARDED_BY);
+        return headerString != null && headerString.contains(myAppUri);
     }
 
     // Response filter
@@ -347,6 +360,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
                 if (forwardedBy == null) {
                     forwardedBy = new ArrayList<>();
+                    request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
                 }
                 forwardedBy.add(myAppUri);
 
