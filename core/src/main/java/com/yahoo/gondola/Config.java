@@ -13,11 +13,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Observable;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -46,11 +46,11 @@ public class Config {
         /// hostId -> member[]
         Map<String, List<ConfigMember>> hostToMembers = new HashMap<>();
 
-        // hostId -> clusterIds
-        Map<String, List<String>> hostToClusters = new HashMap<>();
+        // hostId -> shardIds
+        Map<String, List<String>> hostToShards = new HashMap<>();
 
-        // clusterId -> member[]
-        Map<String, List<ConfigMember>> clusterToMembers = new HashMap<>();
+        // shardId -> member[]
+        Map<String, List<ConfigMember>> shardToMembers = new HashMap<>();
 
         // hostId -> address
         Map<String, InetSocketAddress> addrs = new HashMap<>();
@@ -61,8 +61,8 @@ public class Config {
         // hostId -> HostAttributes
         Map<String, Map<String, String>> hostAttributes = new HashMap<>();
 
-        // hostId -> ClusterAttributes
-        Map<String, Map<String, String>> clusterAttributes = new HashMap<>();
+        // hostId -> shardAttributes
+        Map<String, Map<String, String>> shardAttributes = new HashMap<>();
     }
 
     // Holds the latest verison of the config data. When new data is available, the new ConfigData
@@ -79,18 +79,18 @@ public class Config {
     File file;
 
     public static class ConfigMember {
-        String clusterId;
+        String shardId;
         String hostId;
         int memberId;
 
-        ConfigMember(String clusterId, String hostId, int memberId) {
-            this.clusterId = clusterId;
+        ConfigMember(String shardId, String hostId, int memberId) {
+            this.shardId = shardId;
             this.hostId = hostId;
             this.memberId = memberId;
         }
 
-        public String getClusterId() {
-            return clusterId;
+        public String getShardId() {
+            return shardId;
         }
 
         public String getHostId() {
@@ -108,10 +108,25 @@ public class Config {
      */
     public Config(File file) {
         this.file = file;
-        com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.parseFile(file).resolve();
-        process(cfg);
+        process(getMergedConf(file));
         new Watcher(file).start();
     }
+
+    /*
+     * Returns the config file merged with the settings in the default.conf file.
+     */
+    com.typesafe.config.Config getMergedConf(File file) {
+        com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.parseFile(file).resolve();
+
+        URL defaultConfUri = Gondola.class.getClassLoader().getResource("default.conf");
+        if (defaultConfUri == null) {
+            throw new IllegalStateException("default.conf not found");
+        }
+        File defaultConfFile = new File(defaultConfUri.getFile());
+        com.typesafe.config.Config defaultCfg = com.typesafe.config.ConfigFactory.parseFile(defaultConfFile).resolve();
+        return cfg.withFallback(defaultCfg);
+    }
+    
 
     /**
      * Returns a string which describes the location of the config values. E.g. if the configs were retrieved from a file,
@@ -170,38 +185,38 @@ public class Config {
         this.secretHelper = helper;
     }
 
-    /********************* host and cluster *******************/
+    /********************* host and shard *******************/
 
     public Set<String> getHostIds() {
-        return configData.hostToClusters.keySet();
+        return configData.hostToShards.keySet();
     }
 
     /**
-     * Returns the cluster ids running on a host.
+     * Returns the shard ids running on a host.
      */
-    public List<String> getClusterIds(String hostId) {
-        List<String> clusters = configData.hostToClusters.get(hostId);
-        if (clusters == null) {
+    public List<String> getShardIds(String hostId) {
+        List<String> shards = configData.hostToShards.get(hostId);
+        if (shards == null) {
             throw new IllegalArgumentException(String.format("host id '%s' not found in config", hostId));
         }
-        return clusters;
+        return shards;
     }
 
     /**
-     * Returns all the cluster ids.
+     * Returns all the shard ids.
      */
-    public Set<String> getClusterIds() {
-        return configData.clusterToMembers.keySet();
+    public Set<String> getShardIds() {
+        return configData.shardToMembers.keySet();
     }
 
     /**
-     * Returns all the members that are part of the cluster.
-     * The first member returned is the primary member for that cluster.
+     * Returns all the members that are part of the shard.
+     * The first member returned is the primary member for that shard.
      */
-    public List<ConfigMember> getMembersInCluster(String clusterId) {
-        List<ConfigMember> members = configData.clusterToMembers.get(clusterId);
+    public List<ConfigMember> getMembersInShard(String shardId) {
+        List<ConfigMember> members = configData.shardToMembers.get(shardId);
         if (members == null) {
-            throw new IllegalArgumentException(String.format("cluster '%s' not found in config", clusterId));
+            throw new IllegalArgumentException(String.format("shard '%s' not found in config", shardId));
         }
         return members;
     }
@@ -221,6 +236,7 @@ public class Config {
         }
         return cm;
     }
+    
     public InetSocketAddress getAddressForHost(String hostId) {
         InetSocketAddress addr = configData.addrs.get(hostId);
         if (addr == null) {
@@ -234,8 +250,8 @@ public class Config {
     }
 
 
-    public Map<String, String> getAttributesForCluster(String clusterId) {
-        return configData.clusterAttributes.get(clusterId);
+    public Map<String, String> getAttributesForShard(String shardId) {
+        return configData.shardAttributes.get(shardId);
     }
 
     public void setAddressForHostId(String hostId, InetSocketAddress socketAddress) {
@@ -252,55 +268,52 @@ public class Config {
 
 
     private void process(com.typesafe.config.Config cfg) {
-
-
         // Prepare the container for the new config data
         ConfigData cd = new ConfigData();
         cd.cfg = cfg;
         cd.hostToMembers = new HashMap<>();
-        cd.hostToClusters = new HashMap<>();
-        cd.clusterToMembers = new HashMap<>();
+        cd.hostToShards = new HashMap<>();
+        cd.shardToMembers = new HashMap<>();
         cd.addrs = new HashMap<>();
         cd.members = new HashMap<>();
         cd.hostAttributes = new HashMap<>();
 
-
-        // Parse the clusterid, hostid, and memberid information
-        for (com.typesafe.config.Config v : cfg.getConfigList("gondola.clusters")) {
+        // Parse the shardid, hostid, and memberid information
+        for (com.typesafe.config.Config v : cfg.getConfigList("gondola.shards")) {
             for (com.typesafe.config.Config h : v.getConfigList("hosts")) {
-                ConfigMember cm = new ConfigMember(v.getString("clusterId"), h.getString("hostId"), h.getInt("memberId"));
+                ConfigMember cm = new ConfigMember(v.getString("shardId"), h.getString("hostId"), h.getInt("memberId"));
                 // update host to members
-                List<ConfigMember> cmembers = cd.hostToMembers.get(cm.clusterId);
+                List<ConfigMember> cmembers = cd.hostToMembers.get(cm.shardId);
                 if (cmembers == null) {
                     cmembers = new ArrayList<>();
-                    cd.hostToMembers.put(cm.clusterId, cmembers);
+                    cd.hostToMembers.put(cm.shardId, cmembers);
                 }
                 cmembers.add(cm);
 
-                // Update clusterToMembers
-                cmembers = cd.clusterToMembers.get(cm.clusterId);
+                // Update shardToMembers
+                cmembers = cd.shardToMembers.get(cm.shardId);
                 if (cmembers == null) {
                     cmembers = new ArrayList<>();
-                    cd.clusterToMembers.put(cm.clusterId, cmembers);
+                    cd.shardToMembers.put(cm.shardId, cmembers);
                 }
                 cmembers.add(cm);
 
-                // Update hostToClusters
-                List<String> names = cd.hostToClusters.get(cm.hostId);
+                // Update hostToShards
+                List<String> names = cd.hostToShards.get(cm.hostId);
                 if (names == null) {
                     names = new ArrayList<>();
-                    cd.hostToClusters.put(cm.hostId, names);
+                    cd.hostToShards.put(cm.hostId, names);
                 }
-                names.add(cm.clusterId);
+                names.add(cm.shardId);
                 cd.members.put(cm.memberId, cm);
             }
         }
         loadAttributes(cfg, cd.hostAttributes, "gondola.hosts", "hostId");
-        loadAttributes(cfg, cd.clusterAttributes, "gondola.clusters", "clusterId");
+        loadAttributes(cfg, cd.shardAttributes, "gondola.shards", "shardId");
 
         // Get all the addresses of the hosts
         for (com.typesafe.config.Config c : cfg.getConfigList("gondola.hosts")) {
-            cd.addrs.put(c.getString("hostId"), new InetSocketAddress(c.getString("host"), c.getInt("port")));
+            cd.addrs.put(c.getString("hostId"), new InetSocketAddress(c.getString("hostname"), c.getInt("port")));
         }
 
         // Enable the new config data
@@ -308,7 +321,8 @@ public class Config {
         watchPeriod = getInt("gondola.config_reload_period");
     }
 
-    private void loadAttributes(com.typesafe.config.Config cfg, Map<String, Map<String, String>> attributesMap, String configSet, String keyName) {
+    private void loadAttributes(com.typesafe.config.Config cfg, Map<String, Map<String, String>> attributesMap,
+                                String configSet, String keyName) {
         // Get host attribute map
         for (ConfigObject h : cfg.getObjectList(configSet)) {
             String hostId = String.valueOf(h.get(keyName).unwrapped());
@@ -342,7 +356,7 @@ public class Config {
 
                     if (file.lastModified() != lastModified) {
                         // Parse and update observers
-                        process(com.typesafe.config.ConfigFactory.parseFile(file));
+                        process(getMergedConf(file));
                         notifyListener(Config.this);
 
                         logger.info("Reloaded config file {}", file);

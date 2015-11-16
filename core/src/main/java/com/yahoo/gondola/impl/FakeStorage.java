@@ -194,8 +194,8 @@ public class FakeStorage implements Storage {
     }
 
     @Override
-    public void stop() {
-
+    public boolean stop() {
+        return true;
     }
 
     LogEntry checkout() {

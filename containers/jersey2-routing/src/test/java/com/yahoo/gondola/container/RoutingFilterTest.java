@@ -6,11 +6,8 @@
 
 package com.yahoo.gondola.container;
 
-import com.yahoo.gondola.Cluster;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.Member;
-import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.*;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
@@ -66,7 +63,7 @@ public class RoutingFilterTest {
 
 
     @Mock
-    Cluster cluster;
+    Shard shard;
 
     @Mock
     Member member;
@@ -98,11 +95,10 @@ public class RoutingFilterTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(gondola.getConfig()).thenReturn(this.config);
-        when(gondola.getCluster(any())).thenReturn(cluster);
-        when(gondola.getClustersOnHost()).thenReturn(Arrays.asList(cluster, cluster));
-        when(routingHelper.getBucketId(any())).thenReturn(1);
+        when(gondola.getShard(any())).thenReturn(shard);
+        when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
-        when(cluster.getClusterId()).thenReturn("cluster1", "cluster2");
+        when(shard.getShardId()).thenReturn("shard1", "shard2");
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
 
@@ -116,7 +112,7 @@ public class RoutingFilterTest {
 
     @Test
     public void testRouting_under_leader_election() throws Exception {
-        when(cluster.getLeader()).thenReturn(null);
+        when(shard.getLeader()).thenReturn(null);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         router.filter(request);
         verify(request).abortWith(response.capture());
@@ -126,7 +122,7 @@ public class RoutingFilterTest {
 
     @Test
     public void testRouting_accept_request_on_leader() throws Exception {
-        when(cluster.getLeader()).thenReturn(member);
+        when(shard.getLeader()).thenReturn(member);
         when(member.isLocal()).thenReturn(true);
         router.filter(request);
         verify(request, times(0)).abortWith(any());
@@ -134,7 +130,7 @@ public class RoutingFilterTest {
 
     @Test
     public void testRouting_redirect_request_on_non_leader() throws Exception {
-        when(cluster.getLeader()).thenReturn(member);
+        when(shard.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
         when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
@@ -147,7 +143,7 @@ public class RoutingFilterTest {
     public void testRouting_redirect_request_another_cluster() throws Exception {
         reset(routingHelper);
         when(routingHelper.getBucketId(any())).thenReturn(101);
-        when(cluster.getLeader()).thenReturn(member);
+        when(shard.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
         when(proxyClient.proxyRequest(any(),any())).thenReturn(proxedResponse);
@@ -161,7 +157,7 @@ public class RoutingFilterTest {
         verify(gondola).registerForRoleChanges(consumer.capture());
         when(member.isLocal()).thenReturn(true);
         when(member.getMemberId()).thenReturn(81);
-        RoleChangeEvent event = new RoleChangeEvent(cluster, member, member, null, null);
+        RoleChangeEvent event = new RoleChangeEvent(shard, member, member, null, null);
         consumer.getValue().accept(event);
         Thread.sleep(1000);
         verify(routingHelper, times(1)).clearState(any());

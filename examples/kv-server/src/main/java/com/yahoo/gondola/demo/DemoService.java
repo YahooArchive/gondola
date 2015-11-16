@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Role;
@@ -29,13 +29,13 @@ public class DemoService {
     // The map holding all the entries
     Map<String, String> entries = new ConcurrentHashMap<>();
 
-    // Gondola cluster, used for replication
-    Cluster cluster;
+    // Gondola shard, used for replication
+    Shard shard;
 
     ChangeLogProcessor clProcessor;
 
     public DemoService(Gondola gondola) throws Exception {
-        cluster = gondola.getClustersOnHost().get(0);
+        shard = gondola.getShardsOnHost().get(0);
 
         clProcessor = new ChangeLogProcessor();
         clProcessor.start();
@@ -49,7 +49,7 @@ public class DemoService {
      * @throws NotFoundException
      */
     public String getValue(String key) throws NotFoundException, NotLeaderException {
-        if (cluster.getLocalRole() != Role.LEADER) {
+        if (shard.getLocalRole() != Role.LEADER) {
             throw new NotLeaderException();
         }
         if (!entries.containsKey(key)) {
@@ -66,9 +66,12 @@ public class DemoService {
      * @param value The non-null value
      */
     public void putValue(String key, String value) throws NotLeaderException {
+        if (key.indexOf(" ") >= 0) {
+            throw new IllegalArgumentException("The key must not contain spaces");
+        }
         try {
-            Command command = cluster.checkoutCommand();
-            byte[] bytes = (key + ":" + value).getBytes(); // TODO implement better separator
+            Command command = shard.checkoutCommand();
+            byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
             command.commit(bytes, 0, bytes.length);
             logger.info(String.format("Put key %s=%s", key, value));
         } catch (com.yahoo.gondola.NotLeaderException e) {
@@ -88,7 +91,7 @@ public class DemoService {
     }
 
     /**
-     * Background thread that continuously reads committed commands from the Gondola cluster, and updates the entries
+     * Background thread that continuously reads committed commands from the Gondola shard, and updates the entries
      * map. TODO: prevent reads until the map is fully updated.
      */
     public class ChangeLogProcessor extends Thread {
@@ -100,10 +103,10 @@ public class DemoService {
             String string;
             while (true) {
                 try {
-                    string = cluster.getCommittedCommand(appliedIndex + 1).getString();
+                    string = shard.getCommittedCommand(appliedIndex + 1).getString();
                     appliedIndex++;
                     logger.info("Processed command {}: {}", appliedIndex, string);
-                    String[] pair = string.split(":", 2);
+                    String[] pair = string.split(" ", 2);
                     if (pair.length == 2) {
                         entries.put(pair[0], pair[1]);
                     }

@@ -6,7 +6,6 @@
 
 package com.yahoo.gondola.container;
 
-
 import com.google.common.collect.Range;
 
 import org.slf4j.Logger;
@@ -25,14 +24,15 @@ import java.util.stream.Collectors;
  * Manages lock activity
  */
 class LockManager {
+    static Logger logger = LoggerFactory.getLogger(LockManager.class);
+
     CountDownLatch globalLock;
-    Map<String, CountDownLatch> clusters = new ConcurrentHashMap<>();
+    Map<String, CountDownLatch> shards = new ConcurrentHashMap<>();
     Map<Range<Integer>, CountDownLatch> buckets = new HashMap<>();
     ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    static Logger logger = LoggerFactory.getLogger(LockManager.class);
     boolean tracing;
 
-    void filterRequest(int bucketId, String clusterId) throws InterruptedException {
+    void filterRequest(int bucketId, String shardId) throws InterruptedException {
         if (globalLock != null) {
             if (tracing) {
                 logger.info("Request blocked by global lock");
@@ -40,12 +40,12 @@ class LockManager {
             globalLock.await();
         }
 
-        CountDownLatch clusterLock = clusters.get(clusterId);
-        if (clusterLock != null) {
+        CountDownLatch shardLock = shards.get(shardId);
+        if (shardLock != null) {
             if (tracing) {
-                logger.info("Request blocked by cluster lock - clusterId={}", clusterId);
+                logger.info("Request blocked by shard lock - shardId={}", shardId);
             }
-            clusterLock.await();
+            shardLock.await();
         }
 
         List<CountDownLatch> bucketLocks = getBucketLocks(bucketId);
@@ -59,17 +59,17 @@ class LockManager {
         }
     }
 
-    void unblockRequestOnCluster(String clusterId) {
-        logger.info("Unblock requests on cluster : {}", clusterId);
-        CountDownLatch lock = clusters.remove(clusterId);
+    void unblockRequestOnShard(String shardId) {
+        logger.info("Unblock requests on shard : {}", shardId);
+        CountDownLatch lock = shards.remove(shardId);
         if (lock != null) {
             lock.countDown();
         }
     }
 
-    void blockRequestOnCluster(String clusterId) {
-        logger.info("Block requests on cluster : {}", clusterId);
-        clusters.putIfAbsent(clusterId, new CountDownLatch(1));
+    void blockRequestOnShard(String shardId) {
+        logger.info("Block requests on shard : {}", shardId);
+        shards.putIfAbsent(shardId, new CountDownLatch(1));
     }
 
     void unblockRequest() {

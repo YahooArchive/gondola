@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.container.spi.RoutingHelper;
@@ -21,30 +21,30 @@ import java.util.stream.Collectors;
 import javax.ws.rs.container.ContainerRequestContext;
 
 /**
- * The callback that inspect the request and return a cluster ID for RoutingFilter.
+ * The callback that inspect the request and return a shard ID for RoutingFilter.
  */
 public class DemoRoutingHelper implements RoutingHelper {
 
     Gondola gondola;
-    int numberOfClusters;
-    List<String> clusterIdList;
+    int numberOfShards;
+    List<String> shardIdList;
     DemoService demoService;
 
     public DemoRoutingHelper(Gondola gondola, DemoService demoService) {
         this.gondola = gondola;
         this.demoService = demoService;
-        loadNumberOfClusters(gondola);
-        loadClusterIdList(gondola);
+        loadNumberOfShards(gondola);
+        loadShardIdList(gondola);
     }
 
     @Override
     public int getBucketId(ContainerRequestContext request) {
         int hashValue = hashUri(request.getUriInfo().getPath());
-        return hashValue % numberOfClusters;
+        return hashValue % numberOfShards;
     }
 
     @Override
-    public int getAppliedIndex(String clusterId) {
+    public int getAppliedIndex(String shardId) {
         return demoService.getAppliedIndex();
     }
 
@@ -54,23 +54,23 @@ public class DemoRoutingHelper implements RoutingHelper {
     }
 
     @Override
-    public void clearState(String clusterId) {
+    public void clearState(String shardId) {
         demoService.clearState();
     }
 
-    private void loadNumberOfClusters(Gondola gondola) {
+    private void loadNumberOfShards(Gondola gondola) {
         Config config = gondola.getConfig();
 
-        Set<String> clusterIds = new HashSet<>();
+        Set<String> shardIds = new HashSet<>();
         for (String hostId : config.getHostIds()) {
-            clusterIds.addAll(config.getClusterIds(hostId));
+            shardIds.addAll(config.getShardIds(hostId));
         }
-        numberOfClusters = clusterIds.size();
+        numberOfShards = shardIds.size();
     }
 
-    private void loadClusterIdList(Gondola gondola) {
-        clusterIdList = gondola.getClustersOnHost().stream()
-                          .map(Cluster::getClusterId)
+    private void loadShardIdList(Gondola gondola) {
+        shardIdList = gondola.getShardsOnHost().stream()
+                          .map(Shard::getShardId)
                           .collect(Collectors.toList());
     }
 

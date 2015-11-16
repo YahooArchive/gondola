@@ -17,8 +17,11 @@ public interface Clock extends Stoppable {
 
     public void start() throws Exception;
 
-    public void stop();
-    
+    /**
+     * See Stoppable.stop().
+     */
+    public boolean stop();
+
     /**
      * Returns the current time. Equivalent to System.currentTimeMillis().
      *
@@ -35,12 +38,12 @@ public interface Clock extends Stoppable {
 
     /**
      * Equivlant to:
-     *   lock.lock();
-     *   cond.await(TimeUnit.MILLISECONDS, timeMs);
-     *   lock.unlock();
+     * lock.lock();
+     * cond.await(TimeUnit.MILLISECONDS, timeMs);
+     * lock.unlock();
      *
-     * @param lock The lock that protects cond.
-     * @param cond A Condition created from lock.
+     * @param lock   The lock that protects cond.
+     * @param cond   A Condition created from lock.
      * @param timeMs The timeout in milliseconds.
      */
     public void awaitCondition(Lock lock, Condition cond, long timeMs) throws InterruptedException;

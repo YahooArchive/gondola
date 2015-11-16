@@ -113,8 +113,9 @@ public class RcStorage implements Storage {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
         members.clear();
+        return true;
     }
 
     RcStorageMember getMember(int memberId) throws Exception {

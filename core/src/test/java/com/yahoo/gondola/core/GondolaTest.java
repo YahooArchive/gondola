@@ -39,7 +39,7 @@ import static org.testng.Assert.assertTrue;
 /**
  * This is the TestNG suite of Gondola unit tests.
  * See conf/gondola-rc.conf to see how the gondola instances are configured.
- * All the unit tests assume a three-node cluster configuration.
+ * All the unit tests assume a three-node shard configuration.
  *
  * The test makes extensive use of GondolaRc and MemberRc objects (rc stands for remote control).
  * These objects are wrappers around the regular Gondola and Member instances and provides methods 
@@ -71,12 +71,6 @@ public class GondolaTest {
     public GondolaTest() throws Exception {
         PropertyConfigurator.configure("conf/gondola-rc.log4j.properties");
         gondolaRc = new GondolaRc();
-        member1 = gondolaRc.getMember(1);
-        member2 = gondolaRc.getMember(2);
-        member3 = gondolaRc.getMember(3);
-        members = Stream.of(gondolaRc.getMember(1), gondolaRc.getMember(2), gondolaRc.getMember(3))
-                .collect(Collectors.toList());
-        startTimer = System.currentTimeMillis();
         new SummaryThread().start();
     }
 
@@ -91,6 +85,14 @@ public class GondolaTest {
         currentTest = this.getClass().getName() + "." + mname;
         logger.info(String.format("************************ %s *******************", currentTest));
         gondolaRc.start();
+
+        // These member rc objects are not available until after gondola instance is started start
+        member1 = gondolaRc.getMember(1);
+        member2 = gondolaRc.getMember(2);
+        member3 = gondolaRc.getMember(3);
+        members = Stream.of(gondolaRc.getMember(1), gondolaRc.getMember(2), gondolaRc.getMember(3))
+                .collect(Collectors.toList());
+        startTimer = System.currentTimeMillis();
     }
 
     /**
@@ -746,11 +748,11 @@ public class GondolaTest {
         member2.setFollower();
         member3.setFollower();
 
-        Member m2 = member1.getCluster().getMember(member2.getMemberId());
+        Member m2 = member1.getShard().getMember(member2.getMemberId());
         while (!m2.isLogUpToDate()) {
             gondolaRc.tick(50);
         }
-        assertEquals(member1.getCluster().getLastSavedIndex(), 10);
+        assertEquals(member1.getShard().getLastSavedIndex(), 10);
     }
 
     /************************** command test cases ***********************/
@@ -901,13 +903,13 @@ public class GondolaTest {
                 try {
                     if (runningTick > 0) {
                         gondolaRc.tick(runningTick);
-                    }
-                    if (now > startTimer + 5000) {
-                        logger.info("Executing " + currentTest);
-                        gondolaRc.showSummaries();
+                        if (now > startTimer + 5000) {
+                            logger.info("Executing " + currentTest);
+                            gondolaRc.showSummaries();
 
-                        // No need to print another for a while
-                        startTimer = now + 60 * 1000;
+                            // No need to print another for a while
+                            startTimer = now + 60 * 1000;
+                        }
                     }
                     Thread.sleep(100);
                 } catch (Exception e) {

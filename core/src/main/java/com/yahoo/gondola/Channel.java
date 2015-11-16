@@ -14,7 +14,8 @@ import java.io.OutputStream;
  * Communication is done via reading and writing to streams.
  * The channel can be operational or not. When not operational, the channel will automatically try
  * to reestablish connectivity to the remote member until it is operational again.
- *
+ * <p>
+ * <pre>
  * Usage:
  *   InputStream in = null;
  *   while (true) {
@@ -25,17 +26,24 @@ import java.io.OutputStream;
  *       in = channel.getInputStream(in, true);
  *     }
  *   }
+ * </pre>
  */
 public interface Channel extends Stoppable {
+    /**
+     * See Stoppable.start().
+     */
     void start() throws Exception;
 
-    void stop();
+    /**
+     * See Stoppable.stop().
+     */
+    boolean stop();
 
     /**
      * Returns the id of the remote member for this channel.
      */
     public int getRemoteMemberId();
-    
+
     /**
      * Returns a human-readable string that represents the physical location of the remote member.
      * This is used in dashboards to identify the remote member.
@@ -43,7 +51,7 @@ public interface Channel extends Stoppable {
      * @return a non-null string representing the remote member.
      */
     public String getRemoteAddress();
-    
+
     /**
      * Returns true if the input and output streams are valid.
      */
@@ -66,7 +74,7 @@ public interface Channel extends Stoppable {
     /**
      * Returns an output stream which is used to send data to the remote member.
      * Blocks until a valid output stream is available.
-     * 
+     *
      * @param out the previously used output stream or null if none.
      * @return a non-null output stream.
      */

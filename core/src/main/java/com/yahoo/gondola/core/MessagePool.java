@@ -51,7 +51,7 @@ public class MessagePool {
      */
     Consumer<Config> configListener = config1 -> {
         warnThreshold = config1.getInt("gondola.message_pool_warn_threshold");
-        leakTracing = config1.getBoolean("tracing.message_leak");
+        leakTracing = config1.getBoolean("gondola.tracing.message_leak");
     };
 
     public int size() {
@@ -91,7 +91,7 @@ public class MessagePool {
             message = new Message(config, this, stats);
 
             // Create a phantom reference to determine if the message is leaked
-            if (config.getBoolean("tracing.message_leak")) {
+            if (config.getBoolean("gondola.tracing.message_leak")) {
                 phantomRefs.add(new PhantomRef<Message>(message, leakQueue));
             }
             createdCount++;

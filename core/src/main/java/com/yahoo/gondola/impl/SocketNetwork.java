@@ -77,8 +77,8 @@ public class SocketNetwork implements Network {
         this.gondola = gondola;
         this.hostId = hostId;
         gondola.getConfig().registerForUpdates(config -> {
-            networkTracing = config.getBoolean("tracing.network");
-            connTimeout = config.getInt("network_socket.connect_timeout");
+            networkTracing = config.getBoolean("gondola.tracing.network");
+            connTimeout = config.getInt("network.socket.connect_timeout");
         });
 
         InetSocketAddress address = gondola.getConfig().getAddressForHost(hostId);
@@ -100,17 +100,23 @@ public class SocketNetwork implements Network {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
+        boolean status = true;
         generation++;
         threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
-                t.join();
+                t.join(1000);
+                if (t.isAlive()) {
+                    logger.error("Failed to stop thread " + t.getName());
+                    status = false;
+                }
             } catch (InterruptedException e) {
                 logger.error("Join thread " + t.getName() + " interrupted", e);
             }
         }
         threads.clear();
+        return status;
     }
 
     /**

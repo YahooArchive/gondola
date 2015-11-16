@@ -131,8 +131,8 @@ public class Peer {
      */
     public static void initConfig(Config config) {
         config.registerForUpdates(config1 -> {
-                                      storageTracing = config1.getBoolean("tracing.storage");
-                                      networkTracing = config1.getBoolean("tracing.network");
+                                      storageTracing = config1.getBoolean("gondola.tracing.storage");
+                                      networkTracing = config1.getBoolean("gondola.tracing.network");
                                       heartbeatPeriod = config1.getInt("raft.heartbeat_period");
                                       socketInactivityTimeout = config1.getInt("network.channel_inactivity_timeout");
                                   }
@@ -167,24 +167,30 @@ public class Peer {
         // Start local threads
         assert threads.size() == 0
             : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
-        threads.add(new Receiver()); // Close the receiver before sender to avoid "writer is closed" exc from pipedinputstream
+        threads.add(new Receiver());
         threads.add(new Backfiller());
         threads.add(new Sender());
         threads.forEach(t -> t.start());
     }
 
-    public void stop() {
+    public boolean stop() {
+        boolean status = true;
         generation++;
+        threads.forEach(t -> t.interrupt());
         for (Thread t : threads) {
             try {
-                t.interrupt();
-                t.join();
+                t.join(1000);
+                if (t.isAlive()) {
+                    logger.error("Could not stop thread " + t.getName());
+                    status = false;
+                }
             } catch (InterruptedException e) {
                 logger.error("Join thread " + t.getName() + " interrupted", e);
             }
         }
         threads.clear();
-        channel.stop(); // Call after stopping the threads, otherwise possible NPE
+        status = channel.stop() & status; // Call after stopping the threads, otherwise possible NPE
+        return status;
     }
 
     /******************** methods *********************/
@@ -466,7 +472,6 @@ public class Peer {
                     // If this thread was interrupted, exit
                     if (generation < Peer.this.generation) {
                         nextMessage.release();
-                        logger.info("peer receiver exiting: g1={} g2={}", generation, Peer.this.generation);
                         return;
                     }
                     String m = String.format("[%s-%d] Failed to receive from %d: %s",
@@ -474,6 +479,7 @@ public class Peer {
                             e.getMessage());
                     if ("Socket closed".equals(e.getMessage())
                             || "Read timed out".equals(e.getMessage())
+                            || e.getMessage().matches(".*Write end dead.*")
                             || "Connection reset".equals(e.getMessage())) {
                         e = null; // Don't need stack trace
                     }
@@ -648,7 +654,9 @@ public class Peer {
                     String m = String.format("[%s-%d] Failed to send to %d: %s",
                             gondola.getHostId(), cmember.memberId, peerId,
                             e.getMessage());
+                    
                     if ("Socket closed".equals(e.getMessage())
+                            || matchesMessage(e, ".*Read end dead.*")
                             || "Broken pipe".equals(e.getMessage())) {
                         e = null; // Don't need stack trace
                     }
@@ -657,6 +665,17 @@ public class Peer {
                 }
             }
         }
+    }
+
+    public boolean matchesMessage(Throwable t, String regex) {
+        while (t != null) {
+            if (t.getMessage() == null) {
+                return false;
+            } else if (t.getMessage().matches(regex)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Stat

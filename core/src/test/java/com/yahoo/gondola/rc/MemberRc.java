@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.rc;
 
-import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Role;
@@ -20,28 +20,41 @@ import org.slf4j.LoggerFactory;
 import java.util.function.Consumer;
 
 /**
- * This "remote control" class is meant to represent one member in a particular cluster.
- * In reality, it encapsultes the local member of a particular cluster of a particular gondola instance.
- * All operations on this abstract member targets the cluster's local member.
+ * This "remote control" class is meant to represent one member in a particular shard.
+ * In reality, it encapsultes the local member of a particular shard of a particular gondola instance.
+ * All operations on this abstract member targets the shard's local member.
  */
 public class MemberRc {
     static Logger logger = LoggerFactory.getLogger(MemberRc.class);
 
     final GondolaRc rc;
     final Gondola gondola;
-    final Cluster cluster;
-    final public CoreMember cmember;
-    final RcStorage storage;
-    final RcNetwork network;
+    Shard shard;
+    public CoreMember cmember;
+    RcStorage storage;
+    RcNetwork network;
 
     public MemberRc(GondolaRc rc, Gondola gondola) {
         this.rc = rc;
         this.gondola = gondola;
-        cluster = gondola.getCluster("cluster1");
-        cmember = CoreMember.getCoreMember(cluster);
+        shard = gondola.getShard("shard1");
+        cmember = CoreMember.getCoreMember(shard);
         storage = (RcStorage) gondola.getStorage();
         network = (RcNetwork) gondola.getNetwork();
     }
+
+    /*
+    public void start() throws Exception {
+    }
+
+    public boolean stop() {
+        boolean status = network.stop();
+        status = storage.stop() & status;
+        status = cmember.stop() & status;
+        status = shard.stop() & status;
+        return status;
+    }
+    */
 
     public void reset() throws Exception {
         cmember.reset();
@@ -51,8 +64,8 @@ public class MemberRc {
         return gondola;
     }
 
-    public Cluster getCluster() {
-        return cluster;
+    public Shard getShard() {
+        return shard;
     }
     
     public int getMemberId() {
@@ -60,15 +73,15 @@ public class MemberRc {
     }
 
     public Command checkoutCommand() throws Exception {
-        return cluster.checkoutCommand();
+        return shard.checkoutCommand();
     }
 
     public Command getCommittedCommand(int index) throws Exception {
-        return cluster.getCommittedCommand(index);
+        return shard.getCommittedCommand(index);
     }
 
     public Command getCommittedCommand(int index, int timeout) throws Exception {
-        return cluster.getCommittedCommand(index, timeout);
+        return shard.getCommittedCommand(index, timeout);
     }
 
     public void setLeader() throws Exception {

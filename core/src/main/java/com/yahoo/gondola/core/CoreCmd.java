@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Cluster;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -28,7 +28,7 @@ public class CoreCmd {
     final static Logger logger = LoggerFactory.getLogger(CoreCmd.class);
 
     final Gondola gondola;
-    final Cluster cluster;
+    final Shard shard;
     final CoreMember cmember;
     final Stats stats;
     final static AtomicInteger commitCounter = new AtomicInteger();
@@ -68,9 +68,9 @@ public class CoreCmd {
     static boolean commandTracing;
     static int maxCommandSize;
 
-    public CoreCmd(Gondola gondola, Cluster cluster, CoreMember cmember) {
+    public CoreCmd(Gondola gondola, Shard shard, CoreMember cmember) {
         this.gondola = gondola;
-        this.cluster = cluster;
+        this.shard = shard;
         this.cmember = cmember;
 
         createdCount.incrementAndGet();
@@ -84,7 +84,7 @@ public class CoreCmd {
      */
     public static void initConfig(Config config) {
         config.registerForUpdates( config1 -> {
-            commandTracing = config1.getBoolean("tracing.command");
+            commandTracing = config1.getBoolean("gondola.tracing.command");
             maxCommandSize = config1.getInt("raft.command_max_size");
         });
     }
@@ -169,7 +169,7 @@ public class CoreCmd {
 
     /**
      * This should not be called by clients.
-     * This method is called indirectly via a client call to Cluster.getCommittedCommand(), when the 
+     * This method is called indirectly via a client call to Shard.getCommittedCommand(), when the 
      * requested index has not been committed yet.
      * After this call, this command object can be used again.
      *

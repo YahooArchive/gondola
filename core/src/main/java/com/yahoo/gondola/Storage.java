@@ -13,15 +13,14 @@ package com.yahoo.gondola;
  */
 public interface Storage extends Stoppable {
     /**
-     * Start any threads needed by the implementaiton.
+     * See Stoppable.start().
      */
     public void start();
 
     /**
-     * Stops all threads in the object. After this call, it should be possible to call start() to restart
-     * the threads.
+     * See Stoppable.stop().
      */
-    public void stop();
+    public boolean stop();
 
     /**
      * Returns true if calling methods in this class is likely to succeed.

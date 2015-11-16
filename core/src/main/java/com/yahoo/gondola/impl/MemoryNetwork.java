@@ -51,7 +51,7 @@ public class MemoryNetwork implements Network {
     }
 
     @Override
-    public void stop() {
-
+    public boolean stop() {
+        return true;
     }
 }

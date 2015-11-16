@@ -10,7 +10,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 
 public class RoleChangeEvent {
-    public Cluster cluster;
+    public Shard shard;
     public Member member;
 
     // Null if the leader is currently unknown
@@ -18,8 +18,8 @@ public class RoleChangeEvent {
     public Role oldRole;
     public Role newRole;
 
-    public RoleChangeEvent(Cluster cluster, Member member, Member leader, Role oldRole, Role newRole) {
-        this.cluster = cluster;
+    public RoleChangeEvent(Shard shard, Member member, Member leader, Role oldRole, Role newRole) {
+        this.shard = shard;
         this.member = member;
         this.leader = leader;
         this.oldRole = oldRole;

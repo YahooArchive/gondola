@@ -54,18 +54,18 @@ public class LockManagerTest {
 
     @Test
     public void testBlockRequestOnCluster() throws Exception {
-        lockManager.blockRequestOnCluster("c1");
+        lockManager.blockRequestOnShard("c1");
         assertTrue(checkBlocked(1000,"c1"));
     }
 
 
     @Test
     public void testUnblockRequestOnCluster() throws Exception {
-        lockManager.blockRequestOnCluster("c1");
+        lockManager.blockRequestOnShard("c1");
         assertTrue(checkBlocked(1000,"c1"));
-        lockManager.unblockRequestOnCluster("c1");
+        lockManager.blockRequestOnShard("c1");
         assertFalse(checkBlocked(1000,"c1"));
-        lockManager.unblockRequestOnCluster("c1");
+        lockManager.blockRequestOnShard("c1");
         assertFalse(checkBlocked(1000,"c1"));
     }
 

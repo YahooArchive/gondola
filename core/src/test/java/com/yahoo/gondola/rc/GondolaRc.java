@@ -38,16 +38,13 @@ public class GondolaRc {
         // Create list of three gondola instances
         gondolas = Stream.of(new Gondola(config, "A"), new Gondola(config, "B"), new Gondola(config, "C"))
                 .collect(Collectors.toList());
-
-        for (Gondola g : gondolas) {
-            MemberRc member = new MemberRc(this, g);
-            members.put(member.getMemberId(), member);
-        }
     }
 
     public void start() throws Exception {
         for (Gondola g : gondolas) {
             g.start();
+            MemberRc member = new MemberRc(this, g);
+            members.put(member.getMemberId(), member);
         }
     }
 
@@ -55,6 +52,7 @@ public class GondolaRc {
         for (Gondola g : gondolas) {
             g.stop();
         }
+        members.clear();
     }
 
     /**

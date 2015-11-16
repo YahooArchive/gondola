@@ -75,7 +75,8 @@ public class MemoryChannel implements Channel {
     }
 
     @Override
-    public void stop() {
+    public boolean stop() {
+        return true;
     }
 
     @Override
