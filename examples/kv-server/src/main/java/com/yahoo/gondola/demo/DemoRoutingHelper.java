@@ -54,7 +54,7 @@ public class DemoRoutingHelper implements RoutingHelper {
     }
 
     @Override
-    public void clearState(String shardId) {
+    public void beforeServing(String shardId) {
         demoService.clearState();
     }
 

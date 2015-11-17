@@ -59,12 +59,14 @@ class LockManager {
         }
     }
 
-    void unblockRequestOnShard(String shardId) {
-        logger.info("Unblock requests on shard : {}", shardId);
+    long unblockRequestOnShard(String shardId) {
         CountDownLatch lock = shards.remove(shardId);
         if (lock != null) {
+            long count = lock.getCount();
             lock.countDown();
+            return count;
         }
+        return 0;
     }
 
     void blockRequestOnShard(String shardId) {

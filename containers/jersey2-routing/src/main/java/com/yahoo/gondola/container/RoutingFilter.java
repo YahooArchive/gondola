@@ -168,15 +168,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
                         String shardId = roleChangeEvent.shard.getShardId();
-                        logger.info("Preparing for serving...");
+                        logger.info("Become leader on shard {}, blocking all requests to the shard....", shardId);
                         lockManager.blockRequestOnShard(shardId);
-                        logger.info("Clearing internal state...");
-                        routingHelper.clearState(shardId);
-                        logger.info("Wait until all the log entries are applied to storage...");
-                        waitSynced(shardId);
-                        logger.info("Ready for serving, applied all logs to persistent storage. appliedIndex={}",
-                                    routingHelper.getAppliedIndex(shardId));
-                        lockManager.unblockRequestOnShard(shardId);
+                        logger.info("Request blocked, wait until raft logs applied to storage...");
+                        waitRaftLogSynced(shardId);
+                        logger.info("Raft logs are up-to-date, notify application is ready to serve...");
+                        routingHelper.beforeServing(shardId);
+                        logger.info("Ready for serving, unblocking the requests...");
+                        long count = lockManager.unblockRequestOnShard(shardId);
+                        logger.info("System is back to serving, unblocked {} requests ...", count);
                     }, singleThreadExecutor).exceptionally(throwable -> {
                         logger.info("Errors while executing leader change event", throwable);
                         return null;
@@ -568,7 +568,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return counter;
     }
 
-    private void waitSynced(String shardId) {
+    private void waitRaftLogSynced(String shardId) {
         boolean synced = false;
 
         long startTime = System.currentTimeMillis();
