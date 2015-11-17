@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.container.client;
 
-import com.yahoo.gondola.container.LocalTestServer;
+import com.yahoo.gondola.container.utils.LocalTestServer;
 
 import org.apache.http.Header;
 import org.apache.http.HttpHost;

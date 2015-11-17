@@ -4,7 +4,7 @@
  * See the accompanying LICENSE file for terms.
  */
 
-package com.yahoo.gondola.container;
+package com.yahoo.gondola.container.utils;
 
 import org.apache.http.HttpHost;
 import org.apache.http.localserver.LocalServerTestBase;
