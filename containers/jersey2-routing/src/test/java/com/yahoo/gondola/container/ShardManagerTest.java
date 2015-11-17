@@ -9,7 +9,6 @@ package com.yahoo.gondola.container;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ShardManagerClient;
-import com.yahoo.gondola.container.client.StatClient;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -36,9 +35,6 @@ public class ShardManagerTest {
     RoutingFilter filter;
 
     @Mock
-    StatClient statClient;
-
-    @Mock
     LockManager lockManager;
 
     @Mock
@@ -56,7 +52,7 @@ public class ShardManagerTest {
         when(filter.getLockManager()).thenReturn(lockManager);
         when(config.getMembersInShard(any())).thenReturn(Arrays.asList(configMember, configMember, configMember));
         when(configMember.getMemberId()).thenReturn(1,2,3);
-        shardManager = new ShardManager(filter, statClient, config, shardManagerClient);
+        shardManager = new ShardManager(filter, config, shardManagerClient);
     }
 
     @Test

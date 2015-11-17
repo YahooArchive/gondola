@@ -9,7 +9,6 @@ package com.yahoo.gondola.container;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ShardManagerClient;
-import com.yahoo.gondola.container.client.StatClient;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +25,7 @@ import java.util.stream.Collectors;
 public class ShardManager implements ShardManagerProtocol {
 
     Config config;
-
     RoutingFilter filter;
-    /**
-     * The Stat client.
-     */
-    StatClient statClient;
 
     static Logger logger = LoggerFactory.getLogger(ShardManager.class);
 
@@ -50,9 +44,8 @@ public class ShardManager implements ShardManagerProtocol {
     private ShardManagerClient shardManagerClient;
 
 
-    public ShardManager(RoutingFilter filter, StatClient statClient, Config config, ShardManagerClient shardManagerClient) {
+    public ShardManager(RoutingFilter filter, Config config, ShardManagerClient shardManagerClient) {
         this.filter = filter;
-        this.statClient = statClient;
         this.config = config;
         this.shardManagerClient = shardManagerClient;
     }
@@ -114,7 +107,7 @@ public class ShardManager implements ShardManagerProtocol {
                 try {
                     filter.getLockManager().blockRequestOnBuckets(splitRange);
                     filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
-                    statClient.waitSynced(toShardId, timeoutMs);
+                    shardManagerClient.waitSynced(toShardId, timeoutMs);
                     shardManagerClient.stopObserving(toShardId, shardId);
                     filter.reassignBuckets(splitRange, toShardId, timeoutMs);
                     break;
@@ -126,9 +119,9 @@ public class ShardManager implements ShardManagerProtocol {
                 break;
             case DB:
                 try {
-                    statClient.waitApproaching(toShardId, -1L);
+                    shardManagerClient.waitApproaching(toShardId, -1L);
                     filter.getLockManager().blockRequest();
-                    statClient.waitSynced(toShardId, timeoutMs);
+                    shardManagerClient.waitSynced(toShardId, timeoutMs);
                     filter.reassignBuckets(splitRange, toShardId, timeoutMs);
                     break;
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {

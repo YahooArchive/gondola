@@ -3,7 +3,6 @@ package com.yahoo.gondola.container;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ShardManagerClient;
-import com.yahoo.gondola.container.client.StatClient;
 
 import java.util.List;
 import java.util.Map;
@@ -13,13 +12,11 @@ public class AdminClient implements AdminInterface {
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
-    private StatClient statClient;
 
 
-    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, StatClient statClient) {
+    public AdminClient(String serviceName, ShardManagerClient shardManagerClient) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
-        this.statClient = statClient;
     }
 
     @Override
