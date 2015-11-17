@@ -14,6 +14,10 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The Shard manager
@@ -30,8 +34,17 @@ public class ShardManager {
 
     static Logger logger = LoggerFactory.getLogger(ShardManager.class);
 
-    Set<String> observedShards = new HashSet<>();
-    Set<Integer> allowedObservers = new HashSet<>();
+    private Set<String> observedShards = new HashSet<>();
+
+    public Set<String> getObservedShards() {
+        return observedShards;
+    }
+
+    public Set<Integer> getAllowedObservers() {
+        return allowedObservers;
+    }
+
+    private Set<Integer> allowedObservers = new HashSet<>();
 
     public ShardManager(RoutingFilter filter, StatClient statClient) {
         this.filter = filter;
@@ -42,57 +55,59 @@ public class ShardManager {
     /**
      * Enables special mode on gondola to allow observer.
      */
-    public boolean allowObserver(int memberId) {
+    public void allowObserver(int memberId) {
         // TODO: gondola allow observer
         logger.info("allow observer connect from memberId={}", memberId);
-        return allowedObservers.add(memberId);
+        allowedObservers.add(memberId);
     }
 
 
     /**
      * Disables special mode on gondola to allow observer.
      */
-    public boolean disallowObserver(int memberId) {
+    public void disallowObserver(int memberId) {
         // TODO: gondola allow observer
         logger.info("disallow observer connect from memberId={}", memberId);
-        return allowedObservers.remove(memberId);
+        allowedObservers.remove(memberId);
     }
 
     /**
      * Starts observer mode to remote cluster.
      */
-    public boolean startObserving(String shardId) {
+    public void startObserving(String shardId) {
         // TODO: gondola start observing
         logger.info("start observer to shardId={}", shardId);
-        return observedShards.add(shardId);
+        observedShards.add(shardId);
     }
 
 
     /**
      * Stops observer mode to remote cluster, and back to normal mode.
      */
-    public boolean stopObserving(String shardId) {
+    public void stopObserving(String shardId) {
         // TODO: gondola stop observing
         logger.info("stop observer to shardId={}", shardId);
-        return observedShards.remove(shardId);
+        observedShards.remove(shardId);
     }
 
+    ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
     /**
      * Splits the bucket of fromCluster, and reassign the buckets to toCluster.
      */
-    public void splitBucket(String fromShard, String toShard, long timeoutMs) {
-        Range<Integer> splitRange = getSplitRange(fromShard);
-        MigrationType migrationType = getMigrationType(fromShard, toShard);
+    public void assignBucket (Range<Integer> splitRange, String toShard, long timeoutMs) {
+        MigrationType migrationType = getMigrationType(splitRange, toShard);
         switch (migrationType) {
             case APP:
                 for (int i = 0; i < RETRY; i++) {
                     try {
-                        filter.lockManager.blockRequestOnBuckets(splitRange);
-                        filter.waitNoRequestsOnBuckets(splitRange, 5000L);
-                        filter.reassignBuckets(splitRange, toShard);
+                        filter.getLockManager().blockRequestOnBuckets(splitRange);
+                        filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
+                        filter.reassignBuckets(splitRange, toShard, timeoutMs);
                         break;
+                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        // TODO: rollback
                     } finally {
-                        filter.lockManager.unblockRequestOnBuckets(splitRange);
+                        filter.getLockManager().unblockRequestOnBuckets(splitRange);
                     }
                 }
                 break;
@@ -100,33 +115,25 @@ public class ShardManager {
                 for (int i = 0; i < RETRY; i++) {
                     try {
                         statClient.waitApproaching(toShard, -1L);
-                        filter.lockManager.blockRequest();
+                        filter.getLockManager().blockRequest();
                         statClient.waitSynced(toShard, 5000L);
-                        filter.reassignBuckets(splitRange, toShard);
+                        filter.reassignBuckets(splitRange, toShard, timeoutMs);
+                        break;
+                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        // TODO: rollback
                     } finally {
-                        filter.lockManager.unblockRequest();
+                        filter.getLockManager().unblockRequest();
                     }
-                    break;
                 }
+                break;
         }
-    }
-
-    /**
-     * Merges the bucket of fromCluster to toCluster.
-     */
-    public void mergeBucket(String fromShard, String toShard, long timeoutMs) {
-    }
-
-    private Range<Integer> getSplitRange(String fromShard) {
-        // TODO:
-        return null;
     }
 
     /**
      * Returns the migration type by inspect config, DB -> if two shards use different database APP -> if two shards use
      * same database.
      */
-    private MigrationType getMigrationType(String fromShard, String toShard) {
+    private MigrationType getMigrationType(Range<Integer> splitRange, String toShard) {
         //TODO: implement
         return MigrationType.APP;
     }

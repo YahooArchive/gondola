@@ -26,10 +26,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -46,6 +50,7 @@ import javax.ws.rs.core.Response;
  * resource.
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
+
     static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     /**
@@ -103,10 +108,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
+
     /**
      * Lock manager.
      */
-    LockManager lockManager = new LockManager();
+    private LockManager lockManager = new LockManager();
 
     /**
      * Mapping table for serviceUris. hostId --> service URL
@@ -190,7 +196,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         if (hasRoutingLoop(requestContext)) {
             requestContext.abortWith(
                 Response.status(Response.Status.BAD_REQUEST)
-                .build()
+                    .build()
             );
             return;
         }
@@ -563,12 +569,39 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
     }
 
+    ExecutorService executor = Executors.newSingleThreadExecutor();
 
-    void reassignBuckets(Range<Integer> splitRange, String toShard) {
-        // TODO:
+    void reassignBuckets(Range<Integer> splitRange, String toShard, long timeoutMs)
+        throws InterruptedException, TimeoutException, ExecutionException {
+        executeTaskWithTimeout(() -> {
+            if (toShard.equals("c1")) {
+                try {
+                    Thread.sleep(timeoutMs * 2);
+                } catch (InterruptedException e) {
+                    // ignored
+                }
+            }
+            return "";
+        }, timeoutMs);
     }
 
-    void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs) {
-        // TODO:
+    void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
+        throws InterruptedException, ExecutionException, TimeoutException {
+        executeTaskWithTimeout(() -> {
+            if (splitRange != null) {
+                Thread.sleep(timeoutMs * 2);
+            }
+            return "";
+        }, timeoutMs);
     }
+
+    void executeTaskWithTimeout(Callable callable, long timeoutMs)
+        throws InterruptedException, ExecutionException, TimeoutException {
+        executor.submit(callable).get(timeoutMs, TimeUnit.MILLISECONDS);
+    }
+
+    public LockManager getLockManager() {
+        return lockManager;
+    }
+
 }
