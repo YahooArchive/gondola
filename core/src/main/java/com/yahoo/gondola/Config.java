@@ -221,6 +221,14 @@ public class Config {
         return members;
     }
 
+    public List<ConfigMember> getMembersInHost(String hostId) {
+        List<ConfigMember> members = configData.hostToMembers.get(hostId);
+        if (members == null) {
+            throw new IllegalArgumentException(String.format("hostId '%s' not found in config", hostId));
+        }
+        return members;
+    }
+
     public InetSocketAddress getAddressForMember(int memberId) {
         ConfigMember cm = configData.members.get(memberId);
         if (cm == null) {
@@ -283,10 +291,10 @@ public class Config {
             for (com.typesafe.config.Config h : v.getConfigList("hosts")) {
                 ConfigMember cm = new ConfigMember(v.getString("shardId"), h.getString("hostId"), h.getInt("memberId"));
                 // update host to members
-                List<ConfigMember> cmembers = cd.hostToMembers.get(cm.shardId);
+                List<ConfigMember> cmembers = cd.hostToMembers.get(cm.hostId);
                 if (cmembers == null) {
                     cmembers = new ArrayList<>();
-                    cd.hostToMembers.put(cm.shardId, cmembers);
+                    cd.hostToMembers.put(cm.hostId, cmembers);
                 }
                 cmembers.add(cm);
 
