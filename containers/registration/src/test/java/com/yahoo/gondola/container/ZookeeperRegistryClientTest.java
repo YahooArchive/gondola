@@ -48,15 +48,14 @@ public class ZookeeperRegistryClientTest {
     ObjectMapper objectMapper = new ObjectMapper();
     RegistryClient registryClient;
 
-    @Mock
     Config config;
 
     @Mock
     Consumer<RegistryClient.Entry> listener;
 
-    static final String SITE_1_HOST_3_CLUSTERS = "site_1_host_3_clusters";
-    static final String SITE_1_HOST_2_CLUSTERS = "site_1_host_2_clusters";
-    static final String SITE_1_HOST_1_CLUSTER = "site_1_host_1_cluster";
+    static final String SITE_1_HOST_3_CLUSTERS = "site_1_host_3_shards";
+    static final String SITE_1_HOST_2_CLUSTERS = "site_1_host_2_shards";
+    static final String SITE_1_HOST_1_CLUSTER = "site_1_host_1_shard";
     static final String SITE_2_HOSTS = "site_2_hosts";
 
 
@@ -167,7 +166,7 @@ public class ZookeeperRegistryClientTest {
 
     @Test
     public void testWaitForClusterComplete() throws Exception {
-        // 0. A three nodes cluster, two server joins
+        // 0. A three nodes shard, two server joins
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         Future<Boolean> result;
         registryClient.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234), URI.create("http://foo.com"));
@@ -184,7 +183,7 @@ public class ZookeeperRegistryClientTest {
         registryClient.register(SITE_1_HOST_1_CLUSTER, new InetSocketAddress(1236), URI.create("http://foo.com"));
         assertEquals(result.get(), Boolean.TRUE);
 
-        // 3. The request should success immediately, since all nodes are in the clusters.
+        // 3. The request should success immediately, since all nodes are in the shards.
         result = executorService.submit(awaitCall);
         assertEquals(result.get(), Boolean.TRUE);
     }
