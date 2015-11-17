@@ -6,23 +6,11 @@
 
 package com.yahoo.gondola.container.client;
 
+import com.yahoo.gondola.container.LocalTestServer;
+
 import org.apache.http.Header;
-import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.localserver.LocalServerTestBase;
-import org.apache.http.localserver.RequestBasicAuth;
-import org.apache.http.localserver.ResponseBasicUnauthorized;
-import org.apache.http.protocol.HttpContext;
-import org.apache.http.protocol.HttpProcessor;
-import org.apache.http.protocol.HttpProcessorBuilder;
-import org.apache.http.protocol.HttpRequestHandler;
-import org.apache.http.protocol.ResponseConnControl;
-import org.apache.http.protocol.ResponseContent;
-import org.apache.http.protocol.ResponseDate;
-import org.apache.http.protocol.ResponseServer;
 import org.glassfish.jersey.server.ContainerRequest;
 import org.glassfish.jersey.server.ExtendedUriInfo;
 import org.mockito.Mock;
@@ -32,7 +20,6 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.net.URI;
 
 import javax.ws.rs.core.MultivaluedHashMap;
@@ -42,7 +29,7 @@ import javax.ws.rs.core.Response;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 
-public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
+public class ApacheHttpComponentProxyClientTest {
     public static final String RESPONSE_CONTENT = "foo";
     public static final String TEST_HEADER_NAME = "test_header_name";
     public static final String TEST_HEADER_VALUE = "test_header_value";
@@ -55,24 +42,17 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
 
     String targetUri;
 
+    LocalTestServer server = new LocalTestServer((request1, response, context) -> {
+        response.setStatusCode(200);
+        response.setEntity(new StringEntity(RESPONSE_CONTENT));
+        Header header = request1.getFirstHeader(TEST_HEADER_NAME);
+        response.setHeader(header.getName(), header.getValue());
+    });
+
     ApacheHttpComponentProxyClient client;
     @BeforeMethod
     public void setUp() throws Exception {
-        super.setUp();
-
-        HttpProcessor httpproc = HttpProcessorBuilder.create()
-            .add(new ResponseDate())
-            .add(new ResponseServer(LocalServerTestBase.ORIGIN))
-            .add(new ResponseContent())
-            .add(new ResponseConnControl())
-            .add(new RequestBasicAuth())
-            .add(new ResponseBasicUnauthorized()).build();
-        this.serverBootstrap.setHttpProcessor(httpproc);
-        this.serverBootstrap.registerHandler("*", new Handler());
-
-        HttpHost target = start();
-
-        targetUri = getTargetUri(target);
+        targetUri = getTargetUri(server.getHost());
 
         MockitoAnnotations.initMocks(this);
         URI uri = URI.create(targetUri + TEST_PATH);
@@ -111,17 +91,5 @@ public class ApacheHttpComponentProxyClientTest extends LocalServerTestBase {
         assertEquals(response.getEntity().toString(), RESPONSE_CONTENT);
         assertEquals(status, 200);
         assertEquals(response.getHeaderString(TEST_HEADER_NAME), TEST_HEADER_VALUE);
-    }
-
-    class Handler implements HttpRequestHandler {
-
-        @Override
-        public void handle(HttpRequest request, HttpResponse response, HttpContext context)
-            throws HttpException, IOException {
-            response.setStatusCode(200);
-            response.setEntity(new StringEntity(RESPONSE_CONTENT));
-            Header header = request.getFirstHeader(TEST_HEADER_NAME);
-            response.setHeader(header.getName(), header.getValue());
-        }
     }
 }
