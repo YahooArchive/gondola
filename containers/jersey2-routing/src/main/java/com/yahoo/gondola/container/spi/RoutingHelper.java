@@ -51,9 +51,9 @@ public interface RoutingHelper {
     String getSiteId(ContainerRequestContext request);
 
     /**
-     * Clears application state, should be called during promote a follower to a leader.
+     * Callback to tell application that everyhing is set.
      *
      * @param clusterId
      */
-    void clearState(String clusterId);
+    void beforeServing(String clusterId);
 }

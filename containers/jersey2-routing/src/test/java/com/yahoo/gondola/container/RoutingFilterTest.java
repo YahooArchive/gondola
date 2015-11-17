@@ -182,7 +182,7 @@ public class RoutingFilterTest {
         RoleChangeEvent event = new RoleChangeEvent(shard, member, member, null, null);
         consumer.getValue().accept(event);
         Thread.sleep(1000);
-        verify(routingHelper, times(1)).clearState(any());
+        verify(routingHelper, times(1)).beforeServing(any());
     }
 
     @Test
