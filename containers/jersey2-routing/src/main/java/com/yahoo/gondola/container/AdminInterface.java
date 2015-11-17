@@ -34,18 +34,33 @@ public interface AdminInterface {
     }
 
     class Stat {
+
     }
 
     class HostStat extends Stat {
+
     }
 
     class StorageStat extends Stat {
+
     }
 
     class ShardStat extends Stat {
+
     }
 
     class AdminException extends Exception {
 
+        ErrorCode errorCode;
+    }
+
+    enum ErrorCode {
+        CONFIG_NOT_FOUND(10000);
+
+        private int code;
+
+        ErrorCode(int code) {
+            this.code = code;
+        }
     }
 }

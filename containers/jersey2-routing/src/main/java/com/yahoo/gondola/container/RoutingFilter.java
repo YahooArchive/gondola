@@ -149,7 +149,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.gondola = gondola;
         this.routingHelper = routingHelper;
         commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
-        commandListener.setShardManagerHandler(new ShardManager(this, null));
+        commandListener.setShardManagerHandler(new ShardManager(this, null, gondola.getConfig()));
         loadRoutingTable();
         loadBucketTable();
         loadConfig();
