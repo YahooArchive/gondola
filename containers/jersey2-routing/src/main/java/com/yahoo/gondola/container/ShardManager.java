@@ -9,10 +9,16 @@ package com.yahoo.gondola.container;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.container.client.StatClient;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * The Shard manager
  */
-public class ShardManager {
+class ShardManager {
 
     public static final int RETRY = 3;
 
@@ -22,40 +28,54 @@ public class ShardManager {
      */
     StatClient statClient;
 
+    static Logger logger = LoggerFactory.getLogger(ShardManager.class);
+
+    Set<String> observedShards = new HashSet<>();
+    Set<Integer> allowedObservers = new HashSet<>();
 
     public ShardManager(RoutingFilter filter, StatClient statClient) {
         this.filter = filter;
         this.statClient = statClient;
     }
 
+
+
     /**
      * Enables special mode on gondola to allow observer.
      */
-    public void allowObserver() {
+    public boolean allowObserver(int memberId) {
         // TODO: gondola allow observer
+        logger.info("allow observer connect from memberId={}", memberId);
+        return allowedObservers.add(memberId);
     }
 
 
     /**
      * Disables special mode on gondola to allow observer.
      */
-    public void disallowObserver() {
+    public boolean disallowObserver(int memberId) {
         // TODO: gondola allow observer
+        logger.info("disallow observer connect from memberId={}", memberId);
+        return allowedObservers.remove(memberId);
     }
 
     /**
      * Starts observer mode to remote cluster.
      */
-    public void startObserving(String shardId) {
+    public boolean startObserving(String shardId) {
         // TODO: gondola start observing
+        logger.info("start observer to shardId={}", shardId);
+        return observedShards.add(shardId);
     }
 
 
     /**
      * Stops observer mode to remote cluster, and back to normal mode.
      */
-    public void stopObserving(String shardId) {
+    public boolean stopObserving(String shardId) {
         // TODO: gondola stop observing
+        logger.info("stop observer to shardId={}", shardId);
+        return observedShards.remove(shardId);
     }
 
     /**
