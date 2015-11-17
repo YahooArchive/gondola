@@ -63,9 +63,9 @@ public class LockManagerTest {
     public void testUnblockRequestOnCluster() throws Exception {
         lockManager.blockRequestOnShard("c1");
         assertTrue(checkBlocked(1000,"c1"));
-        lockManager.blockRequestOnShard("c1");
+        lockManager.unblockRequestOnShard("c1");
         assertFalse(checkBlocked(1000,"c1"));
-        lockManager.blockRequestOnShard("c1");
+        lockManager.unblockRequestOnShard("c1");
         assertFalse(checkBlocked(1000,"c1"));
     }
 
