@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.client.StatClient;
 
 import org.mockito.Mock;
@@ -46,13 +47,16 @@ public class ShardManagerTest {
     @Mock
     Config.ConfigMember configMember;
 
+    @Mock
+    ShardManagerClient shardManagerClient;
+
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(filter.getLockManager()).thenReturn(lockManager);
         when(config.getMembersInShard(any())).thenReturn(Arrays.asList(configMember, configMember, configMember));
         when(configMember.getMemberId()).thenReturn(1,2,3);
-        shardManager = new ShardManager(filter, statClient, config);
+        shardManager = new ShardManager(filter, statClient, config, shardManagerClient);
     }
 
     @Test
