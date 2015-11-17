@@ -220,7 +220,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             List<String> forwardedBy = requestContext.getHeaders().get(X_FORWARDED_BY);
             logger.info("Processing request: {} of shard={}, forwarded={}",
                         requestContext.getUriInfo().getAbsolutePath(), shardId,
-                        forwardedBy != null ? forwardedBy.toString() : "n/a");
+                        forwardedBy != null ? forwardedBy.toString() : "");
         }
 
         if (isMyShard(shardId)) {

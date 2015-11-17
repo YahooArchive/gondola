@@ -10,6 +10,7 @@ import com.yahoo.gondola.Gondola;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -32,7 +33,7 @@ public class NastyChannel extends SocketChannel {
      * @return a non-null output stream
      */
     @Override
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException {
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException {
         OutputStream os = super.getOutputStream(out, errorOccurred);
         if (os != lastOutputStream) {
             lastOutputStream = os;

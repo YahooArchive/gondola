@@ -11,6 +11,7 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
 
+import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,7 +99,8 @@ public class SaveQueue {
         numWorkers = gondola.getConfig().getInt("storage.save_queue_workers");
 
         String address = storage.getAddress(cmember.memberId);
-        if (address != null && gondola.getNetwork().isActive(address)) {
+        if (address != null && !address.equals(gondola.getNetwork().getAddress())
+              && gondola.getNetwork().isActive(address)) {
             throw new IllegalStateException(String.format("[%s-%s] Process %s at address %s is currently using storage",
                     gondola.getHostId(), cmember.memberId, gondola.getProcessId(), address));
         }
@@ -125,23 +127,8 @@ public class SaveQueue {
     }
 
     public boolean stop() {
-        boolean status = true;
-
         savedIndex = 0;
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join(1000);
-                if (t.isAlive()) {
-                    logger.error("Could not interrupt thread " + t.getName());
-                    status = false;
-                }
-            } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
-            }
-        }
-        threads.clear();
-        return status;
+        return Utils.stopThreads(threads);
     }
 
     /**

@@ -9,6 +9,7 @@ package com.yahoo.gondola.core;
 import com.yahoo.gondola.*;
 import com.yahoo.gondola.Shard;
 
+import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -243,7 +244,6 @@ public class CoreMember implements Stoppable {
         }
 
         // Start local threads
-        assert threads.size() == 0;
         saveQueue.start();
         commitQueue.start();
         threads.add(new MainLoop());
@@ -255,20 +255,11 @@ public class CoreMember implements Stoppable {
         boolean status = true;
 
         for (Peer peer : peers) {
-            status &= peer.stop();
+            status = peer.stop() && status;
         }
-        status &= saveQueue.stop();
-        status &= commitQueue.stop();
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join();
-            } catch (InterruptedException e) {
-                logger.error("Join thread " + t.getName() + " interrupted", e);
-                status = false;
-            }
-        }
-        threads.clear();
+        status = saveQueue.stop() && status;
+        status = commitQueue.stop() && status;
+        status = Utils.stopThreads(threads) && status;
         try {
             fileLock(false);
         } catch (IOException e) {

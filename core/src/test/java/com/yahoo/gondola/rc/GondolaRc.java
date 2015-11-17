@@ -50,7 +50,10 @@ public class GondolaRc {
 
     public void stop() {
         for (Gondola g : gondolas) {
-            g.stop();
+            boolean status = g.stop();
+            if (!status) {
+                logger.error("Failed to properly stop Gondola instance for " + g.getHostId());
+            }
         }
         members.clear();
     }
