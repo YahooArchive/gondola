@@ -11,6 +11,7 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.ShardManager;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,7 +24,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     /**
      * The Shard managers.
      */
-    Map<Integer, ShardManager> shardManagers;
+    Map<Integer, ShardManager> shardManagers = new HashMap<>();
     /**
      * The Config.
      */
@@ -41,7 +42,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     @Override
     public boolean waitSynced(String shardId, long timeoutMs) {
         return getMemberIds(shardId)
-            .stream()
+            .parallelStream()
             .map(memberId -> getShardManager(memberId).waitSynced(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
     }
@@ -49,7 +50,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     @Override
     public boolean waitApproaching(String shardId, long timeoutMs) {
         return getMemberIds(shardId)
-            .stream()
+            .parallelStream()
             .map(memberId -> getShardManager(memberId).waitApproaching(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
     }
@@ -93,10 +94,12 @@ public class DirectShardManagerClient implements ShardManagerClient {
     private ShardManager getShardManager(int memberId) {
         ShardManager shardManager = shardManagers.get(memberId);
         if (shardManager == null) {
-            ShardManager newShardManager = new ShardManager(null, null, null);
-            ShardManager oldShardManager = shardManagers.putIfAbsent(memberId, newShardManager);
-            shardManager = oldShardManager != null ? oldShardManager : newShardManager;
+            throw new IllegalStateException("shard manager not found for memberId=" + memberId);
         }
         return shardManager;
+    }
+
+    public Map<Integer, ShardManager> getShardManagers() {
+        return shardManagers;
     }
 }

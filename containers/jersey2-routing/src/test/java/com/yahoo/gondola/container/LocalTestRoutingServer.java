@@ -31,10 +31,11 @@ public class LocalTestRoutingServer {
 
     LocalTestServer localTestServer;
     HttpHost host;
+    RoutingFilter routingFilter;
 
     public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
                                   CommandListenerProvider commandListenerProvider) throws Exception {
-        RoutingFilter routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+        routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
         localTestServer = new LocalTestServer((request, response, context) -> {
             try {
                 URI requestUri = URI.create(request.getRequestLine().getUri());
@@ -77,5 +78,9 @@ public class LocalTestRoutingServer {
 
     public String getHostUri() {
         return host.getSchemeName() + "://" + host.getHostName() + ":" + host.getPort();
+    }
+
+    public RoutingFilter getRoutingFilter() {
+        return routingFilter;
     }
 }

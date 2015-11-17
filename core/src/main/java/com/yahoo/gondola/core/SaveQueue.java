@@ -120,8 +120,7 @@ public class SaveQueue {
         assert threads.size() == 0
                 : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
         for (int i = 0; i < numWorkers; i++) {
-            threads.add(new Worker(i));
-        }
+            threads.add(new Worker(i)); }
         threads.forEach(t -> t.start());
     }
 

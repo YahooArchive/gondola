@@ -26,6 +26,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Consumer;
 
+import javax.management.InstanceNotFoundException;
+import javax.management.MBeanRegistrationException;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
@@ -76,6 +78,8 @@ public class Gondola implements Stoppable {
     // JMX variables
     final MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
 
+    ObjectName objectName;
+
     /**
      * @param hostId the non-null id of the current host on which to start Gondola.
      */
@@ -83,7 +87,6 @@ public class Gondola implements Stoppable {
         this.config = config;
         this.hostId = hostId;
         logger.info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
-        mbs.registerMBean(stats, new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats"));
     }
 
     /**
@@ -133,6 +136,8 @@ public class Gondola implements Stoppable {
         assert threads.size() == 0;
         threads.add(new RoleChangeNotifier());
         threads.forEach(t -> t.start());
+        objectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
+        mbs.registerMBean(stats, objectName);
     }
 
     /**
@@ -170,6 +175,11 @@ public class Gondola implements Stoppable {
         threads.clear();
         shards.clear();
         shardMap.clear();
+        try {
+            mbs.unregisterMBean(objectName);
+        } catch (InstanceNotFoundException | MBeanRegistrationException e) {
+            logger.info("Unregister MBean failed -- {}", e.getMessage());
+        }
         return status;
     }
 
