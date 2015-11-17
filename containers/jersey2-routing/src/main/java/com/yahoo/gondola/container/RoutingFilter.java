@@ -7,13 +7,12 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
-import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.client.SnapshotManagerClient;
-import com.yahoo.gondola.container.client.StatClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.glassfish.jersey.server.ContainerRequest;
@@ -61,7 +60,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * The constant APP_SCHEME.
      */
     public static final String APP_SCHEME = "appScheme";
-    public static final int RETRY = 3;
     public static final String X_FORWARDED_BY = "X-Forwarded-By";
 
     /**
@@ -145,7 +143,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.gondola = gondola;
         this.routingHelper = routingHelper;
         commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
-        commandListener.setShardManagerHandler(new CommandHandler());
+        commandListener.setShardManagerHandler(new ShardManager(this, null));
         loadRoutingTable();
         loadBucketTable();
         loadConfig();
@@ -511,30 +509,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
-    /**
-     * Returns the migration type by inspect config, DB -> if two shards use different database APP -> if two shards
-     * use same database.
-     */
-    private MigrationType getMigrationType(String fromShard, String toShard) {
-        //TODO: implement
-        return MigrationType.APP;
-    }
-
-    /**
-     * Helper function to get shardId of the bucketId.
-     */
-    private String getShardIdByBucketId(int bucketId) {
-        //TODO: implement
-        return null;
-    }
-
-    /**
-     * Two types of migration APP -> Shared the same DB DB  -> DB migration
-     */
-    enum MigrationType {
-        APP,
-        DB
-    }
 
     private String getAffinityColoShard(ContainerRequestContext request) {
         return getAnyShardInSite(routingHelper.getSiteId(request));
@@ -590,83 +564,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
-    private void reassignBuckets(Range<Integer> splitRange, String toShard) {
+    void reassignBuckets(Range<Integer> splitRange, String toShard) {
         // TODO:
     }
 
-    private void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs) {
+    void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs) {
         // TODO:
-    }
-
-    private Range<Integer> getSplitRange(String fromShard) {
-        // TODO:
-        return null;
-    }
-
-    /**
-     * The type Command handler.
-     */
-    class CommandHandler implements ShardManager {
-
-        /**
-         * The Stat client.
-         */
-        StatClient statClient;
-
-        @Override
-        public void allowObserver() {
-            // TODO: gondola allow observer
-        }
-
-        @Override
-        public void disallowObserver() {
-            // TODO: gondola allow observer
-        }
-
-        @Override
-        public void startObserving(String shardId) {
-            // TODO: gondola start observing
-        }
-
-        @Override
-        public void stopObserving(String shardId) {
-            // TODO: gondola stop observing
-        }
-
-        @Override
-        public void splitBucket(String fromShard, String toShard, long timeoutMs) {
-            Range<Integer> splitRange = getSplitRange(fromShard);
-            MigrationType migrationType = getMigrationType(fromShard, toShard);
-            switch (migrationType) {
-                case APP:
-                    for (int i = 0; i < RETRY; i++) {
-                        try {
-                            lockManager.blockRequestOnBuckets(splitRange);
-                            waitNoRequestsOnBuckets(splitRange, 5000L);
-                            reassignBuckets(splitRange, toShard);
-                            break;
-                        } finally {
-                            lockManager.unblockRequestOnBuckets(splitRange);
-                        }
-                    }
-                    break;
-                case DB:
-                    for (int i = 0; i < RETRY; i++) {
-                        try {
-                            statClient.waitApproaching(toShard, -1L);
-                            lockManager.blockRequest();
-                            statClient.waitSynced(toShard, 5000L);
-                            reassignBuckets(splitRange, toShard);
-                        } finally {
-                            lockManager.unblockRequest();
-                        }
-                        break;
-                    }
-            }
-        }
-
-        @Override
-        public void mergeBucket(String fromShard, String toShard, long timeoutMs) {
-        }
     }
 }
