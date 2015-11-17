@@ -59,8 +59,9 @@ public class ShardManager implements ShardManagerProtocol {
         // TODO: gondola allow observer
 
         logger.info("allow observer connect from shard={}", allowedShardId);
-        allowedObservers.addAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
-            Collectors.toList()));
+        allowedObservers
+            .addAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
+                Collectors.toList()));
     }
 
 
@@ -71,8 +72,9 @@ public class ShardManager implements ShardManagerProtocol {
     public void disallowObserver(String shardId, String allowedShardId) {
         // TODO: gondola allow observer
         logger.info("disallow observer connect from memberId={}", allowedShardId);
-        allowedObservers.removeAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
-            Collectors.toList()));
+        allowedObservers
+            .removeAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
+                Collectors.toList()));
     }
 
     /**
@@ -101,6 +103,7 @@ public class ShardManager implements ShardManagerProtocol {
      */
     @Override
     public void assignBucket(String shardId, Range<Integer> splitRange, String toShardId, long timeoutMs) {
+        // Check - must be leader
         MigrationType migrationType = getMigrationType(splitRange, toShardId);
         switch (migrationType) {
             case APP:
@@ -130,6 +133,16 @@ public class ShardManager implements ShardManagerProtocol {
                     filter.getLockManager().unblockRequest();
                 }
         }
+    }
+
+    @Override
+    public boolean waitSynced(String clusterid, long timeoutMs) {
+        return true;
+    }
+
+    @Override
+    public boolean waitApproaching(String clusterId, long timeoutMs) {
+        return true;
     }
 
     /**

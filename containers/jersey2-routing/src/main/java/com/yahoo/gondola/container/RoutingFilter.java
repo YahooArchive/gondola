@@ -604,5 +604,4 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public LockManager getLockManager() {
         return lockManager;
     }
-
 }

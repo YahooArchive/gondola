@@ -104,6 +104,7 @@ public class RoutingFilterTest {
         when(gondola.getConfig()).thenReturn(this.config);
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
+        when(gondola.getHostId()).thenReturn("host1");
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
@@ -146,19 +147,19 @@ public class RoutingFilterTest {
         when(proxyClient.proxyRequest(any(),any()))
             .thenThrow(new IOException(""))
             .thenReturn(proxedResponse);
-        String newLeaderUri = router.routingTable.get("cluster1").get(1);
+        String newLeaderUri = router.routingTable.get("shard1").get(1);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertEquals(router.routingTable.get("cluster1").get(0), newLeaderUri);
+        assertEquals(router.routingTable.get("shard1").get(0), newLeaderUri);
     }
 
     /**
-     * The test will test if the request sending to another cluster. (clusterId = 2)
+     * The test will test if the request sending to another shard. (shardId = 2)
      */
     @Test
-    public void testRouting_redirect_request_another_cluster() throws Exception {
+    public void testRouting_redirect_request_another_shard() throws Exception {
         reset(routingHelper);
-        when(routingHelper.getBucketId(any())).thenReturn(101);
+        when(routingHelper.getBucketId(any())).thenReturn(101); // shard2
         when(shard.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
@@ -170,12 +171,12 @@ public class RoutingFilterTest {
         router.filter(request);
         verify(request).abortWith(response.capture());
         assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
-        assertEquals(router.routingTable.get("cluster2").get(0), "foo_remote_addr");
+        assertEquals(router.routingTable.get("shard2").get(0), "foo_remote_addr");
 
     }
 
     @Test
-    public void testBecomeLeader_block_cluster() throws Exception {
+    public void testBecomeLeader_block_shard() throws Exception {
         verify(gondola).registerForRoleChanges(consumer.capture());
         when(member.isLocal()).thenReturn(true);
         when(member.getMemberId()).thenReturn(81);
@@ -199,7 +200,7 @@ public class RoutingFilterTest {
     }
 
     @Test
-    public void testBucketSplit_migrate_db_block_clusters() throws Exception {
+    public void testBucketSplit_migrate_db_block_shards() throws Exception {
     }
 
 }
