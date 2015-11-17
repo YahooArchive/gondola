@@ -18,7 +18,7 @@ import java.util.Set;
 /**
  * The Shard manager
  */
-class ShardManager {
+public class ShardManager {
 
     public static final int RETRY = 3;
 
@@ -37,7 +37,6 @@ class ShardManager {
         this.filter = filter;
         this.statClient = statClient;
     }
-
 
 
     /**
@@ -139,5 +138,4 @@ class ShardManager {
         APP,
         DB
     }
-
 }
