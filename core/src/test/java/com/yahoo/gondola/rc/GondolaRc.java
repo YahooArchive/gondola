@@ -52,7 +52,7 @@ public class GondolaRc {
         for (Gondola g : gondolas) {
             boolean status = g.stop();
             if (!status) {
-                logger.error("Failed to properly stop Gondola instance for " + g.getHostId());
+                logger.warn("Failed to properly stop Gondola instance for host " + g.getHostId());
             }
         }
         members.clear();

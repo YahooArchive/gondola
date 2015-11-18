@@ -29,11 +29,11 @@ public class Utils {
         try {
             t.join(10000);
             if (t.isAlive()) {
-                logger.error("Failed to stop thread " + t.getName());
+                logger.warn("Failed to stop thread " + t.getName());
                 status = false;
             }
         } catch (InterruptedException e) {
-            logger.error("Join thread " + t.getName() + " interrupted", e);
+            logger.warn("Join thread " + t.getName() + " interrupted", e);
             status = false;
         }
         return status;

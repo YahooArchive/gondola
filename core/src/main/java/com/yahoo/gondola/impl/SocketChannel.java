@@ -304,7 +304,6 @@ public class SocketChannel implements Channel {
         }
     }
 
-
     /**
      * By calling this method, the connection's setSocket() method will eventually get called when
      * a socket connection is established to peerId.
@@ -313,7 +312,9 @@ public class SocketChannel implements Channel {
         // Initiate the connection only if this member id is larger than the other.
         // When this member id is larger than the other, it is assumed that the connection
         // will be initiated by the other member.
-        boolean callFrom = memberId > peerId;
+        // Also, if this member is a slave, initiate the connection as well.
+        Config config = gondola.getConfig();
+        boolean callFrom = memberId > peerId || config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
         new SocketCreator(callFrom).start();
     }
 

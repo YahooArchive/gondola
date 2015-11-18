@@ -12,6 +12,7 @@ import com.yahoo.gondola.Network;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.Function;
 
 public class MemoryNetwork implements Network {
     List<Channel> channels = new LinkedList<>();
@@ -28,6 +29,10 @@ public class MemoryNetwork implements Network {
         MemoryChannel channel = new MemoryChannel(gondola, fromMemberId, toMemberId);
         channels.add(channel);
         return channel;
+    }
+
+    @Override
+    public void register(Function<Channel, Boolean> listener) {
     }
 
     @Override

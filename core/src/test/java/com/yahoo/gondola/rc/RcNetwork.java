@@ -17,6 +17,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class RcNetwork implements Network {
@@ -47,6 +48,10 @@ public class RcNetwork implements Network {
         RcChannel channel = new RcChannel(gondola, fromMemberId, toMemberId);
         channels.add(channel);
         return channel;
+    }
+
+    @Override
+    public void register(Function<Channel, Boolean> listener) {
     }
 
     @Override

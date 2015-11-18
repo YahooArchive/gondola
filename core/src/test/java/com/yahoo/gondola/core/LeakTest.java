@@ -36,17 +36,12 @@ public class LeakTest {
             waitForLeader = false;
         }
 
-        PropertyConfigurator.configure("src/test/resources/log4j.properties");
+        PropertyConfigurator.configure("conf/leaktest.log4j.properties");
         new LeakTest();
     }
 
     public LeakTest() throws Exception {
-        String confFile = "gondola-leaktest.conf";
-        URL resource = LeakTest.class.getClassLoader().getResource(confFile);
-        if (resource == null) {
-            throw new IllegalStateException(confFile + " not found");
-        }
-        Config config = new Config(new File(resource.getFile()));
+        Config config = new Config(new File("conf/leaktest.conf"));
         g1 = new Gondola(config, "host1");
         g2 = new Gondola(config, "host2");
 
