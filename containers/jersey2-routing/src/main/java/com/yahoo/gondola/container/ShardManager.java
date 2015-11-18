@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 /**
  * The Shard manager
@@ -43,47 +42,27 @@ public class ShardManager implements ShardManagerProtocol {
 
     private ShardManagerClient shardManagerClient;
 
+    boolean tracing = false;
 
     public ShardManager(RoutingFilter filter, Config config, ShardManagerClient shardManagerClient) {
         this.filter = filter;
         this.config = config;
         this.shardManagerClient = shardManagerClient;
+        this.config.registerForUpdates(config1 -> {
+            tracing = config1.getBoolean("tracing.router");
+        });
     }
 
-
-    /**
-     * Enables special mode on gondola to allow observer.
-     */
-    @Override
-    public void allowObserver(String shardId, String allowedShardId) {
-        // TODO: gondola allow observer
-
-        logger.info("allow observer connect from shard={}", allowedShardId);
-        allowedObservers
-            .addAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
-                Collectors.toList()));
-    }
-
-
-    /**
-     * Disables special mode on gondola to allow observer.
-     */
-    @Override
-    public void disallowObserver(String shardId, String allowedShardId) {
-        // TODO: gondola allow observer
-        logger.info("disallow observer connect from memberId={}", allowedShardId);
-        allowedObservers
-            .removeAll(config.getMembersInShard(allowedShardId).stream().map(Config.ConfigMember::getMemberId).collect(
-                Collectors.toList()));
-    }
 
     /**
      * Starts observer mode to remote cluster.
      */
     @Override
-    public void startObserving(String shardId, String observedShardId) {
+    public void startObserving(int memberId, String observedShardId) throws ShardManagerException {
         // TODO: gondola start observing
-        logger.info("start observer to shardId={}", observedShardId);
+        if (tracing) {
+            logger.info("[{}] Connect to shardId={} as slave", memberId, observedShardId);
+        }
         observedShards.add(observedShardId);
     }
 
@@ -92,9 +71,11 @@ public class ShardManager implements ShardManagerProtocol {
      * Stops observer mode to remote cluster, and back to normal mode.
      */
     @Override
-    public void stopObserving(String shardId, String observedShardId) {
+    public void stopObserving(int memberId, String observedShardId) throws ShardManagerException {
         // TODO: gondola stop observing
-        logger.info("stop observer to shardId={}", observedShardId);
+        if (tracing) {
+            logger.info("[{}] Disconnect to shardId={} as slave", memberId, observedShardId);
+        }
         observedShards.remove(observedShardId);
     }
 
@@ -102,20 +83,26 @@ public class ShardManager implements ShardManagerProtocol {
      * Splits the bucket of fromCluster, and reassign the buckets to toCluster.
      */
     @Override
-    public void assignBucket(String shardId, Range<Integer> splitRange, String toShardId, long timeoutMs) {
-        // Check - must be leader
+    public void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs) throws ShardManagerException {
+        String fromShardId = config.getMember(memberId).getShardId();
+        if (!filter.gondola.getShard(fromShardId).getLocalMember().isLeader()) {
+            return;
+        }
         MigrationType migrationType = getMigrationType(splitRange, toShardId);
         switch (migrationType) {
             case APP:
                 try {
                     filter.getLockManager().blockRequestOnBuckets(splitRange);
                     filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
-                    shardManagerClient.waitSynced(toShardId, timeoutMs);
-                    shardManagerClient.stopObserving(toShardId, shardId);
+                    shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
+                    for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
+                        shardManagerClient.stopObserving(member.getMemberId(), fromShardId);
+                    }
                     filter.reassignBuckets(splitRange, toShardId, timeoutMs);
                     break;
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // TODO: rollback
+                    logger.warn("Error occurred, rollback!", e);
                 } finally {
                     filter.getLockManager().unblockRequestOnBuckets(splitRange);
                 }
@@ -124,7 +111,7 @@ public class ShardManager implements ShardManagerProtocol {
                 try {
                     shardManagerClient.waitApproaching(toShardId, -1L);
                     filter.getLockManager().blockRequest();
-                    shardManagerClient.waitSynced(toShardId, timeoutMs);
+                    shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
                     filter.reassignBuckets(splitRange, toShardId, timeoutMs);
                     break;
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
@@ -136,12 +123,12 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public boolean waitSynced(String clusterid, long timeoutMs) {
+    public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException {
         return true;
     }
 
     @Override
-    public boolean waitApproaching(String clusterId, long timeoutMs) {
+    public boolean waitApproaching(String clusterId, long timeoutMs) throws ShardManagerException {
         return true;
     }
 

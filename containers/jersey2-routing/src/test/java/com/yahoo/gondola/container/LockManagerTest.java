@@ -7,7 +7,9 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
+import com.yahoo.gondola.Config;
 
+import org.mockito.Mock;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -15,6 +17,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
@@ -22,10 +26,13 @@ public class LockManagerTest {
 
     LockManager lockManager;
     ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
+    @Mock
+    Config config;
 
     @BeforeMethod
     public void setUp() throws Exception {
-        lockManager = new LockManager();
+        when(config.getBoolean(eq("tracing.router"))).thenReturn(false);
+        lockManager = new LockManager(config);
     }
 
 
