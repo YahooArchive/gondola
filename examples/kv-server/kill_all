@@ -1,3 +1,0 @@
-#!/bin/sh -x
-
-jps | grep Launcher | cut -f 1 -d' ' | xargs kill -9

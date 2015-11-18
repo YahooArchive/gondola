@@ -12,6 +12,7 @@ import com.yahoo.gondola.Gondola;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -19,15 +20,17 @@ import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * This class connects one member to another.
- * There are two queues - a send queue containing messages destined to the remote member
- * and a received queue that contains received messages. The received queue is bounded.
+ * This class maintains a socket between this member another another. The client should call
+ * getOutputStream() before every write to the other member. Likewise for getInputStream(). These methods
+ * return a valid stream for use and will block until one is available.
  * <p>
  * Design note: it might be nicer to have a single socket between Gondola instances. However, in
  * order to do this, the messages would need to contain the destination member id. And if we do this,
@@ -36,7 +39,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * There is a handshake protocol when one node connects to another. See SocketNetwork for details.
  * <p>
  * Synchronization notes:
- * - when socketValid is false and memberId > peerId, a SocketCreator thread will be
+ * - when socketValid is false and memberId &gt; peerId, a SocketCreator thread will be
  * continuously trying to connect to the peer.
  * - when socketValid is false, socket, in, and out will all be null.
  */
@@ -69,6 +72,12 @@ public class SocketChannel implements Channel {
     int heartbeatPeriod;
     int connTimeout;
 
+    // List of threads running in this class. There should be at most one retry thread running at any time.
+    List<Thread> threads = new CopyOnWriteArrayList<>();
+
+    // This boolean is used to stop new reconnect threads from being created as the channel is being shut down
+    boolean stopped;
+
     public SocketChannel(Gondola gondola, int memberId, int toMemberId) {
         this.gondola = gondola;
         this.memberId = memberId;
@@ -100,7 +109,16 @@ public class SocketChannel implements Channel {
      */
     @Override
     public boolean stop() {
-        return true;
+        // Stop new retry threads from starting
+        stopped = true;
+
+        // Stop any existing retry threads and then close the current socket, if any
+        for (Thread t : threads) {
+            ((SocketCreator)t).close();
+        }
+        boolean status = Utils.stopThreads(threads);
+        close(socket, in, out);
+        return status;
     }
 
     /**
@@ -112,7 +130,7 @@ public class SocketChannel implements Channel {
     }
 
     /**
-     * See Channel.getOutputStream().
+     * See Channel.getRemoteAddress().
      */
     @Override
     public String getRemoteAddress() {
@@ -150,9 +168,12 @@ public class SocketChannel implements Channel {
      * @return a non-null input stream
      */
     @Override
-    public InputStream getInputStream(InputStream in, boolean errorOccurred) throws InterruptedException {
+    public InputStream getInputStream(InputStream in, boolean errorOccurred) throws InterruptedException, EOFException {
         lock.lock();
         try {
+            if (stopped) {
+                throw new EOFException();
+            }
             if (!socketValid || this.in == null || errorOccurred && in == this.in) {
                 awaitOperationalUnlocked();
             }
@@ -168,9 +189,12 @@ public class SocketChannel implements Channel {
      * @return a non-null output stream
      */
     @Override
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException {
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException {
         lock.lock();
         try {
+            if (stopped) {
+                throw new EOFException();
+            }
             if (!socketValid || this.out == null || errorOccurred && out == this.out) {
                 awaitOperationalUnlocked();
             }
@@ -192,8 +216,8 @@ public class SocketChannel implements Channel {
             logger.info("[{}-{}] Reconnecting socket {} to {}", gondola.getHostId(), memberId, socket, peerId);
             socketValid = false;
 
-            // Close the socket asynchronously to avoid possible hangs
-            new Closer(socket, in, out).start();
+            // Close the current socket
+            close(socket, in, out);
             socket = null;
             in = null;
             out = null;
@@ -225,11 +249,7 @@ public class SocketChannel implements Channel {
                 logger.info("[{}-{}] A valid socket to {} is being replaced",
                         gondola.getHostId(), memberId, peerId);
             }
-
-            // Close the socket asynchronously to avoid possible hangs
-            if (this.socket != null) {
-                new Closer(this.socket, this.in, this.out).start();
-            }
+            close(this.socket, this.in, this.out);
 
             // Update new streams
             this.socket = socket;
@@ -245,6 +265,9 @@ public class SocketChannel implements Channel {
         }
     }
 
+    /*
+     * Used to interrupt the reconnect thread's delay to attempt a reconnect immediately.
+     */
     void retry() {
         lock.lock();
         try {
@@ -254,39 +277,30 @@ public class SocketChannel implements Channel {
         }
     }
 
-    /**
-     * Used to close the sockets asynchronously to avoid potential hangs.
-     */
-    class Closer extends Thread {
-        Socket socket;
-        InputStream in;
-        OutputStream out;
-
-        Closer(Socket socket, InputStream in, OutputStream out) {
-            this.socket = socket;
-            this.in = in;
-            this.out = out;
+    void close(Socket socket, InputStream in, OutputStream out) {
+        if (networkTracing) {
+            logger.info("Closing old socket {} from {} to {}", socket, memberId, peerId);
         }
-
-        public void run() {
-            if (networkTracing) {
-                logger.info("Closing old socket {} from {} to {}", socket, memberId, peerId);
-            }
-            try {
+        try {
+            if (in != null) {
                 in.close();
-            } catch (Exception e) {
-                logger.info("Failed to close input stream to member " + peerId, e);
             }
-            try {
+        } catch (Exception e) {
+            logger.info("Failed to close input stream to member " + peerId, e);
+        }
+        try {
+            if (out != null) {
                 out.close();
-            } catch (Exception e) {
-                logger.info("Failed to close output stream to member " + peerId, e);
             }
-            try {
+        } catch (Exception e) {
+            logger.info("Failed to close output stream to member " + peerId, e);
+        }
+        try {
+            if (socket != null) {
                 socket.close();
-            } catch (Exception e) {
-                logger.info("Failed to close socket to member " + peerId, e);
             }
+        } catch (Exception e) {
+            logger.info("Failed to close socket to member " + peerId, e);
         }
     }
 
@@ -304,10 +318,13 @@ public class SocketChannel implements Channel {
     }
 
     /**
-     * This thread continuously attempts to create a valid socket to the remote member.
+     * This thread continuously attempts to establish a valid socket to the remote member.
      * Once connected, the thread dies.
      */
     class SocketCreator extends Thread {
+        Socket socket = null;
+        InputStream in = null;
+        OutputStream out = null;
         boolean callFrom;
 
         SocketCreator(boolean callFrom) {
@@ -316,9 +333,15 @@ public class SocketChannel implements Channel {
         }
 
         public void run() {
-            Socket socket = null;
+            // Handle the case where the thread was just started while the channel was being shut down
+            threads.add(this);
+            if (stopped) {
+                return;
+            }
+
             String lastError = null;
-            while (true) {
+            here:
+            while (!stopped) {
                 try {
                     socket = new Socket();
                     socket.connect(inetSocketAddress, connTimeout);
@@ -327,26 +350,28 @@ public class SocketChannel implements Channel {
                             gondola.getHostId(), memberId, peerId, inetSocketAddress);
 
                     // Send hello message
-                    SocketNetwork.Hello hello
-                            = new SocketNetwork.Hello(gondola.getHostId(), socket.getInputStream(), socket.getOutputStream());
+                    in = socket.getInputStream();
+                    out = socket.getOutputStream();
+                    SocketNetwork.Hello hello = new SocketNetwork.Hello(gondola.getHostId(), in, out);
                     if (callFrom) {
+                        // Wait for call from peer
                         hello.callFrom(memberId, peerId);
 
                         // Socket is now valid
-                        setSocket(socket, hello.in, hello.out);
+                        setSocket(socket, in, out);
                     } else {
+                        // Ping the peer to call back and initiate a connection
                         hello.callBack(memberId, peerId);
-                        socket.close();
+                        close();
                     }
 
                     // No exceptions means success
+                    threads.remove(this);
                     return;
+                } catch (InterruptedException e) {
+                    break here;
                 } catch (Throwable e) {
-                    try {
-                        socket.close();
-                    } catch (Exception e1) {
-                        logger.info("Failed to close socket", e1);
-                    }
+                    close();
 
                     // Log each type of error once
                     if (e.getMessage() == null || !e.getMessage().equals(lastError)) {
@@ -364,17 +389,25 @@ public class SocketChannel implements Channel {
                                 gondola.getHostId(), memberId, peerId, inetSocketAddress, createSocketRetryPeriod);
                     }
 
-                    // Wait
+                    // Wait before retrying
                     lock.lock();
                     try {
                         gondola.getClock().awaitCondition(lock, retryCond, createSocketRetryPeriod);
                     } catch (InterruptedException e1) {
-                        return;
+                        break here;
                     } finally {
                         lock.unlock();
                     }
                 }
             }
+
+            // Clean up
+            close();
+            threads.remove(this);
+        }
+
+        public void close() {
+            SocketChannel.this.close(socket, in, out);
         }
     }
 

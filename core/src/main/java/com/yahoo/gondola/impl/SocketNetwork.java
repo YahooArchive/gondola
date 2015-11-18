@@ -101,22 +101,8 @@ public class SocketNetwork implements Network {
 
     @Override
     public boolean stop() {
-        boolean status = true;
         generation++;
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join(1000);
-                if (t.isAlive()) {
-                    logger.error("Failed to stop thread " + t.getName());
-                    status = false;
-                }
-            } catch (InterruptedException e) {
-                logger.error("Join thread " + t.getName() + " interrupted", e);
-            }
-        }
-        threads.clear();
-        return status;
+        return Utils.stopThreads(threads);
     }
 
     /**
@@ -217,15 +203,13 @@ public class SocketNetwork implements Network {
                         Thread.sleep(1000);
                     } catch (InterruptedException e2) {
                         return;
-                    } catch (Exception e2) {
-                        logger.error(e2.getMessage(), e2);
                     }
                 } finally {
                     if (listener != null) {
                         try {
                             listener.close();
-                        } catch (Exception e2) {
-                            logger.error(e2.getMessage(), e2);
+                        } catch (Exception e) {
+                            logger.error(e.getMessage(), e);
                         }
                     }
                 }

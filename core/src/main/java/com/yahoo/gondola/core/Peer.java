@@ -13,6 +13,7 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
 
+import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -165,8 +166,6 @@ public class Peer {
         reset();
 
         // Start local threads
-        assert threads.size() == 0
-            : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
         threads.add(new Receiver());
         threads.add(new Backfiller());
         threads.add(new Sender());
@@ -174,23 +173,9 @@ public class Peer {
     }
 
     public boolean stop() {
-        boolean status = true;
         generation++;
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join(1000);
-                if (t.isAlive()) {
-                    logger.error("Could not stop thread " + t.getName());
-                    status = false;
-                }
-            } catch (InterruptedException e) {
-                logger.error("Join thread " + t.getName() + " interrupted", e);
-            }
-        }
-        threads.clear();
-        status = channel.stop() & status; // Call after stopping the threads, otherwise possible NPE
-        return status;
+        boolean status = channel.stop();
+        return Utils.stopThreads(threads) && status;
     }
 
     /******************** methods *********************/
@@ -429,8 +414,8 @@ public class Peer {
             MessagePool pool = gondola.getMessagePool();
             Message message = pool.checkout();
             Message nextMessage = pool.checkout();
-            int excess = 0;
             InputStream in = null;
+            int excess = 0;
             boolean errorOccurred = false;
             int generation = Peer.this.generation;
 

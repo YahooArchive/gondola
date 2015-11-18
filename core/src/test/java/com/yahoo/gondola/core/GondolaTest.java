@@ -23,6 +23,9 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -887,6 +890,35 @@ public class GondolaTest {
         // Status should be timeout
         Assert.assertEquals(command.getStatus(), Command.STATUS_TIMEOUT);
         command.release();
+    }
+
+    /**
+     * There is code that expects to see a particular exception message generated.
+     * This test ensures that the error message has not changed.
+     */
+    @Test
+    public void readEndDead() throws Exception {
+        PipedInputStream pin = new PipedInputStream();
+        PipedOutputStream pout = new PipedOutputStream(pin);
+        
+        pout.write(1);
+        Thread t = new Thread() {
+            public void run() {
+                try {
+                    pin.read();
+                } catch (IOException e) {
+                    Assert.fail();
+                }
+            }
+            };
+        t.start();
+        t.join();
+        try {
+            pout.write(1);
+            Assert.fail();
+        } catch (IOException e) {
+            assertEquals(e.getMessage(), "Read end dead");
+        }
     }
 
     /************************* utilities **********************/

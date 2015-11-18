@@ -13,6 +13,7 @@ import com.yahoo.gondola.core.MessagePool;
 import com.yahoo.gondola.core.Peer;
 import com.yahoo.gondola.core.Stats;
 
+import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -146,31 +147,18 @@ public class Gondola implements Stoppable {
      * @return true if no errors were detected.
      */
     public boolean stop() {
-        boolean status = true;
         logger.info("Stopping Gondola instance for host {}...", hostId);
+        boolean status = network.stop();
 
         // Shut down all local threads
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join(1000);
-                if (t.isAlive()) {
-                    logger.error("Could not stop thread " + t.getName());
-                    status = false;
-                }
-            } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
-                status = false;
-            }
-        }
+        status = Utils.stopThreads(threads) && status;
 
         // Shut down threads in all dependencies
         for (Shard shard : shards) {
-            status = shard.stop() & status;
+            status = shard.stop() && status;
         }
-        status = storage.stop() & status;
-        status = network.stop() & status;
-        status = clock.stop() & status;
+        status = storage.stop() && status;
+        status = clock.stop() && status;
 
         threads.clear();
         shards.clear();

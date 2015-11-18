@@ -12,6 +12,7 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
 
+import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,21 +101,7 @@ public class CommitQueue {
     }
 
     public boolean stop() {
-        boolean status = true;
-        threads.forEach(t -> t.interrupt());
-        for (Thread t : threads) {
-            try {
-                t.join(1000);
-                if (t.isAlive()) {
-                    logger.error("Could not stop thread " + t.getName());
-                    status = false;
-                }
-            } catch (InterruptedException e) {
-                logger.error(e.getMessage(), e);
-            }
-        }
-        threads.clear();
-        return status;
+        return Utils.stopThreads(threads);
     }
 
     /**

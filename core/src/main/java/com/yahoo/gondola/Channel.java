@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola;
 
+import java.io.EOFException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -69,7 +70,7 @@ public interface Channel extends Stoppable {
      * @param in the previously used input stream or null if none.
      * @return a non-null input stream.
      */
-    public InputStream getInputStream(InputStream in, boolean errorOccurred) throws InterruptedException;
+    public InputStream getInputStream(InputStream in, boolean errorOccurred) throws InterruptedException, EOFException;
 
     /**
      * Returns an output stream which is used to send data to the remote member.
@@ -78,5 +79,5 @@ public interface Channel extends Stoppable {
      * @param out the previously used output stream or null if none.
      * @return a non-null output stream.
      */
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException;
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException;
 }
