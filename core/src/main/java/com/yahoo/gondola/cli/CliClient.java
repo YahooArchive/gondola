@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.EOFException;
 
+/**
+ * The type CLI client.
+ */
 public class CliClient {
     static Logger logger = LoggerFactory.getLogger(CliClient.class);
 
@@ -40,7 +43,7 @@ public class CliClient {
             return false;
         }
     }
-    
+
     public int commit(String command) throws Exception {
         String[] results = channel.send("c " + command).split(" ");
         return Integer.parseInt(results[1]);

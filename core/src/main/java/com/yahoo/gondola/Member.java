@@ -14,6 +14,9 @@ import org.slf4j.LoggerFactory;
 import java.net.InetSocketAddress;
 import java.util.function.Consumer;
 
+/**
+ * The type Member.
+ */
 public class Member {
     final static Logger logger = LoggerFactory.getLogger(Member.class);
 
@@ -34,7 +37,7 @@ public class Member {
             return peer.getPeerId();
         }
     }
-    
+
     public boolean isLocal() {
         return peer == null;
     }
@@ -84,7 +87,7 @@ public class Member {
     public static class SlaveStatus {
         // The id of the current member
         int memberId;
-        
+
         // True if the member is connected to the leader
         boolean running;
 

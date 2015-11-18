@@ -10,6 +10,7 @@ import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -31,6 +32,7 @@ public class LockManagerTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
+        MockitoAnnotations.initMocks(this);
         when(config.getBoolean(eq("tracing.router"))).thenReturn(false);
         lockManager = new LockManager(config);
     }

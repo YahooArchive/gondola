@@ -10,6 +10,7 @@ import com.yahoo.gondola.*;
 import com.yahoo.gondola.core.CoreMember;
 import com.yahoo.gondola.impl.NastyNetwork;
 import com.yahoo.gondola.impl.NastyStorage;
+
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,11 +34,13 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-// TODO: will eventually be command line tool for users to quickly bring up a gondola shard in their 
-// environment and do some quick performance tests. They would 
-// 1. create a config file and 2. start this command on the different hosts.
-// Right now this is just a quick and dirty test command to test the prototype.
+/**
+ * The type Gondola command. TODO: will eventually be command line tool for users to quickly bring up a gondola shard in
+ * their environment and do some quick performance tests. They would 1. create a config file and 2. start this command
+ * on the different hosts. Right now this is just a quick and dirty test command to test the prototype.
+ */
 public class GondolaCommand {
+
     final static Logger logger = LoggerFactory.getLogger(GondolaCommand.class);
 
     Shard shard;
@@ -73,7 +76,8 @@ public class GondolaCommand {
 
     public void printUsage() {
         // Stop is implemented in the shell script
-        System.out.println("Usage: gondola.sh -hostid <host-id> -shardid <shard-id> [-port <port>] [-workers <num>] [start|stop]");
+        System.out.println(
+            "Usage: gondola.sh -hostid <host-id> -shardid <shard-id> [-port <port>] [-workers <num>] [start|stop]");
         if (config != null) {
             System.out.println("    Available host ids: " + config.getHostIds());
         }
@@ -176,6 +180,7 @@ public class GondolaCommand {
 
     // Background thread to get committed commands from gondola
     class Reader extends Thread {
+
         public Reader() {
             setName("CommandReader-");
         }
@@ -221,7 +226,9 @@ public class GondolaCommand {
     }
 
     static AtomicInteger ccounter = new AtomicInteger();
+
     class Writer extends Thread {
+
         int id;
 
         Writer(String hostId, int id) {
@@ -272,6 +279,7 @@ public class GondolaCommand {
      */
 
     class Acceptor extends Thread {
+
         public Acceptor() {
             setName("RemoteInterfaceAcceptor-" + gondola.getHostId());
             new RemoteInterface().start();
@@ -286,14 +294,15 @@ public class GondolaCommand {
                         socket.setTcpNoDelay(true);
                         if (tracing) {
                             logger.info("[{}] GondolaCommand socket accept from {} ({})", hostId,
-                                    socket.getInetAddress());
+                                        socket.getInetAddress());
                         }
 
                         // Create more remote interface threads if needed
                         if (availableWorkers.get() <= socketQueue.size() && numWorkers < maxWorkers) {
                             if (tracing) {
-                                logger.info("[{}] Creating remote interface worker: avail workers={} socketQ={} numWorkers={}",
-                                            hostId, availableWorkers.get(), socketQueue, numWorkers);
+                                logger.info(
+                                    "[{}] Creating remote interface worker: avail workers={} socketQ={} numWorkers={}",
+                                    hostId, availableWorkers.get(), socketQueue, numWorkers);
                             }
                             new RemoteInterface().start();
                             numWorkers++;
@@ -318,6 +327,7 @@ public class GondolaCommand {
     }
 
     class RemoteInterface extends Thread {
+
         Socket socket;
 
         public RemoteInterface() {
@@ -334,10 +344,10 @@ public class GondolaCommand {
                     logger.error(e.getMessage(), e);
                 }
                 try (
-                        InputStream in = socket.getInputStream();
-                        OutputStream out = socket.getOutputStream();
-                        BufferedReader rd = new BufferedReader(new InputStreamReader(in));
-                        BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
+                    InputStream in = socket.getInputStream();
+                    OutputStream out = socket.getOutputStream();
+                    BufferedReader rd = new BufferedReader(new InputStreamReader(in));
+                    BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
                 ) {
                     try {
                         String line;
@@ -369,7 +379,6 @@ public class GondolaCommand {
             if (args.length == 0) {
                 return "ERROR: No command";
             }
-            
             switch (args[0]) {
                 case "c":
                     // commit a command
@@ -381,7 +390,7 @@ public class GondolaCommand {
                         byte[] buffer = line.substring(2).getBytes("UTF-8");
                         if (buffer.length > command.getCapacity()) {
                             String msg = String.format("ERROR command too long. size=%d, max=%d",
-                                    buffer.length, command.getCapacity());
+                                                       buffer.length, command.getCapacity());
                             logger.error(msg);
                             return msg;
                         }
@@ -428,7 +437,7 @@ public class GondolaCommand {
                         le.release();
                     }
                     return String.format("SUCCESS: Mode=%s, commitIndex=%d, savedIndex=%d",
-                            shard.getLocalRole(), shard.getLastSavedIndex(), savedIndex);
+                                         shard.getLocalRole(), shard.getLastSavedIndex(), savedIndex);
                 case "n":
                     if (args.length < 2) {
                         return "ERROR: n <on|off>";

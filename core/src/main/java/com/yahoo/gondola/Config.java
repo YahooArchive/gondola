@@ -25,10 +25,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * This class supplies all of the configuration information for the entire raft system.
- * This implementation reads a config file but can be subclassed to pull configuration data from elsewhere.
+ * This class supplies all of the configuration information for the entire raft system. This implementation reads a
+ * config file but can be subclassed to pull configuration data from elsewhere.
  */
 public class Config {
+
     final static Logger logger = LoggerFactory.getLogger(Config.class);
 
     /**
@@ -42,6 +43,7 @@ public class Config {
      * then the new ConfigData object replaces the old one by simply setting a reference.
      */
     class ConfigData {
+
         com.typesafe.config.Config cfg;
 
         /// hostId -> member[]
@@ -79,7 +81,11 @@ public class Config {
     // If non-null, the file which contains the config information
     File file;
 
+    /**
+     * The type Config member.
+     */
     public static class ConfigMember {
+
         String shardId;
         String hostId;
         int memberId;
@@ -104,8 +110,7 @@ public class Config {
     }
 
     /**
-     * Reads config values from a HOCON file.
-     * The observers are notified whenever the config file changes.
+     * Reads config values from a HOCON file. The observers are notified whenever the config file changes.
      */
     public Config(File file) {
         this.file = file;
@@ -123,14 +128,16 @@ public class Config {
         if (resourceStream == null) {
             throw new IllegalStateException("default.conf not found");
         }
-        com.typesafe.config.Config defaultCfg = com.typesafe.config.ConfigFactory.parseReader(new InputStreamReader(resourceStream)).resolve();
+        com.typesafe.config.Config
+            defaultCfg =
+            com.typesafe.config.ConfigFactory.parseReader(new InputStreamReader(resourceStream)).resolve();
         return cfg.withFallback(defaultCfg);
     }
-    
+
 
     /**
-     * Returns a string which describes the location of the config values. E.g. if the configs were retrieved from a file,
-     * this would return the file location. Used in config-related error messages.
+     * Returns a string which describes the location of the config values. E.g. if the configs were retrieved from a
+     * file, this would return the file location. Used in config-related error messages.
      *
      * @return a non-null string identifying the location of the configs.
      */
@@ -138,7 +145,9 @@ public class Config {
         return file == null ? "unknown" : file.toString();
     }
 
-    /********************* simple property *******************/
+    /*********************
+     * simple property
+     *******************/
 
     public String get(String property) {
         String secret = getSecret(property);
@@ -173,8 +182,8 @@ public class Config {
     /********************** listener *******************/
 
     /**
-     * The observer's update() method will be called whenever the config file is changed and reloaded.
-     * The arg will be this Config object.
+     * The observer's update() method will be called whenever the config file is changed and reloaded. The arg will be
+     * this Config object.
      */
     public void registerForUpdates(Consumer<Config> listener) {
         listener.accept(this);
@@ -185,7 +194,9 @@ public class Config {
         this.secretHelper = helper;
     }
 
-    /********************* host and shard *******************/
+    /*********************
+     * host and shard
+     *******************/
 
     public Set<String> getHostIds() {
         return configData.hostToShards.keySet();
@@ -210,8 +221,8 @@ public class Config {
     }
 
     /**
-     * Returns all the members that are part of the shard.
-     * The first member returned is the primary member for that shard.
+     * Returns all the members that are part of the shard. The first member returned is the primary member for that
+     * shard.
      */
     public List<ConfigMember> getMembersInShard(String shardId) {
         List<ConfigMember> members = configData.shardToMembers.get(shardId);
@@ -221,12 +232,22 @@ public class Config {
         return members;
     }
 
+    /**
+     * Returns all the members that are part of the host.
+     */
     public List<ConfigMember> getMembersInHost(String hostId) {
         List<ConfigMember> members = configData.hostToMembers.get(hostId);
         if (members == null) {
             throw new IllegalArgumentException(String.format("hostId '%s' not found in config", hostId));
         }
         return members;
+    }
+
+    /**
+     * Returns all the members that are part of the host.
+     */
+    public List<ConfigMember> getMembers() {
+        return new ArrayList<>(configData.members.values());
     }
 
     public InetSocketAddress getAddressForMember(int memberId) {
@@ -244,7 +265,7 @@ public class Config {
         }
         return cm;
     }
-    
+
     public InetSocketAddress getAddressForHost(String hostId) {
         InetSocketAddress addr = configData.addrs.get(hostId);
         if (addr == null) {
@@ -344,7 +365,11 @@ public class Config {
         listeners.forEach(l -> l.accept(config));
     }
 
+    /**
+     * The Config Watcher thread.
+     */
     public class Watcher extends Thread {
+
         final File file;
 
         public Watcher(File file) {

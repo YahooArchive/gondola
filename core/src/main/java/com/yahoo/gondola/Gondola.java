@@ -87,7 +87,8 @@ public class Gondola implements Stoppable {
     public Gondola(Config config, String hostId) throws Exception {
         this.config = config;
         this.hostId = hostId;
-        logger.info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
+        logger
+            .info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
     }
 
     /**

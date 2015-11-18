@@ -122,6 +122,7 @@
                             <includeTestSourceDirectory>false</includeTestSourceDirectory>
                             <includes>**\/*</includes>
                             <resourceIncludes>**\/*</resourceIncludes>
+                            <resourceExcludes>*.png</resourceExcludes>
                             <sourceDirectories>
                                 <sourceDirectory>src/main/java</sourceDirectory>
                             </sourceDirectories>

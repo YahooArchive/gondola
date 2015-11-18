@@ -22,7 +22,7 @@ public class ChannelResult {
      * Parses the response from a call to the remote process.
      * The returned message is non-null.
      *
-     * @param non-null response. 
+     * @param non-null response.
      */
     public ChannelResult(String response) {
         if (response.startsWith("SUCCESS: ")) {

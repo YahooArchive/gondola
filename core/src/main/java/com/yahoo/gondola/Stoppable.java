@@ -8,7 +8,7 @@ package com.yahoo.gondola;
 
 /**
  * This interface is used by objects that create helper threads within their implementation.
- * The user of Stoppable components can start and stop these internal worker threads by called 
+ * The user of Stoppable components can start and stop these internal worker threads by called
  * start() and stop() respectively. The methods start() and stop() are not thread-safe and should
  * only be called in exactly the correct sequence - start(), then stop(), then start(), etc.
  */

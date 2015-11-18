@@ -33,7 +33,8 @@ public class NastyChannel extends SocketChannel {
      * @return a non-null output stream
      */
     @Override
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException {
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred)
+        throws InterruptedException, EOFException {
         OutputStream os = super.getOutputStream(out, errorOccurred);
         if (os != lastOutputStream) {
             lastOutputStream = os;
@@ -57,7 +58,7 @@ public class NastyChannel extends SocketChannel {
         byte[] savedB;
         int savedOff;
         int savedLen;
-        
+
         NastyOutputStream(OutputStream wrapped) {
             this.wrapped = wrapped;
         }

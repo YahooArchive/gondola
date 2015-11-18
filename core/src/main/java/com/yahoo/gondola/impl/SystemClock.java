@@ -8,15 +8,17 @@ package com.yahoo.gondola.impl;
 
 import com.yahoo.gondola.Clock;
 import com.yahoo.gondola.Gondola;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 
+/**
+ * The type System clock.
+ */
 public class SystemClock implements Clock {
     final static Logger logger = LoggerFactory.getLogger(SystemClock.class);
 

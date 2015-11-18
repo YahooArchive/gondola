@@ -1,3 +1,9 @@
+/*
+ * Copyright 2015, Yahoo Inc.
+ * Copyrights licensed under the New BSD License.
+ * See the accompanying LICENSE file for terms.
+ */
+
 package com.yahoo.gondola.impl;
 
 import org.slf4j.Logger;
@@ -6,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * Created by patc on 11/16/15.
+ * The type Utils.
  */
 public class Utils {
     final static Logger logger = LoggerFactory.getLogger(Utils.class);

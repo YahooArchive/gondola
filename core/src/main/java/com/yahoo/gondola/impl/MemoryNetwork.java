@@ -14,6 +14,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * The type Memory network.
+ */
 public class MemoryNetwork implements Network {
     List<Channel> channels = new LinkedList<>();
     private Gondola gondola;

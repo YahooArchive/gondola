@@ -10,6 +10,7 @@ package com.yahoo.gondola;
  * These objects are returned by the Storage class.
  */
 public class LogEntry {
+
     public Storage storage;
     public int memberId;
     public int term;
@@ -35,7 +36,7 @@ public class LogEntry {
         if (size != len) {
             return false;
         }
-        for (int i=0; i<len; i++) {
+        for (int i = 0; i < len; i++) {
             if (b[i + o] != buffer[i]) {
                 return false;
             }

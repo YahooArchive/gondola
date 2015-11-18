@@ -16,28 +16,31 @@ public interface SnapshotManagerClient {
     /**
      * Starts the snapshot process of the storage for the specified site.
      *
-     * @param siteId
+     * @param siteId the site id
      * @return the non-null location of the snapshot.
      */
     URI startSnapshot(String siteId);
 
     /**
      * Stops the snapshot process for the specified location.
-     * @param snapshotUri
+     *
+     * @param snapshotUri the snapshot uri
      */
     void stopSnapshot(URI snapshotUri);
 
     /**
      * Returns the snapshot status at the specified location.
-     * @param snapshotUri
+     *
+     * @param snapshotUri the snapshot uri
      * @return the non-null status of the snapshot.
      */
     SnapshotStatus getSnapshotStatus(URI snapshotUri);
 
     /**
+     * Restore snapshot.
      *
-     * @param siteId
-     * @param snapshotUri
+     * @param siteId      the site id
+     * @param snapshotUri the snapshot uri
      */
     void restoreSnapshot(String siteId, URI snapshotUri);
 
@@ -45,6 +48,18 @@ public interface SnapshotManagerClient {
      * The snapshot status.
      */
     enum SnapshotStatus {
-        NOT_FOUND, RUNNING, ABORTED, READY
+        /**
+         * Not found snapshot status.
+         */
+        NOT_FOUND, /**
+         * Running snapshot status.
+         */
+        RUNNING, /**
+         * Aborted snapshot status.
+         */
+        ABORTED, /**
+         * Ready snapshot status.
+         */
+        READY
     }
 }

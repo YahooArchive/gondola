@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * The type Stats.
+ */
 public class Stats implements StatsMBean {
     final static Logger logger = LoggerFactory.getLogger(Stats.class);
 

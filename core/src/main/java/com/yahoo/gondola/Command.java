@@ -8,12 +8,12 @@ package com.yahoo.gondola;
 
 import com.yahoo.gondola.core.CoreCmd;
 import com.yahoo.gondola.core.CoreMember;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.UnsupportedEncodingException;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This object is used to commit entries into the Raft log.

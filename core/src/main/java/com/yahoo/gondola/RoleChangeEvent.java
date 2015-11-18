@@ -6,9 +6,9 @@
 
 package com.yahoo.gondola;
 
-import java.net.InetSocketAddress;
-import java.util.List;
-
+/**
+ * The type Role change event.
+ */
 public class RoleChangeEvent {
     public Shard shard;
     public Member member;

@@ -9,6 +9,7 @@ package com.yahoo.gondola.impl;
 import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,29 +22,22 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.util.List;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * This class maintains a socket between this member another another. The client should call
- * getOutputStream() before every write to the other member. Likewise for getInputStream(). These methods
- * return a valid stream for use and will block until one is available.
- * <p>
- * Design note: it might be nicer to have a single socket between Gondola instances. However, in
- * order to do this, the messages would need to contain the destination member id. And if we do this,
- * we can't share the same Message object in all the send queues.
- * <p>
- * There is a handshake protocol when one node connects to another. See SocketNetwork for details.
- * <p>
- * Synchronization notes:
- * - when socketValid is false and memberId &gt; peerId, a SocketCreator thread will be
- * continuously trying to connect to the peer.
- * - when socketValid is false, socket, in, and out will all be null.
+ * This class maintains a socket between this member another another. The client should call getOutputStream() before
+ * every write to the other member. Likewise for getInputStream(). These methods return a valid stream for use and will
+ * block until one is available. <p> Design note: it might be nicer to have a single socket between Gondola instances.
+ * However, in order to do this, the messages would need to contain the destination member id. And if we do this, we
+ * can't share the same Message object in all the send queues. <p> There is a handshake protocol when one node connects
+ * to another. See SocketNetwork for details. <p> Synchronization notes: - when socketValid is false and memberId &gt;
+ * peerId, a SocketCreator thread will be continuously trying to connect to the peer. - when socketValid is false,
+ * socket, in, and out will all be null.
  */
 public class SocketChannel implements Channel {
+
     final static Logger logger = LoggerFactory.getLogger(SocketChannel.class);
 
     Gondola gondola;
@@ -97,8 +91,6 @@ public class SocketChannel implements Channel {
 
     /**
      * See Stoppable.start().
-     *
-     * @throws Exception
      */
     @Override
     public void start() throws Exception {
@@ -114,7 +106,7 @@ public class SocketChannel implements Channel {
 
         // Stop any existing retry threads and then close the current socket, if any
         for (Thread t : threads) {
-            ((SocketCreator)t).close();
+            ((SocketCreator) t).close();
         }
         boolean status = Utils.stopThreads(threads);
         close(socket, in, out);
@@ -135,8 +127,8 @@ public class SocketChannel implements Channel {
     @Override
     public String getRemoteAddress() {
         return String.format("%s:%d",
-                inetSocketAddress.getAddress().getCanonicalHostName(),
-                inetSocketAddress.getPort());
+                             inetSocketAddress.getAddress().getCanonicalHostName(),
+                             inetSocketAddress.getPort());
     }
 
     /**
@@ -189,7 +181,8 @@ public class SocketChannel implements Channel {
      * @return a non-null output stream
      */
     @Override
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException {
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred)
+        throws InterruptedException, EOFException {
         lock.lock();
         try {
             if (stopped) {
@@ -207,8 +200,7 @@ public class SocketChannel implements Channel {
     /*********************** non-public methods ********************/
 
     /**
-     * Blocks until the socket is operational.
-     * Must be called while lock is locked.
+     * Blocks until the socket is operational. Must be called while lock is locked.
      */
     void awaitOperationalUnlocked() throws InterruptedException {
         // If the socket was valid, create a thread to reconnect
@@ -234,7 +226,7 @@ public class SocketChannel implements Channel {
         }
         if (networkTracing) {
             logger.info("[{}-{}] {}: Valid socket now available to {}",
-                    gondola.getHostId(), memberId, Thread.currentThread().getName(), peerId);
+                        gondola.getHostId(), memberId, Thread.currentThread().getName(), peerId);
         }
     }
 
@@ -247,7 +239,7 @@ public class SocketChannel implements Channel {
             if (socketValid) {
                 // This can happen with a call from NetworkChannel
                 logger.info("[{}-{}] A valid socket to {} is being replaced",
-                        gondola.getHostId(), memberId, peerId);
+                            gondola.getHostId(), memberId, peerId);
             }
             close(this.socket, this.in, this.out);
 
@@ -305,8 +297,8 @@ public class SocketChannel implements Channel {
     }
 
     /**
-     * By calling this method, the connection's setSocket() method will eventually get called when
-     * a socket connection is established to peerId.
+     * By calling this method, the connection's setSocket() method will eventually get called when a socket connection
+     * is established to peerId.
      */
     void reconnect() {
         // Initiate the connection only if this member id is larger than the other.
@@ -314,15 +306,18 @@ public class SocketChannel implements Channel {
         // will be initiated by the other member.
         // Also, if this member is a slave, initiate the connection as well.
         Config config = gondola.getConfig();
-        boolean callFrom = memberId > peerId || config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
+        boolean
+            callFrom =
+            memberId > peerId || config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
         new SocketCreator(callFrom).start();
     }
 
     /**
-     * This thread continuously attempts to establish a valid socket to the remote member.
-     * Once connected, the thread dies.
+     * This thread continuously attempts to establish a valid socket to the remote member. Once connected, the thread
+     * dies.
      */
     class SocketCreator extends Thread {
+
         Socket socket = null;
         InputStream in = null;
         OutputStream out = null;
@@ -348,7 +343,7 @@ public class SocketChannel implements Channel {
                     socket.connect(inetSocketAddress, connTimeout);
                     socket.setTcpNoDelay(true);
                     logger.info("[{}-{}] Socket created to {} ({})",
-                            gondola.getHostId(), memberId, peerId, inetSocketAddress);
+                                gondola.getHostId(), memberId, peerId, inetSocketAddress);
 
                     // Send hello message
                     in = socket.getInputStream();
@@ -378,16 +373,17 @@ public class SocketChannel implements Channel {
                     if (e.getMessage() == null || !e.getMessage().equals(lastError)) {
                         lastError = e.getMessage();
                         String m = String.format("[%s-%d] Failed to create socket to %d (%s): %s",
-                                gondola.getHostId(), memberId, peerId, inetSocketAddress, e.getMessage());
+                                                 gondola.getHostId(), memberId, peerId, inetSocketAddress,
+                                                 e.getMessage());
                         if (e instanceof ConnectException
-                                || e instanceof SocketTimeoutException
-                                || lastError.equals("Connection reset")
-                                || lastError.equals("End-of-file")) {
+                            || e instanceof SocketTimeoutException
+                            || lastError.equals("Connection reset")
+                            || lastError.equals("End-of-file")) {
                             e = null; // Don't need stack trace for these errors
                         }
                         logger.warn(m, e);
                         logger.info("[{}-{}] Will retry creating the socket to {} ({}) every {}ms",
-                                gondola.getHostId(), memberId, peerId, inetSocketAddress, createSocketRetryPeriod);
+                                    gondola.getHostId(), memberId, peerId, inetSocketAddress, createSocketRetryPeriod);
                     }
 
                     // Wait before retrying

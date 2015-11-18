@@ -6,6 +6,9 @@
 
 package com.yahoo.gondola;
 
+/**
+ * The type Index not found exception.
+ */
 public class IndexNotFoundException extends Exception {
 
     int earliestIndex;

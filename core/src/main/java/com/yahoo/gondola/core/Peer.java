@@ -14,6 +14,7 @@ import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
 
 import com.yahoo.gondola.impl.Utils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +32,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * This class represents a remote member.
  */
 public class Peer {
+
     final static Logger logger = LoggerFactory.getLogger(Peer.class);
 
     // Number of outstanding backfilling messages after which the backfill thread stops
@@ -190,9 +192,8 @@ public class Peer {
     }
 
     /**
-     * Sends the message to the remote member.
-     * This version of send increases nextIndex and backfillToIndex.
-     * Does not send if the connection to remote member is not operational or being backfilled.
+     * Sends the message to the remote member. This version of send increases nextIndex and backfillToIndex. Does not
+     * send if the connection to remote member is not operational or being backfilled.
      */
     public void send(Message message, int prevLogIndex) {
         assert message.getType() == Message.TYPE_APPEND_ENTRY_REQ;
@@ -231,6 +232,7 @@ public class Peer {
      */
 
     class Backfiller extends Thread {
+
         public Backfiller() {
             setName("Backfiller-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -255,10 +257,8 @@ public class Peer {
         }
 
         /**
-         * There are three stages in this method:
-         * 1. Determine where to start backfilling for this peer.
-         * 2. Construct a single message filled with batched commands.
-         * 3. Send the message and update state.
+         * There are three stages in this method: 1. Determine where to start backfilling for this peer. 2. Construct a
+         * single message filled with batched commands. 3. Send the message and update state.
          */
         public void backfill() throws Exception {
             MessagePool pool = gondola.getMessagePool();
@@ -281,8 +281,9 @@ public class Peer {
                     if (backfilling && backfillAhead < backfillAheadLimit) {
                         // Make sure the storage has caught up to the next index
                         if (nextIndex > savedRid.index) {
-                            logger.info("[{}-{}] Backfilling {} at index {} paused to allow storage (index={}) to catch up",
-                                    gondola.getHostId(), cmember.memberId, peerId, nextIndex, savedRid.index);
+                            logger.info(
+                                "[{}-{}] Backfilling {} at index {} paused to allow storage (index={}) to catch up",
+                                gondola.getHostId(), cmember.memberId, peerId, nextIndex, savedRid.index);
                         } else {
                             startIndex = nextIndex;
                         }
@@ -299,8 +300,9 @@ public class Peer {
                     LogEntry le = getLogEntry(startIndex - 1);
                     if (le == null) {
                         throw new IllegalStateException(
-                                String.format("[%s-%d] Could not retrieve index=%d to backfill %d. savedIndex=%d",
-                                        gondola.getHostId(), cmember.memberId, startIndex - 1, peerId, savedRid.index));
+                            String.format("[%s-%d] Could not retrieve index=%d to backfill %d. savedIndex=%d",
+                                          gondola.getHostId(), cmember.memberId, startIndex - 1, peerId,
+                                          savedRid.index));
                     }
                     rid.set(le.term, le.index);
                     le.release();
@@ -309,14 +311,14 @@ public class Peer {
                     le = getLogEntry(startIndex);
                     if (le == null) {
                         throw new IllegalStateException(
-                                String.format("[%s-%d] Could not retrieve index=%d to backfill %d. savedIndex=%d",
-                                        gondola.getHostId(), cmember.memberId, startIndex, peerId, savedRid.index));
+                            String.format("[%s-%d] Could not retrieve index=%d to backfill %d. savedIndex=%d",
+                                          gondola.getHostId(), cmember.memberId, startIndex, peerId, savedRid.index));
                     }
-                    
+
                     message = pool.checkout();
                     try {
                         message.appendEntryRequest(cmember.memberId, cmember.currentTerm, rid, cmember.commitIndex,
-                                le.term, le.buffer, 0, le.size);
+                                                   le.term, le.buffer, 0, le.size);
                         le.release();
                         count++;
 
@@ -357,7 +359,7 @@ public class Peer {
                             addOutQueue(message);
                         }
                         message.release();
-                        
+
                         // If nextIndex was changed while the message was being constructed,
                         // don't update nextIndex; instead, start another iteration
                         if (startIndex == nextIndex) {
@@ -365,7 +367,7 @@ public class Peer {
                             if (nextIndex == backfillToIndex) {
                                 backfilling = false;
                                 logger.info("[{}-{}] Backfilling {} to {} is done",
-                                        gondola.getHostId(), cmember.memberId, peerId, backfillToIndex - 1);
+                                            gondola.getHostId(), cmember.memberId, peerId, backfillToIndex - 1);
                             }
                         }
                         backfillAhead++;
@@ -388,10 +390,10 @@ public class Peer {
         if (cmember.storageTracing) {
             if (le == null) {
                 logger.info("[{}-{}] select(index={}) -> null",
-                        gondola.getHostId(), cmember.memberId, index);
+                            gondola.getHostId(), cmember.memberId, index);
             } else {
                 logger.info("[{}-{}] select(index={}) -> term={}, size={}",
-                        gondola.getHostId(), cmember.memberId, index, le.term, le.size);
+                            gondola.getHostId(), cmember.memberId, index, le.term, le.size);
             }
         }
         return le;
@@ -402,10 +404,11 @@ public class Peer {
      */
 
     /*
-     * This thread reads messages from the socket, converts them to messages and then puts them 
+     * This thread reads messages from the socket, converts them to messages and then puts them
      * on the receive queue.
      */
     class Receiver extends Thread {
+
         Receiver() {
             setName("PeerReceiver-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -435,7 +438,7 @@ public class Peer {
                     excess = message.read(in, excess, nextMessage);
                     if (excess < 0) {
                         logger.warn("[{}-{}] recv({}): end-of-file",
-                                gondola.getHostId(), cmember.memberId, peerId);
+                                    gondola.getHostId(), cmember.memberId, peerId);
                         in = channel.getInputStream(in, true);
                         excess = 0;
                         continue;
@@ -443,7 +446,7 @@ public class Peer {
                     lastReceivedTs = clock.now();
                     if (networkTracing) {
                         logger.info("[{}-{}] recv({}): read {} bytes",
-                                gondola.getHostId(), cmember.memberId, peerId, message.size + excess);
+                                    gondola.getHostId(), cmember.memberId, peerId, message.size + excess);
                     }
                     gondola.getStats().incomingMessage(message.size + excess);
 
@@ -462,12 +465,12 @@ public class Peer {
                         return;
                     }
                     String m = String.format("[%s-%d] Failed to receive from %d: %s",
-                            gondola.getHostId(), cmember.memberId, peerId,
-                            e.getMessage());
+                                             gondola.getHostId(), cmember.memberId, peerId,
+                                             e.getMessage());
                     if ("Socket closed".equals(e.getMessage())
-                            || "Read timed out".equals(e.getMessage())
-                            || e.getMessage().matches(".*Write end dead.*")
-                            || "Connection reset".equals(e.getMessage())) {
+                        || "Read timed out".equals(e.getMessage())
+                        || e.getMessage().matches(".*Write end dead.*")
+                        || "Connection reset".equals(e.getMessage())) {
                         e = null; // Don't need stack trace
                     }
                     logger.warn(m, e);
@@ -482,10 +485,13 @@ public class Peer {
      * The peer only processes ae messages. The rest are forwarded to the member.
      */
     class MyMessageHandler extends MessageHandler {
+
         @Override
         public boolean appendEntryRequest(Message message, int fromMemberId, int term,
-                                          int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat, int entryTerm,
-                                          byte[] buffer, int bufferOffset, int bufferLen, boolean lastCommand) throws Exception {
+                                          int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat,
+                                          int entryTerm,
+                                          byte[] buffer, int bufferOffset, int bufferLen, boolean lastCommand)
+            throws Exception {
             cmember.addIncoming(message);
             return false;
         }
@@ -494,7 +500,8 @@ public class Peer {
         public void appendEntryReply(Message message, int fromMemberId, int term, int mnIndex,
                                      boolean success) throws Exception {
             if (message.tracingInfo != null) {
-                logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), cmember.memberId, fromMemberId, message.tracingInfo);
+                logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), cmember.memberId, fromMemberId,
+                            message.tracingInfo);
             }
 
             // Cancel any ongoing prevote
@@ -533,7 +540,7 @@ public class Peer {
                 }
             } else {
                 logger.info("[{}-{}] Ignoring ae from {} because not a leader",
-                        gondola.getHostId(), cmember.memberId, fromMemberId);
+                            gondola.getHostId(), cmember.memberId, fromMemberId);
             }
         }
 
@@ -546,7 +553,7 @@ public class Peer {
         @Override
         public void requestVoteReply(Message message, int fromMemberId, int term,
                                      boolean isPrevote, boolean voteGranted)
-                throws Exception {
+            throws Exception {
             cmember.addIncoming(message);
         }
     }
@@ -559,7 +566,7 @@ public class Peer {
         lock.lock();
         try {
             // Update next index only if it's lower than the current one.
-            // The reason is that sometimes the follower may send an estimate of the last index, 
+            // The reason is that sometimes the follower may send an estimate of the last index,
             // which is higher than the true one.
             if (this.nextIndex == -1 || nextIndex < this.nextIndex || nextIndex < backfillToIndex) {
                 this.nextIndex = nextIndex;
@@ -570,7 +577,7 @@ public class Peer {
                     fullSpeed = false;
                     backfillAhead = 1;
                     logger.info("[{}-{}] Backfilling {}, from {} to {}",
-                            gondola.getHostId(), cmember.memberId, peerId, nextIndex, backfillToIndex - 1);
+                                gondola.getHostId(), cmember.memberId, peerId, nextIndex, backfillToIndex - 1);
                     backfillCond.signal();
                 }
             }
@@ -595,6 +602,7 @@ public class Peer {
      * This thread retrieves messages from the send queue and delivers them to the remote member.
      */
     class Sender extends Thread {
+
         Sender() {
             setName("PeerSender-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -615,7 +623,7 @@ public class Peer {
                     } else if (now - lastReceivedTs > socketInactivityTimeout) {
                         // The inactive socket may not be valid so reconnect
                         logger.info("[{}-{}] socket to {} has been inactive for {} ms, so reconnecting",
-                                gondola.getHostId(), cmember.memberId, peerId, socketInactivityTimeout);
+                                    gondola.getHostId(), cmember.memberId, peerId, socketInactivityTimeout);
                         out = channel.getOutputStream(out, true);
                         lastReceivedTs = now;
                     }
@@ -625,12 +633,12 @@ public class Peer {
                     Message message = outQueue.take();
                     if (message.tracingInfo != null) {
                         logger.info("[{}-{}] send({}): {}", gondola.getHostId(),
-                                cmember.memberId, peerId, message.tracingInfo);
+                                    cmember.memberId, peerId, message.tracingInfo);
                     }
                     out.write(message.buffer, 0, message.size);
                     if (networkTracing) {
                         logger.info("[{}-{}] send({}): sent {} bytes",
-                                gondola.getHostId(), cmember.memberId, peerId, message.size);
+                                    gondola.getHostId(), cmember.memberId, peerId, message.size);
                     }
                     message.release();
                     gondola.getStats().sentMessage(message.size);
@@ -639,12 +647,12 @@ public class Peer {
                     return;
                 } catch (Exception e) {
                     String m = String.format("[%s-%d] Failed to send to %d: %s",
-                            gondola.getHostId(), cmember.memberId, peerId,
-                            e.getMessage());
-                    
+                                             gondola.getHostId(), cmember.memberId, peerId,
+                                             e.getMessage());
+
                     if ("Socket closed".equals(e.getMessage())
-                            || matchesMessage(e, ".*Read end dead.*")
-                            || "Broken pipe".equals(e.getMessage())) {
+                        || matchesMessage(e, ".*Read end dead.*")
+                        || "Broken pipe".equals(e.getMessage())) {
                         e = null; // Don't need stack trace
                     }
                     logger.warn(m, e);
@@ -667,6 +675,7 @@ public class Peer {
 
     // Stat
     class Stat {
+
         int value;
         int lastValue;
         long lastTs;

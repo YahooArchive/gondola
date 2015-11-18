@@ -24,7 +24,7 @@ import java.io.InputStream;
 import java.net.URI;
 
 /**
- * The SnapshotManager client implementation using SSH (JSCH)
+ * The SnapshotManager client implementation using SSH (JSCH).
  */
 public class SshSnapshotManagerClient implements SnapshotManagerClient {
 

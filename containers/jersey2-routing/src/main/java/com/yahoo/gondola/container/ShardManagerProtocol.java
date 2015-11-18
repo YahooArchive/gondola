@@ -12,47 +12,68 @@ import com.google.common.collect.Range;
  * The interface Shard manager protocol.
  */
 public interface ShardManagerProtocol {
+
     /**
      * Start observing.
-     *  @param memberId         the shard id
+     *
+     * @param shardId        the shard id
      * @param observedShardId the observed shard id
+     * @throws ShardManagerException the shard manager exception
      */
-    void startObserving(int memberId, String observedShardId) throws ShardManagerException;
+    void startObserving(String shardId, String observedShardId) throws ShardManagerException;
 
     /**
      * Stop observing.
-     *  @param memberId         the shard id
+     *
+     * @param shardId        the shard id
      * @param observedShardId the observed shard id
+     * @throws ShardManagerException the shard manager exception
      */
-    void stopObserving(int memberId, String observedShardId) throws ShardManagerException;
+    void stopObserving(String shardId, String observedShardId) throws ShardManagerException;
 
     /**
      * Assign bucket.
-     *  @param memberId    the shard id
+     *
      * @param splitRange the split range
      * @param toShardId  the to shard id
      * @param timeoutMs  the timeout ms
+     * @throws ShardManagerException the shard manager exception
      */
-    void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs) throws ShardManagerException;
+    void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId,
+                        long timeoutMs) throws ShardManagerException;
 
     /**
      * WashardId boolean.
      *
-     * @param shardId the shard id
+     * @param shardId   the shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
+     * @throws ShardManagerException the shard manager exception
      */
     boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException;
 
     /**
      * Wait approaching boolean.
      *
-     * @param shardId the shard id
+     * @param shardId   the shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
+     * @throws ShardManagerException the shard manager exception
      */
     boolean waitApproaching (String shardId, long timeoutMs) throws ShardManagerException;
 
+    /**
+     * Sets buckets.
+     *
+     * @param splitRange  the split range
+     * @param fromShardId the from shard id
+     * @param toShardId   the to shard id
+     */
+    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId) throws ShardManagerException;
+
+    /**
+     * The type Shard manager exception.
+     */
     class ShardManagerException extends Exception {
     }
 }

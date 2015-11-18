@@ -25,6 +25,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  */
 public class CoreCmd {
+
     final static Logger logger = LoggerFactory.getLogger(CoreCmd.class);
 
     final Gondola gondola;
@@ -83,7 +84,7 @@ public class CoreCmd {
      * Must be called before command objects are created.
      */
     public static void initConfig(Config config) {
-        config.registerForUpdates( config1 -> {
+        config.registerForUpdates(config1 -> {
             commandTracing = config1.getBoolean("gondola.tracing.command");
             maxCommandSize = config1.getInt("raft.command_max_size");
         });
@@ -103,19 +104,19 @@ public class CoreCmd {
     }
 
     /**
-     * Blocks until the command in buffer has been committed or the timeout has expired.
-     * After this call, this command object can be used again.
+     * Blocks until the command in buffer has been committed or the timeout has expired. After this call, this command
+     * object can be used again.
      *
      * @param timeout if -1, the timeout is disabled.
      * @throws NotLeaderException if the member is not currently the leader.
      * @throws TimeoutException   if timeout >= 0 and a timeout occurred.
      */
-    public void commit(byte[] buf, int bufOffset, int bufLen, int timeout) 
-            throws InterruptedException, NotLeaderException, TimeoutException {
+    public void commit(byte[] buf, int bufOffset, int bufLen, int timeout)
+        throws InterruptedException, NotLeaderException, TimeoutException {
         if (bufLen + bufOffset > buffer.length) {
             throw new IllegalStateException(
-                    String.format("Command buffer is not large enough. bytes=%d + offset=%d > capacity=%d",
-                            bufLen, bufOffset, buffer.length));
+                String.format("Command buffer is not large enough. bytes=%d + offset=%d > capacity=%d",
+                              bufLen, bufOffset, buffer.length));
         }
         reset();
         counter = commitCounter.incrementAndGet();
@@ -168,10 +169,9 @@ public class CoreCmd {
     }
 
     /**
-     * This should not be called by clients.
-     * This method is called indirectly via a client call to Shard.getCommittedCommand(), when the 
-     * requested index has not been committed yet.
-     * After this call, this command object can be used again.
+     * This should not be called by clients. This method is called indirectly via a client call to
+     * Shard.getCommittedCommand(), when the requested index has not been committed yet. After this call, this command
+     * object can be used again.
      *
      * @param index   the index of the log entry.
      * @param timeout return after timeout milliseconds, even if the log entry is not available.
@@ -216,11 +216,11 @@ public class CoreCmd {
     }
 
     /**
-     * Called by CoreMember on command objects that are awaiting state changes. 
-     * If errorMessage is not null, all commands whose index is > commitIndex are signaled with an error.
-     * Otherwise all commands whose index <= commitIndex are released.
+     * Called by CoreMember on command objects that are awaiting state changes. If errorMessage is not null, all
+     * commands whose index is > commitIndex are signaled with an error. Otherwise all commands whose index <=
+     * commitIndex are released.
      *
-     * @param status  The new status of this command.
+     * @param status   The new status of this command.
      * @param leaderId The member id of the new leader; -1 if not known.
      * @return true if the command should be removed from the wait queue.
      */

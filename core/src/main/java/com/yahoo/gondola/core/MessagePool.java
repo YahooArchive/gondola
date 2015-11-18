@@ -13,12 +13,14 @@ import org.slf4j.LoggerFactory;
 
 import java.lang.ref.PhantomReference;
 import java.lang.ref.ReferenceQueue;
-import java.util.Observable;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
+/**
+ * The type Message pool.
+ */
 public class MessagePool {
     final static Logger logger = LoggerFactory.getLogger(MessagePool.class);
 
@@ -33,7 +35,7 @@ public class MessagePool {
 
     // All references in this queue represent gc'ed messages. Messages should never be gc'ed.
     ReferenceQueue<Message> leakQueue = new ReferenceQueue<>();
-    Queue<PhantomRef> phantomRefs = new ConcurrentLinkedQueue<>();
+    Queue<PhantomRef<Message>> phantomRefs = new ConcurrentLinkedQueue<>();
 
     // Config variables
     int warnThreshold;
@@ -68,7 +70,7 @@ public class MessagePool {
         if (message == null) {
             if (createdCount >= warnThreshold) {
                 if (leakTracing) {
-                    PhantomRef<Message> pr = (PhantomRef<Message>) leakQueue.poll();
+                    PhantomRef<?extends Message> pr = (PhantomRef<?extends Message>) leakQueue.poll();
                     if (pr != null) {
                         logger.error("Message leaked: id={} type={} refCount={} size={}",
                                 pr.id, pr.type, pr.refCount.get(), pr.size);
@@ -81,7 +83,8 @@ public class MessagePool {
                 message = pool.poll();
                 /*
                 if (message == null) {
-                    logger.warn("The number of created messages ({}) has passed the threshold of {}. Current pool size={}", 
+                    logger.warn(
+                    "The number of created messages ({}) has passed the threshold of {}. Current pool size={}",
                                 createdCount, warnThreshold, pool.size());
                 }
                 */
@@ -92,7 +95,7 @@ public class MessagePool {
 
             // Create a phantom reference to determine if the message is leaked
             if (config.getBoolean("gondola.tracing.message_leak")) {
-                phantomRefs.add(new PhantomRef<Message>(message, leakQueue));
+                phantomRefs.add(new PhantomRef<>(message, leakQueue));
             }
             createdCount++;
         }
@@ -121,7 +124,7 @@ public class MessagePool {
         int type;
         AtomicInteger refCount;
 
-        PhantomRef(T message, ReferenceQueue queue) {
+        PhantomRef(T message, ReferenceQueue<Message> queue) {
             super(message, queue);
             id = message.id;
             size = message.size;

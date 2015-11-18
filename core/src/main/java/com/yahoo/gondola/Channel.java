@@ -79,5 +79,6 @@ public interface Channel extends Stoppable {
      * @param out the previously used output stream or null if none.
      * @return a non-null output stream.
      */
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException, EOFException;
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred)
+        throws InterruptedException, EOFException;
 }
