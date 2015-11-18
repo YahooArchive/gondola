@@ -41,6 +41,7 @@ public class Peer {
     final Storage storage;
     final CoreMember cmember;
     final int peerId;
+    final boolean slaveMode;
 
     Channel channel;
 
@@ -109,12 +110,13 @@ public class Peer {
     static int heartbeatPeriod;
     static int socketInactivityTimeout;
 
-    public Peer(Gondola gondola, CoreMember cmember, int peerId) {
+    public Peer(Gondola gondola, CoreMember cmember, int peerId, boolean slaveMode) {
         this.gondola = gondola;
         this.clock = gondola.getClock();
         this.storage = gondola.getStorage();
         this.cmember = cmember;
         this.peerId = peerId;
+        this.slaveMode = slaveMode;
 
         entry0 = new LogEntry(storage, 1) {
             @Override
@@ -678,4 +680,7 @@ public class Peer {
             return result;
         }
     }
+
+    /******************** slave mode *********************/
+
 }

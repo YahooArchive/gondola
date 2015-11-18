@@ -7,6 +7,7 @@
 package com.yahoo.gondola;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * This class provides communication between the local member and remote members.
@@ -22,6 +23,13 @@ public interface Network extends Stoppable {
      * @return a non-null channel between fromMemberId and toMemberId
      */
     public Channel createChannel(int fromMemberId, int toMemberId);
+
+    /**
+     * Registers a callback which will be called for new connections that don't match any created channels.
+     *
+     * @param listener a non-null function that takes a channel and returns true the channel is valid.
+     */
+    public void register(Function<Channel, Boolean> listener);
 
     /**
      * Returns a string that can be used to contact the local member. The storage system

@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -60,6 +61,7 @@ public class SocketNetwork implements Network {
     final String hostId;
 
     List<Channel> channels = new CopyOnWriteArrayList<>();
+    Function<Channel, Boolean> listener;
 
     // Config variables
     static boolean networkTracing;
@@ -114,6 +116,11 @@ public class SocketNetwork implements Network {
         SocketChannel channel = new SocketChannel(gondola, fromMemberId, toMemberId);
         channels.add(channel);
         return channel;
+    }
+
+    @Override
+    public void register(Function<Channel, Boolean> listener) {
+        this.listener = listener;
     }
 
     @Override
@@ -244,10 +251,18 @@ public class SocketNetwork implements Network {
                 }
 
                 // The target member id is not known so reject the connection request
-                if (channel == null) {
+                if (channel == null && listener == null) {
                     logger.info("[{}] Connection request from {} to {} rejected because the channel is not registered",
                             gondola.getHostId(), hello.fromMemberId, hello.toMemberId);
-                    socket.close();
+                    hello.close(socket);
+                } else if (channel == null) {
+                    channel = new SocketChannel(gondola, hello.toMemberId, hello.fromMemberId);
+                    channel.setSocket(socket, hello.in, hello.out);
+                    if (!listener.apply(channel)) {
+                        logger.info("[{}] Connection request from {} to {} rejected",
+                                gondola.getHostId(), hello.fromMemberId, hello.toMemberId);
+                        hello.close(socket);
+                    }
                 } else {
                     hello.ok();
 
@@ -407,6 +422,30 @@ public class SocketNetwork implements Network {
                 out.write(line.charAt(i));
             }
             out.write('\n');
+        }
+
+        public void close(Socket socket) {
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (Exception e) {
+                logger.info("Failed to close input stream to member " + fromMemberId, e);
+            }
+            try {
+                if (out != null) {
+                    out.close();
+                }
+            } catch (Exception e) {
+                logger.info("Failed to close output stream to member " + fromMemberId, e);
+            }
+            try {
+                if (socket != null) {
+                    socket.close();
+                }
+            } catch (Exception e) {
+                logger.info("Failed to close socket to member " + fromMemberId, e);
+            }
         }
     }
 }

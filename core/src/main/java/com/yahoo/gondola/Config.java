@@ -257,7 +257,6 @@ public class Config {
         return configData.hostAttributes.get(hostId);
     }
 
-
     public Map<String, String> getAttributesForShard(String shardId) {
         return configData.shardAttributes.get(shardId);
     }
@@ -273,7 +272,6 @@ public class Config {
     public String getSiteIdForHost(String hostId) {
         return configData.hostAttributes.get(hostId).get("siteId");
     }
-
 
     private void process(com.typesafe.config.Config cfg) {
         // Prepare the container for the new config data

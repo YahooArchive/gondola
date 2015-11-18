@@ -113,7 +113,7 @@ public class CoreMember implements Stoppable {
     long electionTimeoutTs = 0;
 
     // The point in time when a pre-vote should be sent out
-    long requestVoteTs = 0;
+    long prevoteTs = 0;
 
     // The point in time when a summary of this member's state should be logged
     long showSummaryTs = 0;
@@ -137,7 +137,7 @@ public class CoreMember implements Stoppable {
     int electionTimeout;
     int leaderTimeout;
     int heartbeatPeriod;
-    int requestVotePeriod;
+    int prevotePeriod;
     int summaryTracingPeriod;
     int incomingQueueSize;
     int waitQueueThrottleSize;
@@ -164,7 +164,7 @@ public class CoreMember implements Stoppable {
         commitQueue = new CommitQueue(gondola, this);
 
         for (int id : peerIds) {
-            Peer peer = new Peer(gondola, this, id);
+            Peer peer = new Peer(gondola, this, id, false);
             peers.add(peer);
             peerMap.put(peer.peerId, peer);
         }
@@ -183,7 +183,7 @@ public class CoreMember implements Stoppable {
         commandTracing = config.getBoolean("gondola.tracing.command");
 
         heartbeatPeriod = config.getInt("raft.heartbeat_period");
-        requestVotePeriod = config.getInt("raft.request_vote_period");
+        prevotePeriod = config.getInt("raft.request_vote_period");
         summaryTracingPeriod = config.getInt("gondola.tracing.summary_period");
         electionTimeout = config.getInt("raft.election_timeout");
         leaderTimeout = config.getInt("raft.leader_timeout");
@@ -502,7 +502,7 @@ public class CoreMember implements Stoppable {
                     }
                 }
                 if (isCandidate()) {
-                    sendRequestVote();
+                    sendPrevote();
                 } else if (isFollower()) {
                     checkHeartbeat();
                 }
@@ -674,8 +674,8 @@ public class CoreMember implements Stoppable {
                 gondola.getHostId(), memberId, isPrimary ? "(primary)" : "");
         become(Role.CANDIDATE, -1);
 
-        // Set timeout
-        requestVoteTs = clock.now() + (long) ((Math.random() * requestVotePeriod));
+        // Set time to send prevote
+        prevoteTs = clock.now() + (long) ((Math.random() * prevotePeriod));
     }
 
     public void becomeFollower(int leaderId) throws Exception {
@@ -725,8 +725,11 @@ public class CoreMember implements Stoppable {
         }
     }
 
-    void sendRequestVote() throws Exception {
-        if (clock.now() >= requestVoteTs) {
+    /**
+     * Sends a prevote if it's time to send one.
+     */
+    void sendPrevote() throws Exception {
+        if (clock.now() >= prevoteTs) {
             // Clear the prevotes before sending prevote
             peers.forEach(p -> p.prevoteGranted = false);
             sendRequestVoteRequest(true);
@@ -756,7 +759,7 @@ public class CoreMember implements Stoppable {
         if (isLeader()) {
             t = heartbeatPeriod - (now - lastSentTs);
         } else if (isCandidate()) {
-            t = Math.max(0, requestVoteTs - now);
+            t = Math.max(0, prevoteTs - now);
         } else {
             t = Math.min(electionTimeoutTs - now, heartbeatPeriod);
         }
@@ -942,12 +945,13 @@ public class CoreMember implements Stoppable {
             message.release();
         }
 
-        // Set timers
+        // Set the time to send the next prevote in case there's no reply
         lastSentTs = clock.now();
-        requestVoteTs = lastSentTs + (long) ((Math.random() * requestVotePeriod));
+        prevoteTs = lastSentTs + (long) ((Math.random() * prevotePeriod));
+
+        // In the case of a request vote, give the peers the maximum time to respond before sending the next prevote
         if (!isPrevote) {
-            // Give the remote members enough time to respond
-            requestVoteTs = Math.max(requestVoteTs, lastSentTs + electionTimeout);
+            prevoteTs += electionTimeout;
         }
     }
 
@@ -1101,6 +1105,9 @@ public class CoreMember implements Stoppable {
                 // Send rejection
                 message.requestVoteReply(memberId, currentTerm, false, false);
                 peer.send(message);
+
+                // Set the time for the next prevote
+                prevoteTs = clock.now() + (long) ((Math.random() * prevotePeriod));
             } else {
                 // Vote for this candidate
                 votedFor = fromMemberId;
@@ -1220,5 +1227,52 @@ public class CoreMember implements Stoppable {
             latencyCount = 0;
             return result;
         }
+    }
+
+    /* ************************************ slave mode ************************************* */
+
+    int masterId;
+
+    Consumer<Member.SlaveUpdate> updateCallback;
+
+    Peer masterPeer;
+
+    /**
+     * Sets this member to slave mode, to sync up its Raft log to match the specified address.
+     * In slave mode:
+     * <li> the member contacts the specified address, which is expected to be a leader
+     * <li> once successfully connected, the member becomes a follower
+     * <li> the member ignores all RequestVote messages
+     * <li> the member continues to connect to the specified address
+     *
+     * If masterAddress is null, the member leaves slave mode.
+     *
+     * @param masterId the identity of a leader to sync with.
+     * @param updateCallback the possibly-null function called whenever there's a status change.
+     */
+    public void setSlave(int masterId, Consumer<Member.SlaveUpdate> updateCallback) {
+        this.masterId = masterId;
+        this.updateCallback = updateCallback;
+
+        if (masterId < 0) {
+            masterId = -1;
+            if (masterPeer != null) {
+                masterPeer.stop();
+            }
+        } else if (masterId != this.masterId) {
+            masterPeer = new Peer(gondola, this, masterId, true);
+        }
+    }
+
+    /**
+     * Returns the current status of the slave.
+     *
+     * @return null if the member is no in slave mode.
+     */
+    public Member.SlaveUpdate getSlaveUpdate() {
+        if (masterId < 0) {
+            return null;
+        }
+        return new Member.SlaveUpdate();
     }
 }

@@ -132,7 +132,6 @@ If all is well, you should see output that looks like:
 
 ## Known Issues and To Dos
 
-* Occassionally leader election with more than 2-nodes will take more cycles than it should to complete.
 * The reliability test (Tsunami) can run for about 8 hours before it hits a known hard-to-reproduce bug.
 * Documentation needs to be improved quite a bit.
 * CoreMember.java has a known bottleneck. Removing that bottleneck could reduce latency by 30%.
