@@ -12,8 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -118,12 +119,11 @@ public class Config {
     com.typesafe.config.Config getMergedConf(File file) {
         com.typesafe.config.Config cfg = com.typesafe.config.ConfigFactory.parseFile(file).resolve();
 
-        URL defaultConfUri = Gondola.class.getClassLoader().getResource("default.conf");
-        if (defaultConfUri == null) {
+        InputStream resourceStream = Gondola.class.getClassLoader().getResourceAsStream("default.conf");
+        if (resourceStream == null) {
             throw new IllegalStateException("default.conf not found");
         }
-        File defaultConfFile = new File(defaultConfUri.getFile());
-        com.typesafe.config.Config defaultCfg = com.typesafe.config.ConfigFactory.parseFile(defaultConfFile).resolve();
+        com.typesafe.config.Config defaultCfg = com.typesafe.config.ConfigFactory.parseReader(new InputStreamReader(resourceStream)).resolve();
         return cfg.withFallback(defaultCfg);
     }
     
