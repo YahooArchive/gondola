@@ -7,6 +7,7 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
+import com.yahoo.gondola.Config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,11 +27,19 @@ import java.util.stream.Collectors;
 class LockManager {
     static Logger logger = LoggerFactory.getLogger(LockManager.class);
 
+    Config config;
     CountDownLatch globalLock;
     Map<String, CountDownLatch> shards = new ConcurrentHashMap<>();
     Map<Range<Integer>, CountDownLatch> buckets = new HashMap<>();
     ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    boolean tracing;
+    boolean tracing = false;
+
+    public LockManager(Config config) {
+        this.config = config;
+        this.config.registerForUpdates(config1 -> {
+            tracing = config1.getBoolean("tracing.router");
+        });
+    }
 
     void filterRequest(int bucketId, String shardId) throws InterruptedException {
         if (globalLock != null) {
@@ -62,20 +71,28 @@ class LockManager {
     long unblockRequestOnShard(String shardId) {
         CountDownLatch lock = shards.remove(shardId);
         if (lock != null) {
+            // TODO: this is not the expected blocking count.
             long count = lock.getCount();
             lock.countDown();
+            if (tracing) {
+                logger.info("Request unblocked on shardId={}", shardId);
+            }
             return count;
         }
         return 0;
     }
 
     void blockRequestOnShard(String shardId) {
-        logger.info("Block requests on shard : {}", shardId);
+        if (tracing) {
+            logger.info("Block requests on shard : {}", shardId);
+        }
         shards.putIfAbsent(shardId, new CountDownLatch(1));
     }
 
     void unblockRequest() {
-        logger.info("Unblock all requests");
+        if (tracing) {
+            logger.info("Unblock all requests");
+        }
         if (globalLock != null) {
             globalLock.countDown();
             globalLock = null;
@@ -83,12 +100,16 @@ class LockManager {
     }
 
     void blockRequest() {
-        logger.info("Block all requests");
+        if (tracing) {
+            logger.info("Block all requests");
+        }
         globalLock = new CountDownLatch(1);
     }
 
     void unblockRequestOnBuckets(Range<Integer> splitRange) {
-        logger.info("Unblock requests on buckets : {}", splitRange);
+        if (tracing) {
+            logger.info("Unblock requests on buckets : {}", splitRange);
+        }
         CountDownLatch lock = buckets.remove(splitRange);
         if (lock != null) {
             lock.countDown();
@@ -97,7 +118,9 @@ class LockManager {
 
 
     void blockRequestOnBuckets(Range<Integer> splitRange) {
-        logger.info("Block requests on buckets : {}", splitRange);
+        if (tracing) {
+            logger.info("Block requests on buckets : {}", splitRange);
+        }
         buckets.putIfAbsent(splitRange, new CountDownLatch(1));
     }
 

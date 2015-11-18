@@ -10,6 +10,9 @@ import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.Map;
 
@@ -18,9 +21,14 @@ import java.util.Map;
  */
 public class AdminClient {
 
+    public static final int RETRY_COUNT = 3;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
+
+    Logger logger = LoggerFactory.getLogger(AdminClient.class);
+
+    boolean tracing = false;
 
     /**
      * Instantiates a new Admin client.
@@ -28,9 +36,13 @@ public class AdminClient {
      * @param serviceName        the service name
      * @param shardManagerClient the shard manager client
      */
-    public AdminClient(String serviceName, ShardManagerClient shardManagerClient) {
+    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
+        this.config = config;
+        this.config.registerForUpdates(config1 -> {
+            tracing = config1.getBoolean("tracing.adminCli");
+        });
     }
 
 
@@ -90,18 +102,48 @@ public class AdminClient {
         assignBuckets(fromShardId, toShardId, range);
     }
 
-    private void assignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
-        shardManagerClient.allowObserver(fromShardId, toShardId);
-        for (int i = 0; i < 3; i++) {
+    /**
+     * Assign buckets.
+     *
+     * @param fromShardId the from shard id
+     * @param toShardId   the to shard id
+     * @param range       the range
+     */
+    public void assignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
+        tracing("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
+        String step = "Before init";
+        for (int i = 0; i < RETRY_COUNT; i++) {
             try {
-                shardManagerClient.startObserving(toShardId, fromShardId);
+                step = "initializing";
+                tracing("Initializing slaves on {} ...", toShardId);
+                for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
+                    shardManagerClient.startObserving(member.getMemberId(), fromShardId);
+                }
+
+                step = "waiting for slave logs approaching";
+                tracing("All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.", toShardId);
+                shardManagerClient.waitApproaching(toShardId, -1);
+
+                step = "assigning buckets";
+                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
                 // assignBucket is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                shardManagerClient.assignBucket(fromShardId, range, toShardId, 2000);
-                shardManagerClient.disallowObserver(fromShardId, toShardId);
-            } catch (RuntimeException e) {
-                // TODO: implement
+                for (Config.ConfigMember member : config.getMembersInShard(fromShardId)) {
+                    shardManagerClient.assignBucket(member.getMemberId(), range, toShardId, 2000);
+                }
+
+                tracing("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
+                step = "done";
+                break;
+            } catch (RuntimeException|ShardManagerProtocol.ShardManagerException e) {
+                logger.warn("Error occurred in step {}.. retrying {} / {}", step, i, RETRY_COUNT, e);
             }
+        }
+    }
+
+    private void tracing(String format, Object... args) {
+        if (tracing) {
+            logger.info(format, args);
         }
     }
 

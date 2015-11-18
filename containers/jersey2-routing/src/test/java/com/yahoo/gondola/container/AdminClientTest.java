@@ -26,7 +26,7 @@ public class AdminClientTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        adminClient = new AdminClient("init", shardManagerClient);
+        adminClient = new AdminClient("init", shardManagerClient, config);
     }
 
     @Test

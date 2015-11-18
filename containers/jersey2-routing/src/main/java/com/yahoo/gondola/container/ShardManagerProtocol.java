@@ -12,64 +12,47 @@ import com.google.common.collect.Range;
  * The interface Shard manager protocol.
  */
 public interface ShardManagerProtocol {
-
-    /**
-     * Allow observer.
-     *
-     * @param shardId        the shard id
-     * @param allowedShardId the allowed shard id
-     */
-    void allowObserver(String shardId, String allowedShardId);
-
-    /**
-     * Disallow observer.
-     *
-     * @param shardId        the shard id
-     * @param allowedShardId the allowed shard id
-     */
-    void disallowObserver(String shardId, String allowedShardId);
-
     /**
      * Start observing.
-     *
-     * @param shardId         the shard id
+     *  @param memberId         the shard id
      * @param observedShardId the observed shard id
      */
-    void startObserving(String shardId, String observedShardId);
+    void startObserving(int memberId, String observedShardId) throws ShardManagerException;
 
     /**
      * Stop observing.
-     *
-     * @param shardId         the shard id
+     *  @param memberId         the shard id
      * @param observedShardId the observed shard id
      */
-    void stopObserving(String shardId, String observedShardId);
+    void stopObserving(int memberId, String observedShardId) throws ShardManagerException;
 
     /**
      * Assign bucket.
-     *
-     * @param shardId    the shard id
+     *  @param memberId    the shard id
      * @param splitRange the split range
      * @param toShardId  the to shard id
      * @param timeoutMs  the timeout ms
      */
-    void assignBucket(String shardId, Range<Integer> splitRange, String toShardId, long timeoutMs);
+    void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs) throws ShardManagerException;
 
     /**
-     * Wait synced boolean.
+     * WashardId boolean.
      *
-     * @param clusterid the clusterid
+     * @param shardId the shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
      */
-    boolean waitSynced (String clusterid, long timeoutMs);
+    boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException;
 
     /**
      * Wait approaching boolean.
      *
-     * @param clusterId the cluster id
+     * @param shardId the shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
      */
-    boolean waitApproaching (String clusterId, long timeoutMs);
+    boolean waitApproaching (String shardId, long timeoutMs) throws ShardManagerException;
+
+    class ShardManagerException extends Exception {
+    }
 }

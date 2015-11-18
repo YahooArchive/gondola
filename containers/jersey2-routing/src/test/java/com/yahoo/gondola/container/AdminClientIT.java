@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.container.impl.DirectShardManagerClient;
@@ -50,11 +51,12 @@ public class AdminClientIT {
     Map<String, CountDownLatch> latches = new HashMap<>();
     DirectShardManagerClient shardManagerClient;
     List<Gondola> gondolas = new ArrayList<>();
+    AdminClient adminClient;
 
     @BeforeMethod
     public void setUp() throws Exception {
         shardManagerClient = new DirectShardManagerClient(config);
-        AdminClient adminClient = new AdminClient("fooService", shardManagerClient);
+        adminClient = new AdminClient("fooService", shardManagerClient, config);
         MockitoAnnotations.initMocks(this);
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
@@ -92,6 +94,7 @@ public class AdminClientIT {
         for (Map.Entry<String, CountDownLatch> e : entries) {
             e.getValue().await();
         }
+        System.out.println("leader election completed");
     }
 
     @AfterMethod
@@ -100,56 +103,7 @@ public class AdminClientIT {
     }
 
     @Test
-    public void testSetServiceName() throws Exception {
-    }
-
-    @Test
-    public void testGetServiceName() throws Exception {
-
-    }
-
-    @Test
-    public void testGetConfig() throws Exception {
-
-    }
-
-    @Test
-    public void testSetConfig() throws Exception {
-
-    }
-
-    @Test
-    public void testSplitShard() throws Exception {
-
-    }
-
-    @Test
-    public void testMergeShard() throws Exception {
-
-    }
-
-    @Test
-    public void testEnable() throws Exception {
-
-    }
-
-    @Test
-    public void testDisable() throws Exception {
-
-    }
-
-    @Test
-    public void testGetStats() throws Exception {
-
-    }
-
-    @Test
-    public void testEnableTracing() throws Exception {
-
-    }
-
-    @Test
-    public void testDisableTracing() throws Exception {
-
+    public void testAssignBuckets() throws Exception {
+        adminClient.assignBuckets("shard1", "shard2", Range.closed(0, 10));
     }
 }

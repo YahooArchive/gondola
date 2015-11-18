@@ -112,7 +112,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * Lock manager.
      */
-    private LockManager lockManager = new LockManager();
+    private LockManager lockManager;
 
     /**
      * Mapping table for serviceUris. hostId --> service URL
@@ -148,6 +148,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         throws ServletException {
         this.gondola = gondola;
         this.routingHelper = routingHelper;
+        lockManager = new LockManager(gondola.getConfig());
         commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
         ShardManager shardManager = new ShardManager(this, gondola.getConfig(), null);
         commandListener.setShardManagerHandler(shardManager);
@@ -173,15 +174,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
                         String shardId = roleChangeEvent.shard.getShardId();
-                        logger.info("Become leader on shard {}, blocking all requests to the shard....", shardId);
+                        tracing("Become leader on shard {}, blocking all requests to the shard....", shardId);
                         lockManager.blockRequestOnShard(shardId);
-                        logger.info("Request blocked, wait until raft logs applied to storage...");
+                        tracing("Wait until raft logs applied to storage...");
                         waitRaftLogSynced(shardId);
-                        logger.info("Raft logs are up-to-date, notify application is ready to serve...");
+                        tracing("Raft logs are up-to-date, notify application is ready to serve...");
                         routingHelper.beforeServing(shardId);
-                        logger.info("Ready for serving, unblocking the requests...");
+                        tracing("Ready for serving, unblocking the requests...");
                         long count = lockManager.unblockRequestOnShard(shardId);
-                        logger.info("System is back to serving, unblocked {} requests ...", count);
+                        tracing("System is back to serving, unblocked {} requests ...", count);
                     }, singleThreadExecutor).exceptionally(throwable -> {
                         logger.info("Errors while executing leader change event", throwable);
                         return null;
@@ -189,6 +190,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 }
             }
         });
+    }
+
+    private void tracing(String format, Object... args) {
+        if (tracing) {
+            logger.info(format, args);
+        }
     }
 
 
@@ -233,14 +240,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                              .status(Response.Status.SERVICE_UNAVAILABLE)
                                              .entity("No leader is available")
                                              .build());
-                if (tracing) {
-                    logger.info("Leader is not available");
-                }
+                tracing("Leader is not available");
                 return;
             } else if (leader.isLocal()) {
-                if (tracing) {
-                    logger.info("Processing this request");
-                }
+                tracing("Processing this request");
                 return;
             }
         }
@@ -357,11 +360,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         boolean fail = false;
         for (String appUri : appUris) {
             try {
-                if (tracing) {
-                    String requestPath = ((ContainerRequest) request).getRequestUri().getPath();
-                    logger.info("Proxy request to remote server, method={}, URI={}",
-                                request.getMethod(), appUri + requestPath);
-                }
+                tracing("Proxy request to remote server, method={}, URI={}",
+                                request.getMethod(), appUri + ((ContainerRequest) request).getRequestUri().getPath());
                 List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
                 if (forwardedBy == null) {
                     forwardedBy = new ArrayList<>();
@@ -565,7 +565,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 }
                 synced = diff <= 0;
             } catch (Exception e) {
-                logger.info("Unknown error", e);
+                logger.warn("Unknown error", e);
             }
         }
     }
@@ -574,6 +574,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     void reassignBuckets(Range<Integer> splitRange, String toShard, long timeoutMs)
         throws InterruptedException, TimeoutException, ExecutionException {
+        tracing("Try to reassign buckets: {} with timeout={}ms", splitRange, timeoutMs);
         executeTaskWithTimeout(() -> {
             if (toShard.equals("c1")) {
                 try {
@@ -584,21 +585,25 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             }
             return "";
         }, timeoutMs);
+        tracing("Successfully reassign buckets: {}", splitRange);
     }
 
     void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
+        tracing("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
         executeTaskWithTimeout(() -> {
             if (splitRange != null) {
-                Thread.sleep(timeoutMs * 2);
+                //Thread.sleep(timeoutMs * 2);
             }
             return "";
         }, timeoutMs);
+        tracing("No more request on buckets: {}", splitRange);
     }
 
     void executeTaskWithTimeout(Callable callable, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
-        executor.submit(callable).get(timeoutMs, TimeUnit.MILLISECONDS);
+        executor.submit(callable)
+            .get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     public LockManager getLockManager() {

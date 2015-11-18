@@ -11,13 +11,17 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.ShardManager;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * The type Direct shard manager client.
+ * The Direct shard manager client. Will be only used in test.
  */
 public class DirectShardManagerClient implements ShardManagerClient {
 
@@ -30,6 +34,9 @@ public class DirectShardManagerClient implements ShardManagerClient {
      */
     Config config;
 
+    Logger logger = LoggerFactory.getLogger(DirectShardManagerClient.class);
+    boolean tracing = false;
+
     /**
      * Instantiates a new Direct shard manager client.
      *
@@ -37,28 +44,53 @@ public class DirectShardManagerClient implements ShardManagerClient {
      */
     public DirectShardManagerClient(Config config) {
         this.config = config;
+
+        config.registerForUpdates(config1 -> {
+            tracing = config1.getBoolean("tracing.router");
+        });
     }
 
     @Override
-    public boolean waitSynced(String shardId, long timeoutMs) {
-        return getMemberIds(shardId)
+    public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException {
+        tracing("Waiting for slaves synced ...");
+        Boolean status = getMemberIds(shardId)
             .parallelStream()
-            .map(memberId -> getShardManager(memberId).waitSynced(shardId, timeoutMs))
+            .map(getWaitSlavesSyncedFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
+        tracing("Wait for slaves synced {}.", status ? "success" : "failed");
+        return status;
+    }
+
+
+    private Function<Integer, Boolean> getWaitSlavesSyncedFunction(String shardId, long timeoutMs) {
+        return memberId -> {
+            try {
+                return getShardManager(memberId).waitSlavesSynced(shardId, timeoutMs);
+            } catch (ShardManagerException e) {
+                return false;
+            }
+        };
     }
 
     @Override
-    public boolean waitApproaching(String shardId, long timeoutMs) {
-        return getMemberIds(shardId)
+    public boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException {
+        tracing("Waiting for slaves logs approaching...");
+        Boolean status = getMemberIds(shardId)
             .parallelStream()
-            .map(memberId -> getShardManager(memberId).waitApproaching(shardId, timeoutMs))
+            .map(getWaitApproachingFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
+        tracing("Wait for slaves logs approaching {}.", status ? "success" : "failed");
+        return status;
     }
 
-    @Override
-    public void allowObserver(String shardId, String allowedShardId) {
-        getMemberIds(shardId)
-            .forEach(memberId -> getShardManager(memberId).allowObserver(shardId, allowedShardId));
+    private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
+        return memberId -> {
+            try {
+                return getShardManager(memberId).waitApproaching(shardId, timeoutMs);
+            } catch (ShardManagerException e) {
+                return false;
+            }
+        };
     }
 
     private List<Integer> getMemberIds(String shardId) {
@@ -68,27 +100,20 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void disallowObserver(String shardId, String allowedShardId) {
-        getMemberIds(shardId)
-            .forEach(memberId -> getShardManager(memberId).disallowObserver(shardId, allowedShardId));
+    public void startObserving(int memberId, String observedShardId) throws ShardManagerException {
+        getShardManager(memberId).startObserving(memberId, observedShardId);
     }
 
     @Override
-    public void startObserving(String shardId, String observedShardId) {
-        getMemberIds(shardId)
-            .forEach(memberId -> getShardManager(memberId).startObserving(shardId, observedShardId));
+    public void stopObserving(int memberId, String observedShardId) throws ShardManagerException {
+        getShardManager(memberId).stopObserving(memberId, observedShardId);
     }
 
     @Override
-    public void stopObserving(String shardId, String observedShardId) {
-        getMemberIds(shardId)
-            .forEach(memberId -> getShardManager(memberId).stopObserving(shardId, observedShardId));
-    }
-
-    @Override
-    public void assignBucket(String shardId, Range<Integer> splitRange, String toShardId, long timeoutMs) {
-        getMemberIds(shardId)
-            .forEach(memberId -> getShardManager(memberId).assignBucket(shardId, splitRange, toShardId, timeoutMs));
+    public void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs)
+        throws ShardManagerException {
+        tracing("Sending request to assign bucket from");
+        getShardManager(memberId).assignBucket(memberId, splitRange, toShardId, timeoutMs);
     }
 
     private ShardManager getShardManager(int memberId) {
@@ -102,4 +127,11 @@ public class DirectShardManagerClient implements ShardManagerClient {
     public Map<Integer, ShardManager> getShardManagers() {
         return shardManagers;
     }
+
+    private void tracing(String format, Object... args) {
+        if (tracing) {
+            logger.info(format, args);
+        }
+    }
+
 }
