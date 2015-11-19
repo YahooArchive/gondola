@@ -40,10 +40,10 @@ class BucketManager {
 
     public ShardState lookupBucketTable(int bucketId) {
         ShardState shardState = bucketMap.get(bucketId);
-        if (shardState != null) {
-            return shardState;
+        if (shardState == null) {
+            throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
         }
-        throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
+        return shardState;
     }
 
     public ShardState lookupBucketTable(Range<Integer> range) {
@@ -61,11 +61,21 @@ class BucketManager {
         for (String shardId : config.getShardIds()) {
             Map<String, String> attributesForShard = config.getAttributesForShard(shardId);
             String bucketMapString = attributesForShard.get("bucketMap");
+            if (bucketMapString == null) {
+                throw new IllegalStateException("Bucket map must be specified in " + shardId);
+            }
+
+            bucketMapString = bucketMapString.replaceAll("\\s", "");
             if (bucketMapString.isEmpty()) {
                 continue;
             }
-            for (String str : bucketMapString.trim().split(",")) {
-                String[] rangePair = str.trim().split("-");
+
+            if (!bucketMapString.matches("^(\\d+-\\d+|\\d+)(,(\\d+-\\d+|\\d+))*")) {
+                throw new IllegalStateException("Invalid syntax of bucket map - " + bucketMapString);
+            }
+
+            for (String str : bucketMapString.split(",")) {
+                String[] rangePair = str.split("-");
                 switch (rangePair.length) {
                     case 1:
                         range = Range.closed(Integer.parseInt(rangePair[0]), Integer.parseInt(rangePair[0]));
@@ -83,27 +93,21 @@ class BucketManager {
                 bucketMap.put(range, new ShardState(shardId, null));
             }
         }
-        bucketContinuousCheck();
+        validateBucketMap();
     }
 
-    private void bucketContinuousCheck() {
+    private void validateBucketMap() {
         List<Range<Integer>> sortedRange = bucketMap.asMapOfRanges().keySet().stream()
             .sorted((o1, o2) -> o1.lowerEndpoint() > o2.lowerEndpoint() ? 1 : -1)
             .collect(Collectors.toList());
-        boolean status = true;
         Range<Integer> prev = null;
         for (Range<Integer> range : sortedRange) {
-            if (prev != null) {
-                status = status && (range.lowerEndpoint() - 1) == prev.upperEndpoint();
-            } else {
-                if (range.lowerEndpoint() != 0) {
-                    throw new IllegalStateException("Range must start from 0");
-                }
+            if (prev != null && (range.lowerEndpoint() - 1) != prev.upperEndpoint()) {
+                throw new IllegalStateException(String.format("Range must be contiguous. %s -> %s", prev, range));
+            } else if (prev == null && range.lowerEndpoint() != 0) {
+                throw new IllegalStateException("Range must start from 0");
             }
             prev = range;
-        }
-        if (!status) {
-            throw new IllegalStateException("Bucket range must be continuous");
         }
     }
 
