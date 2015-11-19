@@ -83,7 +83,8 @@ public class ShardManager implements ShardManagerProtocol {
      * Splits the bucket of fromCluster, and reassign the buckets to toCluster.
      */
     @Override
-    public void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs) throws ShardManagerException {
+    public void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs)
+            throws ShardManagerException {
         String fromShardId = config.getMember(memberId).getShardId();
         if (!filter.gondola.getShard(fromShardId).getLocalMember().isLeader()) {
             return;

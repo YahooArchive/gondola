@@ -33,7 +33,8 @@ public interface ShardManagerProtocol {
      * @param toShardId  the to shard id
      * @param timeoutMs  the timeout ms
      */
-    void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs) throws ShardManagerException;
+    void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs)
+        throws ShardManagerException;
 
     /**
      * WashardId boolean.
@@ -53,6 +54,9 @@ public interface ShardManagerProtocol {
      */
     boolean waitApproaching (String shardId, long timeoutMs) throws ShardManagerException;
 
+    /**
+     * Thrown by shard manager methods when an error occurs.
+     */
     class ShardManagerException extends Exception {
     }
 }

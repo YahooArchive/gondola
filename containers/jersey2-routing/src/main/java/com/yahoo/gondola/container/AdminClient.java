@@ -121,11 +121,13 @@ public class AdminClient {
                 }
 
                 step = "waiting for slave logs approaching";
-                tracing("All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.", toShardId);
+                tracing("All nodes in {} are in slave mode sync'ing with the master's log.",
+                        toShardId);
                 shardManagerClient.waitApproaching(toShardId, -1);
 
                 step = "assigning buckets";
-                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
+                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...",
+                        toShardId, range);
                 // assignBucket is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
                 for (Config.ConfigMember member : config.getMembersInShard(fromShardId)) {
@@ -135,7 +137,7 @@ public class AdminClient {
                 tracing("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
                 step = "done";
                 break;
-            } catch (RuntimeException|ShardManagerProtocol.ShardManagerException e) {
+            } catch (RuntimeException | ShardManagerProtocol.ShardManagerException e) {
                 logger.warn("Error occurred in step {}.. retrying {} / {}", step, i, RETRY_COUNT, e);
             }
         }
