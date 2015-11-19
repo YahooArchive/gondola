@@ -271,8 +271,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * @param fromShard the from shard
      * @param toShard   the to shard
      */
-    protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard) {
-        bucketManager.updateBucketRange(range, fromShard, toShard);
+    protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard,
+                                     boolean migrationComplete) {
+        bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
 
     /**
@@ -324,7 +325,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (bucketId == -1 && routingHelper != null) {
                 return getAffinityColoShard(request);
             } else {
-                return bucketManager.lookupBucketTable(bucketId);
+                BucketManager.ShardState shardState = bucketManager.lookupBucketTable(bucketId);
+                // If the shard is migrating and it's local shard, forwarding to migrating shard.
+                if (shardState.migratingShardId != null && isMyShard(shardState.shardId)) {
+                    return shardState.migratingShardId;
+                }
+                return shardState.shardId;
             }
         } else {
             return gondola.getShardsOnHost().get(0).getShardId();

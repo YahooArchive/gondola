@@ -110,11 +110,13 @@ public class AdminClientIT {
         for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
             assertEquals(bucketManager.lookupBucketTable(0), "shard1");
         }
-        adminClient.assignBuckets("shard1", "shard2", Range.closed(0, 10));
+        adminClient.assignBuckets(Range.closed(0, 10), "shard1", "shard2");
+        // TODO: test leader success
+
+        adminClient.closeAssignBuckets(Range.closed(0, 10), "shard1", "shard2");
         for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
             assertEquals(bucketManager.lookupBucketTable(0), "shard2");
         }
-        adminClient.closeAssignBuckets("shard1", "shard2", Range.closed(0, 10));
     }
 
     private List<BucketManager> getBucketManagersFromAllHosts() {

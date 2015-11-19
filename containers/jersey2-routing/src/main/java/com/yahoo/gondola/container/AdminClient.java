@@ -99,7 +99,7 @@ public class AdminClient {
      */
     public void splitShard(String fromShardId, String toShardId) throws AdminException {
         Range<Integer> range = lookupSplitRange(fromShardId, toShardId);
-        assignBuckets(fromShardId, toShardId, range);
+        assignBuckets(range, fromShardId, toShardId);
     }
 
     /**
@@ -109,7 +109,7 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void assignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
+    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) {
         tracing("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         String step = "Before init";
         for (int i = 0; i < RETRY_COUNT; i++) {
@@ -149,9 +149,11 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void closeAssignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
+    public void closeAssignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+        throws ShardManagerProtocol.ShardManagerException {
         // TODO: implement
         tracing("Executing close the state of assign buckets");
+        shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
         tracing("Waiting all nodes update bucket table...");
         tracing("closing the state of assign buckets");
         tracing("Done!");
@@ -178,7 +180,7 @@ public class AdminClient {
      */
     public void mergeShard(String fromShardId, String toShardId) throws AdminException {
         Range<Integer> range = lookupMergeRange(fromShardId, toShardId);
-        assignBuckets(fromShardId, toShardId, range);
+        assignBuckets(range, fromShardId, toShardId);
     }
 
     private Range<Integer> lookupMergeRange(String fromShardId, String toShardId) {

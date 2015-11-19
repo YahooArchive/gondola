@@ -18,8 +18,19 @@ import java.util.stream.Collectors;
 class BucketManager {
 
     //bucketId -> shardId.
-    private RangeMap<Integer, String> bucketMap = TreeRangeMap.create();
+    private RangeMap<Integer, ShardState> bucketMap = TreeRangeMap.create();
     private Config config;
+
+    public static class ShardState {
+
+        String shardId;
+        String migratingShardId;
+
+        public ShardState(String shardId, String migratingShardId) {
+            this.shardId = shardId;
+            this.migratingShardId = migratingShardId;
+        }
+    }
 
     public BucketManager(Config config) {
         this.config = config;
@@ -27,16 +38,16 @@ class BucketManager {
     }
 
 
-    public String lookupBucketTable(int bucketId) {
-        String shardId = bucketMap.get(bucketId);
-        if (shardId != null) {
-            return shardId;
+    public ShardState lookupBucketTable(int bucketId) {
+        ShardState shardState = bucketMap.get(bucketId);
+        if (shardState != null) {
+            return shardState;
         }
         throw new IllegalStateException("Bucket ID doesn't exist in bucket table - " + bucketId);
     }
 
-    public String lookupBucketTable(Range<Integer> range) {
-        Map<Range<Integer>, String> rangeMaps = bucketMap.subRangeMap(range).asMapOfRanges();
+    public ShardState lookupBucketTable(Range<Integer> range) {
+        Map<Range<Integer>, ShardState> rangeMaps = bucketMap.subRangeMap(range).asMapOfRanges();
         if (rangeMaps.size() > 1) {
             throw new IllegalStateException();
         } else if (rangeMaps.size() == 0) {
@@ -69,7 +80,7 @@ class BucketManager {
                 if (range.lowerEndpoint() < 0) {
                     throw new IllegalStateException("Bucket id must > 0");
                 }
-                bucketMap.put(range, shardId);
+                bucketMap.put(range, new ShardState(shardId, null));
             }
         }
         bucketContinuousCheck();
@@ -96,11 +107,42 @@ class BucketManager {
         }
     }
 
-    public void updateBucketRange(Range<Integer> range, String fromShardId, String toShardId) {
-        String shardId = lookupBucketTable(range);
-        if (!fromShardId.equals(shardId)) {
-            throw new IllegalStateException("Range should be a subrange of shardId - " + fromShardId);
+    public void updateBucketRange(Range<Integer> range, String fromShardId, String toShardId,
+                                  boolean migrationComplete) {
+        ShardState shardState = lookupBucketTable(range);
+        if (shardState == null) {
+            throw new IllegalStateException("Bucket range not found");
         }
-        bucketMap.put(range, toShardId);
+
+        if (fromShardId == null || toShardId == null) {
+            throw new IllegalStateException("fromShardId or toShardId cannot be null");
+        }
+
+        if (!migrationComplete) {
+            if (!shardState.shardId.equals(fromShardId)) {
+                throw new IllegalStateException(
+                    String.format("Bucket range=%s should be owned by shard=%s, but got shard=%s",
+                                  range, fromShardId, shardState.shardId));
+            }
+
+            if (shardState.migratingShardId != null && shardState.migratingShardId.equals(toShardId)) {
+                throw new IllegalStateException(
+                    String.format("Bucket range=%s is migrating to shard=%s, cannot be overrided by shard=%s",
+                                  range, shardState.shardId, toShardId));
+            }
+
+            shardState.migratingShardId = toShardId;
+        } else {
+            if (
+                (shardState.shardId.equals(fromShardId) && shardState.migratingShardId.equals(toShardId))
+                || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
+                shardState.migratingShardId = null;
+            } else {
+                throw new IllegalStateException(String.format(
+                    "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,
+                    shardState.shardId, toShardId, shardState.migratingShardId));
+            }
+        }
+        bucketMap.put(range, shardState);
     }
 }

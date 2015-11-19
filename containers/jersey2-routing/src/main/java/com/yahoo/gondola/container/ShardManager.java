@@ -102,7 +102,7 @@ public class ShardManager implements ShardManagerProtocol {
                     waitNoRequestsOnBuckets(splitRange, timeoutMs);
                     shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
                     shardManagerClient.stopObserving(toShardId, fromShardId);
-                    setBuckets(splitRange, fromShardId, toShardId);
+                    setBuckets(splitRange, fromShardId, toShardId, false);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // TODO: rollback
                     logger.warn("Error occurred, rollback!", e);
@@ -132,10 +132,10 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId)
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
         throws ShardManagerException {
-        tracing("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, toShardId);
-        filter.updateBucketRange(splitRange, fromShardId, toShardId);
+        tracing("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
+        filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
 
     /**

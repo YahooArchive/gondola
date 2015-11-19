@@ -84,9 +84,9 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId) throws ShardManagerException {
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) throws ShardManagerException {
         for (Config.ConfigMember m : config.getMembers()) {
-            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId);
+            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId, migrationComplete);
         }
     }
 
