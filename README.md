@@ -28,48 +28,79 @@ a RESTful API for setting and getting values.  The demo uses H2DB as
 the backing storage for the Raft log so that the updates are
 persistant.
 
-#### Start the Servers
+#### Start the Demo Servers
 
-Run the following commands in three different consoles on the same host machine. Each will
-start up one of the nodes in the three node cluster.
-
-```
-[console 1]> cd examples/kv-server
-[console 1]> bin/run host1
-
-[console 2]> cd examples/kv-server
-[console 2]> bin/run host2
-
-[console 3]> cd examples/kv-server
-[console 3]> bin/run host3
-```
-
-The servers will elect a leader and will print out their current role:
+Run the following commands in three different consoles on the same
+machine. Each will start up one of the nodes in the three-node
+cluster. The servers will elect a leader and will print out their
+current role:
 
 ```
-15:23:28.611 INFO - Current role: FOLLOWER
-15:23:28.911 INFO - Current role: CANDIDATE
-15:23:29.107 INFO - Current role: LEADER
+> cd examples/kv-server
+> bin/run host1
+...
+INFO [host1] Current role: CANDIDATE
+INFO [host1] Current role: LEADER
+INFO [host1] Ready
 ```
 
-#### Test
-
-In yet another console, run commands to set and retrieve values:
-
 ```
-[console 4]> put_key host1 key_1 value_1
-[console 4]> put_key host2 key_2 value_2
-[console 4]> get_key host1 key_2
-[console 4]>  key2 value_2
+> cd examples/kv-server
+> bin/run host2
+...
+INFO [host2] Current role: CANDIDATE
+INFO [host2] Current role: FOLLOWER
 ```
 
-If all is working correctly, sending commands to any server will route the request to the leader.
-You can see the non-leader route the request to the leader and see the leader process the request.
+```
+> cd examples/kv-server
+> bin/run host3
+...
+INFO [host3] Current role: CANDIDATE
+INFO [host3] Current role: FOLLOWER
+```
+
+#### Testing the Demo Servers
+
+In yet another console, run commands to set and retrieve values. You
+can send commands to any host and the host will automatically route
+requests to the leader.
 
 ```
+> bin/put_key host1 Taiwan Taipei
+> bin/put_key host2 Canada Ottawa
+> bin/get_key host3 Taiwan
+Taipei
 ```
 
-You can continue testing the failover behavior by killing and restarting any of the three servers.
+Here's what you would see in the leader's console:
+```
+INFO [host1] Current role: CANDIDATE
+INFO [host1] Current role: LEADER
+INFO [host1] Ready
+INFO [host1] Put key Taiwan=Taipei
+INFO [host1] Executing command 1: Taiwan Taipei
+INFO [host1] Put key Canada=Ottawa
+INFO [host1] Executing command 2: Canada Ottawa
+INFO [host1] Get key Taiwan: Taipei
+```
+
+If you kill the leader, one of the other followers will become the
+leader and start serving requests:
+
+```
+INFO [host3] Current role: CANDIDATE
+INFO [host3] Current role: LEADER
+INFO [host3] Executing command 3: 
+INFO [host3] Ready
+INFO [host3] Put key USA=Washington, D.C.
+INFO [host3] Executing command 4: USA Washington, D.C.
+```
+
+Note blank commands (command 3) are written into the log after a
+leader election.  This is due to a Raft requirement that entries are
+not considered committed unless the last committed entry is of the
+current term. Applications need to ignore these blank commands.
 
 ## Gondola Terminology
 

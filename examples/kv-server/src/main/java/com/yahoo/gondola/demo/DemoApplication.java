@@ -106,13 +106,13 @@ public class DemoApplication extends ResourceConfig {
         Consumer<RoleChangeEvent> listener = crevt -> {
             switch (crevt.newRole) {
                 case CANDIDATE:
-                    logger.info("Current role: CANDIDATE");
+                    logger.info("[{}] Current role: CANDIDATE", gondola.getHostId());
                     break;
                 case LEADER:
-                    logger.info("Current role: LEADER");
+                    logger.info("[{}] Current role: LEADER", gondola.getHostId());
                     break;
                 case FOLLOWER:
-                    logger.info("Current role: FOLLOWER");
+                    logger.info("[{}] Current role: FOLLOWER", gondola.getHostId());
                     break;
             }
         };

@@ -26,6 +26,8 @@ import java.util.function.Consumer;
 public class DemoService {
     Logger logger = LoggerFactory.getLogger(DemoService.class);
 
+    Gondola gondola;
+
     // The map holding all the entries
     Map<String, String> entries = new ConcurrentHashMap<>();
 
@@ -35,6 +37,7 @@ public class DemoService {
     ChangeLogProcessor clProcessor;
 
     public DemoService(Gondola gondola) throws Exception {
+        this.gondola = gondola;
         shard = gondola.getShardsOnHost().get(0);
 
         clProcessor = new ChangeLogProcessor();
@@ -56,7 +59,7 @@ public class DemoService {
             throw new NotFoundException();
         }
         String value = entries.get(key);
-        logger.info(String.format("Get key %s: %s", key, value));
+        logger.info(String.format("[%s] Get key %s: %s", gondola.getHostId(), key, value));
         return value;
     }
 
@@ -73,7 +76,7 @@ public class DemoService {
             Command command = shard.checkoutCommand();
             byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
             command.commit(bytes, 0, bytes.length);
-            logger.info(String.format("Put key %s=%s", key, value));
+            logger.info(String.format("[%s] Put key %s=%s", gondola.getHostId(), key, value));
         } catch (com.yahoo.gondola.NotLeaderException e) {
             logger.info(String.format("Failed to put %s/%s because not a leader", key, value));
         } catch (InterruptedException e) {
@@ -105,7 +108,8 @@ public class DemoService {
                 try {
                     string = shard.getCommittedCommand(appliedIndex + 1).getString();
                     appliedIndex++;
-                    logger.info("Processed command {}: {}", appliedIndex, string);
+                    logger.info("[{}] Executing command {}: {}", gondola.getHostId(),
+                                appliedIndex, string);
                     String[] pair = string.split(" ", 2);
                     if (pair.length == 2) {
                         entries.put(pair[0], pair[1]);
@@ -122,8 +126,13 @@ public class DemoService {
         }
     }
 
-    public void clearState() {
-        logger.info("In demo application, no need to clear the internal storage.");
+    /**
+     * Called after all changes from the Raft log have been applied and before requests
+     * are accepted.
+     */
+    public void beforeServing() {
+        // In this demo application, there's no need to update internal state
+        logger.info("[{}] Ready", gondola.getHostId());
     }
 
     /**
