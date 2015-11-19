@@ -79,8 +79,4 @@ public class LocalTestRoutingServer {
     public String getHostUri() {
         return host.getSchemeName() + "://" + host.getHostName() + ":" + host.getPort();
     }
-
-    public RoutingFilter getRoutingFilter() {
-        return routingFilter;
-    }
 }

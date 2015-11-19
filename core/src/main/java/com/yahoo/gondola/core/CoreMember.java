@@ -10,6 +10,7 @@ import com.yahoo.gondola.*;
 import com.yahoo.gondola.Shard;
 
 import com.yahoo.gondola.impl.Utils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,11 +37,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
- * This class is an actor inboxes - the command queue and incoming messages.
- * The command queue contains commands that need to be reliably persisted.
- * The incoming message queue contains messages from the other members of this shard.
+ * This class is an actor inboxes - the command queue and incoming messages. The command queue contains commands that
+ * need to be reliably persisted. The incoming message queue contains messages from the other members of this shard.
  */
 public class CoreMember implements Stoppable {
+
     final static Logger logger = LoggerFactory.getLogger(CoreMember.class);
 
     final Gondola gondola;
@@ -53,6 +54,9 @@ public class CoreMember implements Stoppable {
     final SaveQueue saveQueue;
     final CommitQueue commitQueue;
 
+    /**
+     * The serialized Action execute by MainLoop.
+     */
     public enum Action {
         BECOME_FOLLOWER,
         UPDATE_SAVED_INDEX,
@@ -64,7 +68,7 @@ public class CoreMember implements Stoppable {
     // This map is used to find then peer quickly when processing incoming message
     Map<Integer, Peer> peerMap = new HashMap<>();
 
-    // The number of members that constitute a majority for this cluster. 
+    // The number of members that constitute a majority for this cluster.
     // It's a convenience variable, used when calculating the commit index.
     int majority = Integer.MAX_VALUE;
 
@@ -94,7 +98,7 @@ public class CoreMember implements Stoppable {
 
     // The wait queue holds all clients that have sent an AppendEntry and is awaiting a response
     Queue<CoreCmd> waitQueue = new PriorityBlockingQueue<CoreCmd>(100,
-            (o1, o2) -> o1.index - o2.index);
+                                                                  (o1, o2) -> o1.index - o2.index);
 
     // Contains message sent from the peers. It is bounded.
     BlockingQueue<Message> incomingQueue;
@@ -146,7 +150,8 @@ public class CoreMember implements Stoppable {
     FileLock fileLock;
     boolean writeEmptyCommandAfterElection;
 
-    public CoreMember(Gondola gondola, Shard shard, int memberId, List<Integer> peerIds, boolean isPrimary) throws Exception {
+    public CoreMember(Gondola gondola, Shard shard, int memberId, List<Integer> peerIds, boolean isPrimary)
+        throws Exception {
         this.gondola = gondola;
         this.shard = shard;
         this.memberId = memberId;
@@ -220,7 +225,7 @@ public class CoreMember implements Stoppable {
         saveQueue.getLatest(savedRid, false);
         if (storageTracing) {
             logger.info("[{}] select({}): currentTerm={}, votedFor={} latest=({},{})",
-                    gondola.getHostId(), memberId, currentTerm, votedFor, savedRid.term, savedRid.index);
+                        gondola.getHostId(), memberId, currentTerm, votedFor, savedRid.term, savedRid.index);
         }
         sentRid.set(savedRid);
 
@@ -308,8 +313,8 @@ public class CoreMember implements Stoppable {
     }
 
     /**
-     * Returns true if this member is the primary member of the cluster.
-     * The primary member is the one that is preferred to be the leader, usually for performance reasons.
+     * Returns true if this member is the primary member of the cluster. The primary member is the one that is preferred
+     * to be the leader, usually for performance reasons.
      */
     public boolean isPrimary() {
         return isPrimary;
@@ -334,8 +339,7 @@ public class CoreMember implements Stoppable {
     }
 
     /**
-     * Adds command to the command queue. Does not block.
-     * Called by the command object.
+     * Adds command to the command queue. Does not block. Called by the command object.
      */
     public void addCommand(CoreCmd ccmd) {
         commandQueue.add(ccmd);
@@ -348,8 +352,7 @@ public class CoreMember implements Stoppable {
     }
 
     /**
-     * Adds message to the incoming queue. Does not block.
-     * Called by connection objects after receiving a message.
+     * Adds message to the incoming queue. Does not block. Called by connection objects after receiving a message.
      */
     public void addIncoming(Message message) throws InterruptedException {
         message.acquire();
@@ -404,6 +407,7 @@ public class CoreMember implements Stoppable {
      */
 
     class MainLoop extends Thread {
+
         MessageHandler handler = new MyMessageHandler();
 
         MainLoop() {
@@ -451,8 +455,9 @@ public class CoreMember implements Stoppable {
                 // Show queue information
                 if (showSummary(waitMs, false)) {
                     logger.info(String.format("b1=%.1f, b2=%.1f, b3=%.1f, b4=%.1f b5=%.1f %.3fms/loop",
-                            100.0 * b1 / bt, 100.0 * b2 / bt, 100.0 * b3 / bt, 100.0 * b4 / bt, 100.0 * b5 / bt,
-                            .000001 * bt / bc));
+                                              100.0 * b1 / bt, 100.0 * b2 / bt, 100.0 * b3 / bt, 100.0 * b4 / bt,
+                                              100.0 * b5 / bt,
+                                              .000001 * bt / bc));
                     b1 = b2 = b3 = b4 = b5 = bt = bc = 0;
                 }
 
@@ -497,7 +502,8 @@ public class CoreMember implements Stoppable {
                     if (liveCount >= majority) {
                         sendHeartbeat(false);
                     } else {
-                        logger.info("[{}-{}] Leader has not heard from enough followers", gondola.getHostId(), memberId);
+                        logger
+                            .info("[{}-{}] Leader has not heard from enough followers", gondola.getHostId(), memberId);
                         becomeCandidate();
                     }
                 }
@@ -548,6 +554,7 @@ public class CoreMember implements Stoppable {
      */
 
     class CommandHandler extends Thread {
+
         public CommandHandler() {
             setName("CommandHandler-" + memberId);
             setDaemon(true);
@@ -585,7 +592,7 @@ public class CoreMember implements Stoppable {
 
                 // Prepare an append entry request for the command
                 message.appendEntryRequest(memberId, currentTerm, sentRid, commitIndex,
-                        currentTerm, ccmd.buffer, 0, ccmd.size);
+                                           currentTerm, ccmd.buffer, 0, ccmd.size);
                 ccmd.term = currentTerm;
                 ccmd.index = sentRid.index + 1;
                 latency.head(ccmd.index);
@@ -643,14 +650,14 @@ public class CoreMember implements Stoppable {
         // Notify gondola listeners of role change.
         if (role != oldRole) {
             gondola.notifyRoleChange(
-                    new RoleChangeEvent(shard, shard.getMember(memberId), shard.getMember(leaderId),
-                            oldRole, role));
+                new RoleChangeEvent(shard, shard.getMember(memberId), shard.getMember(leaderId),
+                                    oldRole, role));
         }
     }
 
     public void becomeLeader() throws Exception {
         logger.info("[{}-{}] Becomes LEADER for term {} {}",
-                gondola.getHostId(), memberId, currentTerm, isPrimary ? "(primary)" : "");
+                    gondola.getHostId(), memberId, currentTerm, isPrimary ? "(primary)" : "");
         become(Role.LEADER, memberId);
 
         // Initialize raft variables
@@ -662,16 +669,16 @@ public class CoreMember implements Stoppable {
 
         // If command queue is empty, add a no-op command to commit entries from the previous term
         if (writeEmptyCommandAfterElection
-              && commandQueue.size() == 0
-              && sentRid.term > 0
-              && sentRid.term < currentTerm) {
+            && commandQueue.size() == 0
+            && sentRid.term > 0
+            && sentRid.term < currentTerm) {
             commandQueue.add(new CoreCmd(gondola, shard, this));
         }
     }
 
     public void becomeCandidate() throws Exception {
         logger.info("[{}-{}] Becomes CANDIDATE {}",
-                gondola.getHostId(), memberId, isPrimary ? "(primary)" : "");
+                    gondola.getHostId(), memberId, isPrimary ? "(primary)" : "");
         become(Role.CANDIDATE, -1);
 
         // Set time to send prevote
@@ -680,7 +687,7 @@ public class CoreMember implements Stoppable {
 
     public void becomeFollower(int leaderId) throws Exception {
         logger.info("[{}-{}] Becomes FOLLOWER of {} {}",
-                gondola.getHostId(), memberId, leaderId, isPrimary ? "(primary)" : "");
+                    gondola.getHostId(), memberId, leaderId, isPrimary ? "(primary)" : "");
         become(Role.FOLLOWER, leaderId);
 
         // To avoid the case where this member becomes a candidate and an RV is received for the current term
@@ -697,8 +704,8 @@ public class CoreMember implements Stoppable {
      */
 
     /**
-     * Called as a result of incoming append entry reply messages.
-     * Attempts to release as many waiting commands as possible.
+     * Called as a result of incoming append entry reply messages. Attempts to release as many waiting commands as
+     * possible.
      */
     void updateWaitingCommands() throws Exception {
         int index = commitIndex;
@@ -740,7 +747,7 @@ public class CoreMember implements Stoppable {
         storage.saveVote(memberId, term, votedFor);
         if (storageTracing) {
             logger.info("[{}-{}] update(term={} votedFor={})",
-                    gondola.getHostId(), memberId, term, votedFor);
+                        gondola.getHostId(), memberId, term, votedFor);
         }
     }
 
@@ -748,7 +755,7 @@ public class CoreMember implements Stoppable {
         long late = clock.now() - electionTimeoutTs;
         if (late >= 0) {
             logger.info("[{}-{}] No heartbeat from {} in {}ms (timeout={}ms)",
-                    gondola.getHostId(), memberId, leaderId, electionTimeout + late, electionTimeout);
+                        gondola.getHostId(), memberId, leaderId, electionTimeout + late, electionTimeout);
             becomeCandidate();
         }
     }
@@ -782,7 +789,7 @@ public class CoreMember implements Stoppable {
             if (!isFollower()) {
                 becomeFollower(-1);
                 logger.info("[{}-{}] Became a follower because term {} from {} is > currentTerm {}",
-                        gondola.getHostId(), memberId, term, fromMemberId, oldCterm);
+                            gondola.getHostId(), memberId, term, fromMemberId, oldCterm);
             }
         }
     }
@@ -828,37 +835,41 @@ public class CoreMember implements Stoppable {
         long now = clock.now();
         if (force || now > showSummaryTs) {
             Stats stats = gondola.getStats();
-            logger.info(String.format("[%s-%d] %s pid=%s wait=%dms cmdQ=%d waitQ=%d in=%d|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
-                    gondola.getHostId(), memberId, role, gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
-                    incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
-                    CoreCmd.commitLatency.get(), latency.get()));
+            logger.info(
+                String.format("[%s-%d] %s pid=%s wait=%dms cmdQ=%d waitQ=%d in=%d|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
+                              gondola.getHostId(), memberId, role, gondola.getProcessId(), waitMs, commandQueue.size(),
+                              waitQueue.size(),
+                              incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
+                              CoreCmd.commitLatency.get(), latency.get()));
             logger.info(String.format("[%s-%d] - leader=%d cterm=%d ci=%d latest=(%d,%d) votedFor=%d msgPool=%d/%d",
-                    gondola.getHostId(), memberId, leaderId, currentTerm, commitIndex,
-                    sentRid.term, sentRid.index, votedFor,
-                    pool.size(), pool.createdCount));
+                                      gondola.getHostId(), memberId, leaderId, currentTerm, commitIndex,
+                                      sentRid.term, sentRid.index, votedFor,
+                                      pool.size(), pool.createdCount));
             logger.info(String.format("[%s-%d] - storage %.1f/s ti=(%d,%d) saveQ=%d gap=%d done=%d",
-                    gondola.getHostId(), memberId,
-                    stats.savedCommandsRps, saveQueue.lastTerm, saveQueue.savedIndex,
-                    saveQueue.workQueue.size(), saveQueue.maxGap, saveQueue.saved.size()));
+                                      gondola.getHostId(), memberId,
+                                      stats.savedCommandsRps, saveQueue.lastTerm, saveQueue.savedIndex,
+                                      saveQueue.workQueue.size(), saveQueue.maxGap, saveQueue.saved.size()));
             for (Peer peer : peers) {
-                logger.info(String.format("[%s-%d] - peer=%d %s in=%.1f/s|%.1fB/s out=%d|%.1f/s|%.1fB/s ni=%d mi=%d vf=(%d,%d)%s%s lat=%.3fms",
-                        gondola.getHostId(), memberId, peer.peerId, peer.isOperational() ? "U" : "D",
-                        peer.inMessages.getRps(), peer.inBytes.getRps(),
-                        peer.outQueue.size(), peer.outMessages.getRps(), peer.outBytes.getRps(),
-                        peer.nextIndex, peer.matchIndex, peer.votedTerm, peer.votedFor,
-                        peer.prevoteGranted ? " prevote" : "",
-                        peer.backfilling ? String.format(" bf=%d, bfa=%d", peer.backfillToIndex, peer.backfillAhead) : "",
-                        peer.latency.get()));
+                logger.info(String.format(
+                    "[%s-%d] - peer=%d %s in=%.1f/s|%.1fB/s out=%d|"
+                    + "%.1f/s|%.1fB/s ni=%d mi=%d vf=(%d,%d)%s%s lat=%.3fms",
+                    gondola.getHostId(), memberId, peer.peerId, peer.isOperational() ? "U" : "D",
+                    peer.inMessages.getRps(), peer.inBytes.getRps(),
+                    peer.outQueue.size(), peer.outMessages.getRps(), peer.outBytes.getRps(),
+                    peer.nextIndex, peer.matchIndex, peer.votedTerm, peer.votedFor,
+                    peer.prevoteGranted ? " prevote" : "",
+                    peer.backfilling ? String.format(" bf=%d, bfa=%d", peer.backfillToIndex, peer.backfillAhead) : "",
+                    peer.latency.get()));
             }
 
             if (commandTracing) {
                 for (CoreCmd c : waitQueue) {
                     logger.info("[{}-{}] commit waiter: term={} index={}",
-                            gondola.getHostId(), memberId, c.term, c.index);
+                                gondola.getHostId(), memberId, c.term, c.index);
                 }
                 for (CoreCmd c : commitQueue.getQueue) {
                     logger.info("[{}-{}] get waiter: index={}",
-                            gondola.getHostId(), memberId, c.index);
+                                gondola.getHostId(), memberId, c.index);
                 }
             }
             showSummaryTs = now + summaryTracingPeriod;
@@ -866,7 +877,6 @@ public class CoreMember implements Stoppable {
         }
         return false;
     }
-
 
     /****************************** outgoing messages *************************/
 
@@ -967,10 +977,13 @@ public class CoreMember implements Stoppable {
     int failedNextIndex = Integer.MAX_VALUE;
 
     class MyMessageHandler extends MessageHandler {
+
         @Override
         public boolean appendEntryRequest(Message message, int fromMemberId, int term,
-                                          int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat, int entryTerm,
-                                          byte[] buffer, int bufferOffset, int bufferLen, boolean lastCommand) throws Exception {
+                                          int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat,
+                                          int entryTerm,
+                                          byte[] buffer, int bufferOffset, int bufferLen, boolean lastCommand)
+            throws Exception {
             latency.head(prevLogIndex + 1);
             electionTimeoutTs = clock.now() + electionTimeout;
             if (message.tracingInfo != null) {
@@ -998,7 +1011,7 @@ public class CoreMember implements Stoppable {
             if (!isFollower()) {
                 // If sender's log is up-to-date, follow the sender
                 boolean validLog = prevLogTerm > savedRid.term
-                        || (prevLogTerm == savedRid.term && prevLogIndex >= savedRid.index);
+                                   || (prevLogTerm == savedRid.term && prevLogIndex >= savedRid.index);
                 if (validLog) {
                     becomeFollower(fromMemberId);
                 }
@@ -1010,11 +1023,12 @@ public class CoreMember implements Stoppable {
                     // This is an newer entry.
                     // Check if the previous rid in the message is in storage.
                     // As an optimization, if the index is > the failedNextIndex, there's no point checking.
-                    //boolean hasEntry = prevLogIndex < failedNextIndex && storage.hasLogEntry(memberId, prevLogTerm, prevLogIndex);
+                    // boolean hasEntry = prevLogIndex < failedNextIndex &&
+                    //                                   storage.hasLogEntry(memberId, prevLogTerm, prevLogIndex);
                     boolean hasEntry = storage.hasLogEntry(memberId, prevLogTerm, prevLogIndex);
                     if (storageTracing) {
                         logger.info("[{}-{}] hasEntry(term={} index={}) -> {}",
-                                gondola.getHostId(), memberId, prevLogTerm, prevLogIndex, hasEntry);
+                                    gondola.getHostId(), memberId, prevLogTerm, prevLogIndex, hasEntry);
                     }
 
                     // If storage doesn't have this entry, reject the request and include the last saved index
@@ -1068,14 +1082,14 @@ public class CoreMember implements Stoppable {
             Peer peer = peerMap.get(fromMemberId);
             if (peer == null) {
                 logger.error("[{}-{}] Received RV from unknown member {}",
-                        gondola.getHostId(), memberId, fromMemberId);
+                             gondola.getHostId(), memberId, fromMemberId);
                 return;
             }
 
             // Determine if sender's log is up-to-date
             saveQueue.getLatest(savedRid, false);
             boolean validLog = lastRid.term > savedRid.term
-                    || (lastRid.term == savedRid.term && lastRid.index >= savedRid.index);
+                               || (lastRid.term == savedRid.term && lastRid.index >= savedRid.index);
 
             if (isPrevote) {
                 if (isCandidate()) {
@@ -1093,12 +1107,12 @@ public class CoreMember implements Stoppable {
                 sendHeartbeat(true);
             } else if (!validLog || term < currentTerm || votedFor != -1) {
                 String m = String.format("[%s-%d] Rejecting RV from %d. ",
-                        gondola.getHostId(), memberId, fromMemberId);
+                                         gondola.getHostId(), memberId, fromMemberId);
                 if (votedFor != -1) {
                     m += String.format("Already voted for %d in term %d", votedFor, term);
                 } else {
                     m += String.format("Candidate log=(%d,%d) is behind log=(%d,%d)",
-                            lastRid.term, lastRid.index, savedRid.term, savedRid.index);
+                                       lastRid.term, lastRid.index, savedRid.term, savedRid.index);
                 }
                 logger.info(m);
 
@@ -1122,8 +1136,9 @@ public class CoreMember implements Stoppable {
          * Note: prevotes are handled by the peer and are not handled here.
          */
         @Override
-        public void requestVoteReply(Message message, int fromMemberId, int term, boolean isPrevote, boolean voteGranted)
-                throws Exception {
+        public void requestVoteReply(Message message, int fromMemberId, int term, boolean isPrevote,
+                                     boolean voteGranted)
+            throws Exception {
             if (message.tracingInfo != null) {
                 logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), memberId, fromMemberId, message.tracingInfo);
             }
@@ -1144,8 +1159,10 @@ public class CoreMember implements Stoppable {
                         // With a majority, send out a request vote
                         long prevotes = peers.stream().filter(p -> p.prevoteGranted).count() + 1;
                         if (prevotes >= majority) {
-                            logger.info("[{}-{}] Has majority of pre-votes ({}). Incrementing currentTerm to {} and sending out request vote",
-                                    gondola.getHostId(), memberId, prevotes, currentTerm + 1);
+                            logger.info(
+                                "[{}-{}] Has majority of pre-votes ({}). "
+                                + "Incrementing currentTerm to {} and sending out request vote",
+                                gondola.getHostId(), memberId, prevotes, currentTerm + 1);
 
                             sendRequestVoteRequest(false);
                         }
@@ -1156,7 +1173,7 @@ public class CoreMember implements Stoppable {
                     peer.votedFor = memberId;
                     if (!isLeader() && votedFor == memberId) {
                         long votes = peers.stream().filter(p -> p.votedTerm == currentTerm && p.votedFor == memberId)
-                                .count() + 1;
+                                         .count() + 1;
 
                         // Inform all other candidates of successful election
                         if (votes >= majority) {
@@ -1165,7 +1182,7 @@ public class CoreMember implements Stoppable {
                     }
                 } else {
                     logger.info("[{}-{}] Reject vote from {} for term {} because currently in prevote phase",
-                            gondola.getHostId(), memberId, fromMemberId, term);
+                                gondola.getHostId(), memberId, fromMemberId, term);
                 }
             }
         }
@@ -1196,6 +1213,7 @@ public class CoreMember implements Stoppable {
      * Used to measure latency between two different points in the code.
      */
     public static class Latency {
+
         AtomicInteger headIndex = new AtomicInteger(Integer.MAX_VALUE);
         int oldHeadIndex;
         long headTs;
@@ -1238,16 +1256,14 @@ public class CoreMember implements Stoppable {
     Peer masterPeer;
 
     /**
-     * Sets this member to slave mode, to sync up its Raft log to match the specified address.
-     * In slave mode:
-     * <li> the member contacts the specified address, which is expected to be a leader
-     * <li> once successfully connected, the member becomes a follower
-     * <li> the member ignores all RequestVote messages
-     * <li> the member continues to connect to the specified address
+     * Sets this member to slave mode, to sync up its Raft log to match the specified address. In slave mode: <li> the
+     * member contacts the specified address, which is expected to be a leader <li> once successfully connected, the
+     * member becomes a follower <li> the member ignores all RequestVote messages <li> the member continues to connect
+     * to the specified address
      *
      * If masterAddress is null, the member leaves slave mode.
      *
-     * @param masterId the identity of a leader to sync with.
+     * @param masterId       the identity of a leader to sync with.
      * @param updateCallback the possibly-null function called whenever there's a status change.
      */
     public void setSlave(int masterId, Consumer<Member.SlaveStatus> updateCallback) {

@@ -28,7 +28,7 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.Response;
 
 /**
- * Proxy client implementation using Apache Http Client
+ * Proxy client implementation using Apache Http Client.
  */
 public class ApacheHttpComponentProxyClient implements ProxyClient {
     /**

@@ -57,7 +57,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
             .parallelStream()
             .map(getWaitSlavesSyncedFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Wait for slaves synced {}.", status ? "success" : "failed");
+        tracing("Waiting for slaves synced {}.", status ? "success" : "failed");
         return status;
     }
 
@@ -79,8 +79,15 @@ public class DirectShardManagerClient implements ShardManagerClient {
             .parallelStream()
             .map(getWaitApproachingFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Wait for slaves logs approaching {}.", status ? "success" : "failed");
+        tracing("Waiting for slaves logs approaching {}.", status ? "success" : "failed");
         return status;
+    }
+
+    @Override
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId) throws ShardManagerException {
+        for (Config.ConfigMember m : config.getMembers()) {
+            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId);
+        }
     }
 
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
@@ -100,20 +107,27 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void startObserving(int memberId, String observedShardId) throws ShardManagerException {
-        getShardManager(memberId).startObserving(memberId, observedShardId);
+    public void startObserving(String shardId, String observedShardId) throws ShardManagerException {
+        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
+            getShardManager(m.getMemberId()).startObserving(shardId, observedShardId);
+        }
     }
 
     @Override
-    public void stopObserving(int memberId, String observedShardId) throws ShardManagerException {
-        getShardManager(memberId).stopObserving(memberId, observedShardId);
+    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException {
+        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
+            getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId);
+        }
     }
 
     @Override
-    public void assignBucket(int memberId, Range<Integer> splitRange, String toShardId, long timeoutMs)
+    public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
+                               String toShardId, long timeoutMs)
         throws ShardManagerException {
-        tracing("Sending request to assign bucket from");
-        getShardManager(memberId).assignBucket(memberId, splitRange, toShardId, timeoutMs);
+        // TODO: lookup leader in routing table.
+        for (Config.ConfigMember m : config.getMembersInShard(fromShardId)) {
+            getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+        }
     }
 
     private ShardManager getShardManager(int memberId) {

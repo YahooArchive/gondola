@@ -11,7 +11,7 @@ import java.util.function.Function;
 
 /**
  * This class provides communication between the local member and remote members.
- * More specifically, this class is used to create a channel between the local and remote members 
+ * More specifically, this class is used to create a channel between the local and remote members
  * and the channel object provides streams which are used to send and receive data to remote members.
  */
 public interface Network extends Stoppable {
@@ -41,7 +41,7 @@ public interface Network extends Stoppable {
 
     /**
      * Returns true if the member at the given address is active.
-     * 
+     *
      * @param Non-null address string that was returned from getAddress().
      * @return The active state of the member at the specified address.
      */

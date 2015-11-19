@@ -24,7 +24,10 @@ import java.sql.Statement;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-// TODO: Cache prepared statements for performance.
+/**
+ * The type My sql storage.
+ * TODO: Cache prepared statements for performance.
+ */
 public class MySqlStorage implements Storage {
     Logger logger = LoggerFactory.getLogger(MySqlStorage.class);
 

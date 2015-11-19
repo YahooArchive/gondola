@@ -21,20 +21,20 @@ import java.util.Map;
  */
 public class AdminClient {
 
-    public static final int RETRY_COUNT = 3;
+    private static final int RETRY_COUNT = 3;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
 
-    Logger logger = LoggerFactory.getLogger(AdminClient.class);
-
-    boolean tracing = false;
+    private static Logger logger = LoggerFactory.getLogger(AdminClient.class);
+    private boolean tracing = false;
 
     /**
      * Instantiates a new Admin client.
      *
      * @param serviceName        the service name
      * @param shardManagerClient the shard manager client
+     * @param config             the config
      */
     public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config) {
         this.serviceName = serviceName;
@@ -117,28 +117,44 @@ public class AdminClient {
                 step = "initializing";
                 tracing("Initializing slaves on {} ...", toShardId);
                 for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
-                    shardManagerClient.startObserving(member.getMemberId(), fromShardId);
+                    shardManagerClient.startObserving(toShardId, fromShardId);
                 }
 
                 step = "waiting for slave logs approaching";
-                tracing("All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.", toShardId);
+                tracing(
+                    "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
+                    toShardId);
                 shardManagerClient.waitApproaching(toShardId, -1);
 
                 step = "assigning buckets";
-                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
-                // assignBucket is a atomic operation executing on leader at fromShard,
+                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
+                        range);
+                // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                for (Config.ConfigMember member : config.getMembersInShard(fromShardId)) {
-                    shardManagerClient.assignBucket(member.getMemberId(), range, toShardId, 2000);
-                }
+                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, 2000);
 
                 tracing("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
                 step = "done";
                 break;
-            } catch (RuntimeException|ShardManagerProtocol.ShardManagerException e) {
+            } catch (RuntimeException | ShardManagerProtocol.ShardManagerException e) {
                 logger.warn("Error occurred in step {}.. retrying {} / {}", step, i, RETRY_COUNT, e);
             }
         }
+    }
+
+    /**
+     * Close assign buckets.
+     *
+     * @param fromShardId the from shard id
+     * @param toShardId   the to shard id
+     * @param range       the range
+     */
+    public void closeAssignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
+        // TODO: implement
+        tracing("Executing close the state of assign buckets");
+        tracing("Waiting all nodes update bucket table...");
+        tracing("closing the state of assign buckets");
+        tracing("Done!");
     }
 
     private void tracing(String format, Object... args) {

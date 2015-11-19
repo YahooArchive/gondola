@@ -7,20 +7,12 @@
 package com.yahoo.gondola.impl;
 
 import com.yahoo.gondola.Channel;
-import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.Network;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.*;
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.net.SocketException;
 
 /**
  */

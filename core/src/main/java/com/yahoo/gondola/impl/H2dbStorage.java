@@ -23,8 +23,11 @@ import java.util.Arrays;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-// TODO: Cache prepared statements for performance.
-// TODO: Once noticed that db was missing many tail entries after start up. Should add some kind of check for this.
+/**
+ * The type H 2 db storage.
+ * TODO: Cache prepared statements for performance.
+ * TODO: Once noticed that db was missing many tail entries after start up. Should add some kind of check for this.
+ */
 public class H2dbStorage implements Storage {
     Logger logger = LoggerFactory.getLogger(H2dbStorage.class);
 

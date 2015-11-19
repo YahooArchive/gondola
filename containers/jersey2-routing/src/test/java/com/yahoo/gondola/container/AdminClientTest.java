@@ -10,7 +10,6 @@ import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
-import static org.testng.Assert.assertNull;
 
 public class AdminClientTest {
 
@@ -39,9 +38,9 @@ public class AdminClientTest {
 
     @Test
     public void testGetAndSetConfig() throws Exception {
-        assertNull(adminClient.getConfig());
-        adminClient.setConfig(config);
         assertEquals(adminClient.getConfig(), config);
+        adminClient.setConfig(null);
+        assertEquals(adminClient.getConfig(), null);
     }
 
     @Test

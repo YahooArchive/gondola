@@ -13,6 +13,7 @@ import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
 
 import com.yahoo.gondola.impl.Utils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +31,7 @@ import java.util.function.Consumer;
 /**
  */
 public class CommitQueue {
+
     final static Logger logger = LoggerFactory.getLogger(CommitQueue.class);
 
     final Gondola gondola;
@@ -61,24 +63,23 @@ public class CommitQueue {
 
     // Holds all commands that have been assigned an index and are waiting to be committed.
     Queue<CoreCmd> waitQueue = new PriorityBlockingQueue<>(100,
-            (o1, o2) -> o1.index - o2.index);
+                                                           (o1, o2) -> o1.index - o2.index);
 
     // Holds all request for commands at an index that hasn't been committed yet.
     Queue<CoreCmd> getQueue = new PriorityBlockingQueue<>(100,
-            (o1, o2) -> o1.index - o2.index);
+                                                          (o1, o2) -> o1.index - o2.index);
 
     // Config variables
     boolean commandTracing;
     boolean storageTracing;
 
-    //CommitQueue(Gondola gondola, CoreMember cmember, AtomicLong savedIndex, AtomicLong[] matchIndices) throws Exception {
     CommitQueue(Gondola gondola, CoreMember cmember) throws Exception {
         this.gondola = gondola;
         this.cmember = cmember;
         this.storage = gondola.getStorage();
         this.pool = gondola.getMessagePool();
-        this.savedIndex = null;//savedIndex;
-        this.matchIndices = null;//matchIndices;
+        this.savedIndex = null; //savedIndex;
+        this.matchIndices = null; //matchIndices;
         gondola.getConfig().registerForUpdates(configListener);
         stats = gondola.getStats();
     }
@@ -109,8 +110,7 @@ public class CommitQueue {
      */
 
     /**
-     * Adds command to the command queue. Does not block.
-     * Called by the command object.
+     * Adds command to the command queue. Does not block. Called by the command object.
      *
      * @param ccmd non-null object containing the command to be committed.
      */
@@ -119,8 +119,8 @@ public class CommitQueue {
     }
 
     /**
-     * Fetches the committed command at the specified index from storage.
-     * Blocks until the requested command is committed.
+     * Fetches the committed command at the specified index from storage. Blocks until the requested command is
+     * committed.
      *
      * @param ccmd non-null object containing the index to be fetched.
      */
@@ -155,7 +155,7 @@ public class CommitQueue {
         le.release();
         if (commandTracing) {
             logger.info("[{}-{}] got(index={}): term={} size={} status={}",
-                    gondola.getHostId(), cmember.memberId, ccmd.index, ccmd.term, ccmd.size, ccmd.status);
+                        gondola.getHostId(), cmember.memberId, ccmd.index, ccmd.term, ccmd.size, ccmd.status);
         }
     }
 
@@ -180,12 +180,12 @@ public class CommitQueue {
     }
 
     /**
-     * This thread reads commands from the command queue and processes them.
-     * The command is assigned an index and then moved to the wait queue.
-     * The command is then sent to the save queue for persistance and to the peers for transmission to the remote
-     * members.
+     * This thread reads commands from the command queue and processes them. The command is assigned an index and then
+     * moved to the wait queue. The command is then sent to the save queue for persistance and to the peers for
+     * transmission to the remote members.
      */
     class CommandHandler extends Thread {
+
         CommandHandler() {
             setName("CommandHandler-" + cmember.memberId);
             setDaemon(true);
@@ -201,7 +201,7 @@ public class CommitQueue {
                     // TODO: need to properly handle case where storage fails
                     // Prepare an append entry request for the command
                     message.appendEntryRequest(cmember.memberId, cmember.currentTerm, latestRid, commitIndex,
-                            cmember.currentTerm, ccmd.buffer, 0, ccmd.size);
+                                               cmember.currentTerm, ccmd.buffer, 0, ccmd.size);
                     lock.lock();
                     try {
                         ccmd.term = cmember.currentTerm;
@@ -247,6 +247,7 @@ public class CommitQueue {
      *
      */
     class IndexAdvancer extends Thread {
+
         long[] arr = new long[matchIndices.length];
 
         IndexAdvancer() {
@@ -283,7 +284,9 @@ public class CommitQueue {
 
                     // The first index is assumed to be the locally saved index.
                     // Ensure the new commit index is not greater than the saved index.
-                    int newCommitIndex = (int) Math.min(savedIndex.get(), matchIndices[matchIndices.length - cmember.majority].get());
+                    int
+                        newCommitIndex =
+                        (int) Math.min(savedIndex.get(), matchIndices[matchIndices.length - cmember.majority].get());
 
                     // Don't update with smaller commit index. This can happen if an up-to-date peer dies
                     // at the same time an out-of-date peer comes up. In this case, new writes will block until the

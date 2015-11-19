@@ -12,40 +12,34 @@ import javax.ws.rs.container.ContainerRequestContext;
  * RoutingHelper is a helper interface that implemented in app that helps to gather some application specific
  * information, or control some routing specific functions.
  *
- * <p> When initialization
- * <ul>
- *   <li>RoutingFilter initialize the callback.</li>
- *   <li>Application initialize the Gondola and set to RoutingFilter's static variable.</li>
- * </ul>
- * </p>
+ * <p> When initialization <ul> <li>RoutingFilter initialize the callback.</li> <li>Application initialize the Gondola
+ * and set to RoutingFilter's static variable.</li> </ul> </p>
  *
- * <p> When processing the request
- *     <ul>
- *        <li>RoutingFilter pass gondola instance and servlet request to the callback.</li>
- *     </ul>
- * </p>
- *
+ * <p> When processing the request <ul> <li>RoutingFilter pass gondola instance and servlet request to the
+ * callback.</li> </ul> </p>
  */
 public interface RoutingHelper {
+
     /**
      * The callback method to get gondola cluster ID based on request.
      *
-     * @param request
+     * @param request the request
      * @return Gondola bucket Id, -1 means try to find colo affinity in routing layer
      */
     int getBucketId(ContainerRequestContext request);
 
     /**
      * Returns the applied index.
-     * @param clusterId
-     * @return
+     *
+     * @param clusterId the cluster id
+     * @return the applied index
      */
-    int getAppliedIndex (String clusterId);
+    int getAppliedIndex(String clusterId);
 
     /**
      * Returns the site ID that should handle the specified request.
      *
-     * @param request
+     * @param request the request
      * @return a non-null site ID
      */
     String getSiteId(ContainerRequestContext request);
@@ -53,7 +47,7 @@ public interface RoutingHelper {
     /**
      * Callback to tell application that everyhing is set.
      *
-     * @param clusterId
+     * @param clusterId the cluster id
      */
     void beforeServing(String clusterId);
 }

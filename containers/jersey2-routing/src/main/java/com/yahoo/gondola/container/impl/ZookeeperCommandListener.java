@@ -10,7 +10,7 @@ import com.yahoo.gondola.container.CommandListener;
 import com.yahoo.gondola.container.ShardManager;
 
 /**
- * COmmand listener implementation using ZooKeeper
+ * COmmand listener implementation using ZooKeeper.
  */
 public class ZookeeperCommandListener implements CommandListener {
 

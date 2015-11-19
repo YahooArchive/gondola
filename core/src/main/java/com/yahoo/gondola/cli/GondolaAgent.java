@@ -7,13 +7,14 @@
 package com.yahoo.gondola.cli;
 
 import com.yahoo.gondola.Config;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
-import org.apache.commons.exec.*;
+import org.apache.commons.exec.DefaultExecutor;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -29,15 +29,16 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * The type Gondola agent.
+ */
 public class GondolaAgent {
+
     static Logger logger = LoggerFactory.getLogger(GondolaAgent.class);
 
     static String configFile;
@@ -84,6 +85,12 @@ public class GondolaAgent {
         new GondolaAgent(port);
     }
 
+    /**
+     * Instantiates a new Gondola agent.
+     *
+     * @param port the port
+     * @throws IOException the io exception
+     */
     public GondolaAgent(int port) throws IOException {
         ServerSocket serversocket = new ServerSocket(port);
         logger.info("Listening on port " + port);
@@ -93,7 +100,11 @@ public class GondolaAgent {
         }
     }
 
+    /**
+     * The type Handler.
+     */
     public class Handler extends Thread {
+
         Socket socket;
 
         public Handler(Socket socket) {
@@ -102,10 +113,10 @@ public class GondolaAgent {
 
         public void run() {
             try (
-                    InputStream in = socket.getInputStream();
-                    OutputStream out = socket.getOutputStream();
-                    BufferedReader rd = new BufferedReader(new InputStreamReader(in));
-                    BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
+                InputStream in = socket.getInputStream();
+                OutputStream out = socket.getOutputStream();
+                BufferedReader rd = new BufferedReader(new InputStreamReader(in));
+                BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
             ) {
                 String line;
                 String hostId;
@@ -144,7 +155,8 @@ public class GondolaAgent {
                                 Thread.sleep(500);
                                 // delete gondola db files
                                 String pattern = String.format("gondola-db-%s.*\\.db", hostId);
-                                Arrays.asList(new File("/tmp").listFiles((dir, name) -> name.matches(pattern))).forEach(File::delete);
+                                Arrays.asList(new File("/tmp").listFiles((dir, name) -> name.matches(pattern)))
+                                    .forEach(File::delete);
                                 wr.write("SUCCESS: host: " + hostId + " destroyed\n");
                             } else {
                                 wr.write("ERROR: Unknown command\n");
@@ -216,7 +228,8 @@ public class GondolaAgent {
             Map<String, String> env = pb.environment();
             env.put("JAVACMD", System.getProperty("java.home") + "/bin/java");
             env.put("JAVA_OPTS",
-                String.format("-ea -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=%d", getJdwpPort(hostId)));
+                    String.format("-ea -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=%d",
+                                  getJdwpPort(hostId)));
 
             // Redirect output to a log file
             File outFile = new File(String.format("logs/gondola-%s.log", hostId));

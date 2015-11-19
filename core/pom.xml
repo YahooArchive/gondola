@@ -19,7 +19,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <checkstyle.skip>true</checkstyle.skip>
+        <checkstyle.skip>false</checkstyle.skip>
         <bug.product>Gondola</bug.product>
         <bug.component>Gondola</bug.component>
         <mailingList.name>wcpan@yahoo-inc.com</mailingList.name>

@@ -24,12 +24,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
+import static org.testng.Assert.assertEquals;
 
 public class AdminClientIT {
 
@@ -46,8 +47,11 @@ public class AdminClientIT {
     @Mock
     CommandListener commandListener;
 
+    // shardId -> hostId
     Map<String, String> routingTable = new ConcurrentHashMap<>();
-    Map<String, String> addressTable = new HashMap<>();
+
+    // hostId -> LocalTestRoutingServer
+    Map<String, LocalTestRoutingServer> addressTable = new HashMap<>();
     Map<String, CountDownLatch> latches = new HashMap<>();
     DirectShardManagerClient shardManagerClient;
     List<Gondola> gondolas = new ArrayList<>();
@@ -82,19 +86,18 @@ public class AdminClientIT {
             LocalTestRoutingServer
                 testServer =
                 new LocalTestRoutingServer(gondola, routingHelper, new ProxyClientProvider(), commandListenerProvider);
-            addressTable.put(hostId, testServer.getHostUri());
+            addressTable.put(hostId, testServer);
 
             // inject shardManager instance
             for (Config.ConfigMember m : config.getMembersInHost(hostId)) {
                 shardManagerClient.getShardManagers()
-                    .put(m.getMemberId(), new ShardManager(testServer.getRoutingFilter(), config, shardManagerClient));
+                    .put(m.getMemberId(), new ShardManager(testServer.routingFilter, config, shardManagerClient));
             }
         }
-        Set<Map.Entry<String, CountDownLatch>> entries = latches.entrySet();
-        for (Map.Entry<String, CountDownLatch> e : entries) {
+
+        for (Map.Entry<String, CountDownLatch> e : latches.entrySet()) {
             e.getValue().await();
         }
-        System.out.println("leader election completed");
     }
 
     @AfterMethod
@@ -104,6 +107,17 @@ public class AdminClientIT {
 
     @Test
     public void testAssignBuckets() throws Exception {
+        for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
+            assertEquals(bucketManager.lookupBucketTable(0), "shard1");
+        }
         adminClient.assignBuckets("shard1", "shard2", Range.closed(0, 10));
+        for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
+            assertEquals(bucketManager.lookupBucketTable(0), "shard2");
+        }
+        adminClient.closeAssignBuckets("shard1", "shard2", Range.closed(0, 10));
+    }
+
+    private List<BucketManager> getBucketManagersFromAllHosts() {
+        return addressTable.entrySet().stream().map(e -> e.getValue().routingFilter.bucketManager).collect(Collectors.toList());
     }
 }

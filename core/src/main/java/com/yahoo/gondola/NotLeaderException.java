@@ -8,6 +8,9 @@ package com.yahoo.gondola;
 
 import java.net.InetSocketAddress;
 
+/**
+ * The type Not leader exception.
+ */
 public class NotLeaderException extends Exception {
     InetSocketAddress leaderAddr;
 

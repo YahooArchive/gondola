@@ -9,11 +9,16 @@ package com.yahoo.gondola.impl;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 
+/**
+ * The type Nasty storage.
+ */
 public class NastyStorage implements Storage {
+
     Logger logger = LoggerFactory.getLogger(NastyStorage.class);
 
     final Storage storage;
@@ -24,7 +29,7 @@ public class NastyStorage implements Storage {
     public NastyStorage(Gondola gondola, String hostId) throws Exception {
         String storageClassName = gondola.getConfig().get(gondola.getConfig().get("storage_nasty.impl") + ".class");
         storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
-                .newInstance(gondola, hostId);
+            .newInstance(gondola, hostId);
         tracing = gondola.getConfig().getBoolean("storage_nasty.tracing");
     }
 
@@ -122,7 +127,7 @@ public class NastyStorage implements Storage {
 
     @Override
     public void appendLogEntry(int memberId, int term, int index, byte[] buffer, int bufferOffset, int bufferLen)
-            throws Exception {
+        throws Exception {
         double r = random(index);
         if (enabled && r < .2) {
             int delay = (int) (r * 100);

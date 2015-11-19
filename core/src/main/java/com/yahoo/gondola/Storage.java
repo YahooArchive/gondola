@@ -64,7 +64,7 @@ public interface Storage extends Stoppable {
 
     /**
      * Since appendLogEntry() can save entries out of order, it's possible to end up with gaps near the end of the log.
-     * maxGap is the largest gap that can occur from the last written entry. 
+     * maxGap is the largest gap that can occur from the last written entry.
      * Returns the largest allowed gap from the last written entry. A value of 0 means that there are no
      * gaps from the last written entry.
      *
@@ -106,7 +106,7 @@ public interface Storage extends Stoppable {
     /**
      * Returns the log entry at the specified index.
      * The caller should call LogEntry.release() when it no longer needs the log entry.
-     * 
+     *
      * @param index must be >= 1
      * @return null if index does not exist.
      */
@@ -121,7 +121,7 @@ public interface Storage extends Stoppable {
     public boolean hasLogEntry(int memberId, int term, int index) throws Exception;
 
     /**
-     * Returns the saved log entry with the highest index for the specified member. 
+     * Returns the saved log entry with the highest index for the specified member.
      *
      * @param memberId The id of the member.
      * @return null if no entries have been written to the log.

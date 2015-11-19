@@ -7,9 +7,9 @@
 package com.yahoo.gondola;
 
 import com.yahoo.gondola.core.CoreMember;
-import com.yahoo.gondola.core.Message;
 import com.yahoo.gondola.core.Peer;
 import com.yahoo.gondola.core.Stats;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,11 +17,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+/**
+ * The type Shard.
+ */
 public class Shard implements Stoppable {
+
     final static Logger logger = LoggerFactory.getLogger(Shard.class);
 
     final Gondola gondola;
@@ -42,8 +44,8 @@ public class Shard implements Stoppable {
         List<Config.ConfigMember> configMembers = config.getMembersInShard(shardId);
 
         List<Integer> peerIds = configMembers.stream()
-                .filter(cm -> !cm.hostId.equals(gondola.getHostId()))
-                .map(cm -> cm.memberId).collect(Collectors.toList());
+            .filter(cm -> !cm.hostId.equals(gondola.getHostId()))
+            .map(cm -> cm.memberId).collect(Collectors.toList());
 
         // First create the local member, because it's needed when creating the remote members.
         for (int i = 0; i < configMembers.size(); i++) {
@@ -108,8 +110,8 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Returns the local member of this cluster. The local member is the actual process running on this host.
-     * The remote members are proxies of members running on other hosts.
+     * Returns the local member of this cluster. The local member is the actual process running on this host. The remote
+     * members are proxies of members running on other hosts.
      *
      * @return non-null local member.
      */
@@ -136,8 +138,8 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Forces the local member of this cluster to become the leader.
-     * Blocks until this member becomes the leader.
+     * Forces the local member of this cluster to become the leader. Blocks until this member becomes the leader.
+     *
      * @param timeout -1 means there is no timeout.
      */
     public void forceLeader(int timeout) {
@@ -174,8 +176,7 @@ public class Shard implements Stoppable {
     Queue<Command> pool = new ConcurrentLinkedQueue<>();
 
     /**
-     * Retrieves a command object from the command pool.
-     * Blocks until there are commands in the pool.
+     * Retrieves a command object from the command pool. Blocks until there are commands in the pool.
      *
      * @return non-null command object
      */
@@ -207,14 +208,14 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Returns the command at the specified index. This method blocks until index has been committed.
-     * An empty command can be returned. This is an artifact of the raft protocol to avoid deadlock when
-     * used with a finite thread pool. Empty commands will be inserted right after a leader election when
-     * the new leader discovers that it has uncommitted commands.
-     * The leader inserts an empty command to commit these immediately.
+     * Returns the command at the specified index. This method blocks until index has been committed. An empty command
+     * can be returned. This is an artifact of the raft protocol to avoid deadlock when used with a finite thread pool.
+     * Empty commands will be inserted right after a leader election when the new leader discovers that it has
+     * uncommitted commands. The leader inserts an empty command to commit these immediately.
      *
      * @param index   Must be > 0.
-     * @param timeout Returns after timeout milliseconds, even if the command is not yet available. -1 means there is no timeout.
+     * @param timeout Returns after timeout milliseconds, even if the command is not yet available. -1 means there is no
+     *                timeout.
      * @return non-null Command
      */
     public Command getCommittedCommand(int index, int timeout) throws Exception {

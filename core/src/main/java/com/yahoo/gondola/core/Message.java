@@ -7,13 +7,12 @@
 package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.Config;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.nio.ByteBuffer;
-import java.util.Observable;
-import java.util.Observer;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -54,7 +53,9 @@ public class Message {
     // Overlay on buffer to encode ints, etc.
     ByteBuffer byteBuffer;
 
-    // If message tracing is enabled, this string will be set with tracing information that can be displayed by the caller
+    /* If message tracing is enabled, this string will be set with
+     * tracing information that can be displayed by the caller
+     */
     public String tracingInfo; // public for tests
 
     // Freshly checked-out messages have a reference count of 1.
@@ -461,7 +462,9 @@ public class Message {
                 isPrevote = bb.get() == 1;
                 voteGranted = bb.get() == 1;
                 if (messageTracing) {
-                    tracingInfo = String.format("rv(cterm=%d %s) %s", term, voteGranted ? "yes" : "no", isPrevote ? "prevote" : "");
+                    tracingInfo =
+                        String
+                            .format("rv(cterm=%d %s) %s", term, voteGranted ? "yes" : "no", isPrevote ? "prevote" : "");
                 }
                 break;
             default:
@@ -480,7 +483,9 @@ public class Message {
      */
     public int read(InputStream in, int offset, Message overflow) throws Exception {
         // Safety check to prevent message overwriting
-        if (refCount.get() == 0) throw new IllegalStateException("Modifying a message while in the pool");
+        if (refCount.get() == 0) {
+            throw new IllegalStateException("Modifying a message while in the pool");
+        }
 
         // The message size
         int msgSize = offset < 2 ? 2 : byteBuffer.getShort(0);
