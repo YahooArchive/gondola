@@ -118,7 +118,7 @@ public class ShardManager implements ShardManagerProtocol {
 
     private void updateGlobalBucketTable(Range<Integer> splitRange, String fromShardId, String toShardId) {
         // TODO: implement
-        tracing("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+        trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
     }
 
     @Override
@@ -134,7 +134,7 @@ public class ShardManager implements ShardManagerProtocol {
     @Override
     public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
         throws ShardManagerException {
-        tracing("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
+        trace("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
         filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
 
@@ -155,7 +155,7 @@ public class ShardManager implements ShardManagerProtocol {
         DB
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -164,14 +164,14 @@ public class ShardManager implements ShardManagerProtocol {
     void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
         // TODO: implement
-        tracing("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
+        trace("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
         executeTaskWithTimeout(() -> {
             if (splitRange != null) {
                 //Thread.sleep(timeoutMs * 2);
             }
             return "";
         }, timeoutMs);
-        tracing("No more request on buckets: {}", splitRange);
+        trace("No more request on buckets: {}", splitRange);
     }
 
     void executeTaskWithTimeout(Callable callable, long timeoutMs)

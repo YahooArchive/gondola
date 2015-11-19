@@ -52,12 +52,12 @@ public class DirectShardManagerClient implements ShardManagerClient {
 
     @Override
     public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException {
-        tracing("Waiting for slaves synced ...");
+        trace("Waiting for slaves synced ...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
             .map(getWaitSlavesSyncedFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Waiting for slaves synced {}.", status ? "success" : "failed");
+        trace("Waiting for slaves synced {}.", status ? "success" : "failed");
         return status;
     }
 
@@ -74,12 +74,12 @@ public class DirectShardManagerClient implements ShardManagerClient {
 
     @Override
     public boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException {
-        tracing("Waiting for slaves logs approaching...");
+        trace("Waiting for slaves logs approaching...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
             .map(getWaitApproachingFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Waiting for slaves logs approaching {}.", status ? "success" : "failed");
+        trace("Waiting for slaves logs approaching {}.", status ? "success" : "failed");
         return status;
     }
 
@@ -142,7 +142,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
         return shardManagers;
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
