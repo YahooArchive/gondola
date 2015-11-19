@@ -76,12 +76,12 @@ public class Member {
 
     InetSocketAddress masterAddress;
 
-    Consumer<SlaveUpdate> updateCallback;
+    Consumer<SlaveStatus> updateCallback;
 
     /**
      * This class conveys the current status of this member.
      */
-    public static class SlaveUpdate {
+    public static class SlaveStatus {
         // The id of the current member
         int memberId;
         
@@ -106,7 +106,7 @@ public class Member {
      * @param masterId the id of the leader to sync with. Set to -1 to leave slave mode.
      * @param updateCallback the possibly-null function called whenever there's a status change.
      */
-    public void setSlave(int masterId, Consumer<SlaveUpdate> updateCallback) {
+    public void setSlave(int masterId, Consumer<SlaveStatus> updateCallback) {
         cmember.setSlave(masterId, updateCallback);
     }
 
@@ -115,7 +115,7 @@ public class Member {
      *
      * @return null if the member is no in slave mode.
      */
-    public SlaveUpdate getSlaveUpdate() {
+    public SlaveStatus getSlaveUpdate() {
         return cmember.getSlaveUpdate();
     }
 }

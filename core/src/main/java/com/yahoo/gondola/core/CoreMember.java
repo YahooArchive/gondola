@@ -1233,7 +1233,7 @@ public class CoreMember implements Stoppable {
 
     int masterId;
 
-    Consumer<Member.SlaveUpdate> updateCallback;
+    Consumer<Member.SlaveStatus> updateCallback;
 
     Peer masterPeer;
 
@@ -1250,7 +1250,7 @@ public class CoreMember implements Stoppable {
      * @param masterId the identity of a leader to sync with.
      * @param updateCallback the possibly-null function called whenever there's a status change.
      */
-    public void setSlave(int masterId, Consumer<Member.SlaveUpdate> updateCallback) {
+    public void setSlave(int masterId, Consumer<Member.SlaveStatus> updateCallback) {
         this.masterId = masterId;
         this.updateCallback = updateCallback;
 
@@ -1269,10 +1269,10 @@ public class CoreMember implements Stoppable {
      *
      * @return null if the member is no in slave mode.
      */
-    public Member.SlaveUpdate getSlaveUpdate() {
+    public Member.SlaveStatus getSlaveUpdate() {
         if (masterId < 0) {
             return null;
         }
-        return new Member.SlaveUpdate();
+        return new Member.SlaveStatus();
     }
 }

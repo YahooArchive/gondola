@@ -55,7 +55,7 @@ public class DemoRoutingHelper implements RoutingHelper {
 
     @Override
     public void beforeServing(String shardId) {
-        demoService.clearState();
+        demoService.beforeServing();
     }
 
     private void loadNumberOfShards(Gondola gondola) {

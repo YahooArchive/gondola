@@ -43,12 +43,12 @@ public class LeakTest {
     public LeakTest() throws Exception {
         Config config = new Config(new File("conf/leaktest.conf"));
         g1 = new Gondola(config, "host1");
-        g2 = new Gondola(config, "host2");
 
         Set<String> original = getThreads();
         System.out.println("Original threads: " + original);
 
         while (true) {
+            g2 = new Gondola(config, "host2");
             oneIteration();
 
             // Determine the diff
