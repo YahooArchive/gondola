@@ -1,15 +1,18 @@
 [![Build Status](https://travis-ci.org/yahoo/gondola.svg?branch=master)](https://travis-ci.org/yahoo/gondola)
 
-# High-performance Java Implementation of Raft Protocol
+# High-performance Raft-based Java Web Container
 
 Gondola is a high-performance implementation of the [Raft
-protocol](https://raft.github.io) written in Java.  The current
-implementation is robust enough to run performance experiments but not
-yet ready for production. We have plans to use this package in
-production and will be making improvements toward that goal. We are
-releasing this package earlier in the hopes of getting feedback on how
-we might make it more useful to more use cases. Of course pull
-requests are especially welcome.
+protocol](https://raft.github.io) written in Java.  Gondola also
+includes support for building a complete scaleable and fault-tolerant
+webservice, all based on the strongly consistent Raft distributed log.
+
+The current Gondola implementation is robust enough to run performance
+experiments but not yet ready for production. We have plans to use
+this package in production and will be making improvements toward that
+goal. We are releasing this package earlier in the hopes of getting
+feedback on how we might make it more useful to more use cases. Of
+course pull requests are especially welcome.
 
 ## Features
 
@@ -18,15 +21,18 @@ requests are especially welcome.
 * Batching support. Improves throughput under heavy load or slower networks.
 * Zero-allocation implementation. The implementation reuses objects whereever possible to minimize garbage collection issues (unfortunately database drivers still create objects).
 * Pre-vote support. A Raft optimization that avoids unnecessary elections when a node joins or re-joins the cluster.
+* Configuration support for multiple data centers.
+* The container supports sharding, automatic request routing to leaders, dynamic membership with non-static IPs, archiving.
 
 ## Demo
 
-This demo is an example that uses the Gondola library to build a
-simple fault-tolerant web service that implements a strongly consistent
-key/value store.  The demo starts up three servers, each implementing
-a RESTful API for setting and getting values.  The demo uses H2DB as
-the backing storage for the Raft log so that the updates are
-persistant.
+This demo uses the Gondola container to implement a simple,
+fault-tolerant web service that provides a strongly consistent
+key/value store (which means that when a client writes a value, any
+subsequent reads by that client will return that same value).  The
+service supports a RESTful API for setting and retrieving values.  The
+demo starts up three servers, each using their own H2DB instance to
+implement the Raft log.
 
 #### Start the Demo Servers
 
@@ -108,10 +114,10 @@ These are the terms used through the libraries and tools in the Gondola package:
 
 | Term      | Description |
 |:----------|-------------|
-| Member    | A member refers a Raft node, which can be a follower, leader, or candidate. Members have a preassigned or dynamically assigned id.
+| Member    | A member refers a Raft node, which can be a follower, leader, or candidate. Member ids can be a statically or dynamically assigned.
 | Shard     | A shard is a set of members, only one of which can be the leader. A member can be only part of a one shard. Shards have a manually assigned id.
-| Host      | Refers to a machine with an IP address and a port. A host can run members from one or more shards. All members are assigned a shard and a primary host. All members running in the same host will share one port when communicating with the other memembers in the shard. Hosts have a preassigned or dynamically assigned id. |
-| Site      | Refers to a set of hosts. A site can be roughly thought of as a data center. A host can only be in a one site. A site has a manually assigned id.
+| Host      | Refers to a machine with an IP address and a port. A host can run members from one or more shards. All members are assigned a shard and a primary host. All members running in the same host will share one port when communicating with the other memembers in the shard. Host ids can be statically or dynamically assigned. |
+| Site      | Refers to a set of hosts. A site can be roughly thought of as a data center. A host can only be in a single site. A site has a manually assigned id.
 | Storage   | Refers to the storage system holding the raft log. Every site has at least one storage instance. A member writes it's Raft log entries into a single storage instance in the same site. A storage instance has a manually assigned id. |
 | Config    | The entire topology of all clusters in a system is defined in a single config file. |
 | Log Table | Each member has a logical log in which it writes all records to be committed. In Gondola, the log table contains a member_id column, which allows many members to share the same storage instance. At the moment, all logs are stored in a single database instance. We intend to enhance this so that each host can use a different database instance if needed. This means that all members running in a host will still share the same database instance.  |
@@ -164,10 +170,15 @@ If all is well, you should see output that looks like:
 ## Known Issues and To Dos
 
 * The reliability test (Tsunami) can run for about 8 hours before it hits a known hard-to-reproduce bug.
-* Documentation needs to be improved quite a bit.
+* Documentation needs to be improved.
 * CoreMember.java has a known bottleneck. Removing that bottleneck could reduce latency by 30%.
 * The performance test needs to be made easier to run.
 * The commit() method is currently synchronous; an asynchronous version should be supported.
 * The storage interface should be enhanced to support batch reads and writes to improve performance further,
 especially during backfilling.
+* Container needs to support re-sharding.
+* Handling dynamic IPs is WIP.
+* Need to implement leader affinity - where in a shard, a leader prefers to be running in a particular host if there are no issues.
+* Support for each site to have it's own database instance.
+* Authentication for the Gondola port (the one where Raft messages are exchanged).
 
