@@ -129,18 +129,21 @@ class BucketManager {
                                   range, fromShardId, shardState.shardId));
             }
 
-            if (shardState.migratingShardId != null && shardState.migratingShardId.equals(toShardId)) {
+            if (shardState.migratingShardId != null
+                && shardState.migratingShardId.equals(toShardId)
+                && !shardState.shardId.equals(fromShardId)) {
                 throw new IllegalStateException(
-                    String.format("Bucket range=%s is migrating to shard=%s, cannot be overrided by shard=%s",
+                    String.format("Bucket range=%s is migrating to shard=%s, cannot be override by shard=%s",
                                   range, shardState.shardId, toShardId));
             }
 
             shardState.migratingShardId = toShardId;
         } else {
             if (
-                (shardState.shardId.equals(fromShardId) && shardState.migratingShardId.equals(toShardId))
+                (shardState.shardId.equals(fromShardId) && toShardId.equals(shardState.migratingShardId))
                 || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
                 shardState.migratingShardId = null;
+                shardState.shardId = toShardId;
             } else {
                 throw new IllegalStateException(String.format(
                     "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,

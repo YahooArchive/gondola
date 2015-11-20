@@ -22,6 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
+
 /**
  * The Shard manager.
  */
@@ -85,14 +87,15 @@ public class ShardManager implements ShardManagerProtocol {
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs) throws ShardManagerException {
+        // Make sure only leader can execute this request.
         if (!filter.isLeaderInShard(fromShardId)) {
-            return;
+            throw new ShardManagerException(NOT_LEADER);
         } else {
-            assignBucketOnLeader(splitRange, toShardId, timeoutMs, fromShardId);
+            assignBucketOnLeader(splitRange, fromShardId, toShardId, timeoutMs);
         }
     }
 
-    private void assignBucketOnLeader(Range<Integer> splitRange, String toShardId, long timeoutMs, String fromShardId)
+    private void assignBucketOnLeader(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException {
         MigrationType migrationType = getMigrationType(splitRange, toShardId);
         switch (migrationType) {
@@ -109,16 +112,12 @@ public class ShardManager implements ShardManagerProtocol {
                 } finally {
                     filter.unblockRequestOnBuckets(splitRange);
                 }
-                updateGlobalBucketTable(splitRange, fromShardId, toShardId);
+                trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+                shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
                 break;
             case DB:
                 // TODO: implement
         }
-    }
-
-    private void updateGlobalBucketTable(Range<Integer> splitRange, String fromShardId, String toShardId) {
-        // TODO: implement
-        trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
     }
 
     @Override

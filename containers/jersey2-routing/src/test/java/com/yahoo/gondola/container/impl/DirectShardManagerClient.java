@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
+
 /**
  * The Direct shard manager client. Will be only used in test.
  */
@@ -124,9 +126,15 @@ public class DirectShardManagerClient implements ShardManagerClient {
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs)
         throws ShardManagerException {
-        // TODO: lookup leader in routing table.
+        // TODO: lookup leader in routing table
         for (Config.ConfigMember m : config.getMembersInShard(fromShardId)) {
-            getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+            try {
+                getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+            } catch (ShardManagerException e) {
+                if (e.errorCode != NOT_LEADER) {
+                    throw e;
+                }
+            }
         }
     }
 

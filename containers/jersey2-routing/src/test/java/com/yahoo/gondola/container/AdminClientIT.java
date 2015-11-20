@@ -108,18 +108,44 @@ public class AdminClientIT {
     @Test
     public void testAssignBuckets() throws Exception {
         for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
-            assertEquals(bucketManager.lookupBucketTable(0), "shard1");
+            assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
+            assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
         }
         adminClient.assignBuckets(Range.closed(0, 10), "shard1", "shard2");
-        // TODO: test leader success
+        assertEquals(getBucketManagerInLeader("shard1").lookupBucketTable(0).shardId, "shard1");
+        assertEquals(getBucketManagerInLeader("shard1").lookupBucketTable(0).migratingShardId, "shard2");
 
         adminClient.closeAssignBuckets(Range.closed(0, 10), "shard1", "shard2");
         for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
-            assertEquals(bucketManager.lookupBucketTable(0), "shard2");
+            assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
+            assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
         }
     }
 
     private List<BucketManager> getBucketManagersFromAllHosts() {
-        return addressTable.entrySet().stream().map(e -> e.getValue().routingFilter.bucketManager).collect(Collectors.toList());
+        return addressTable.entrySet().stream().map(e -> e.getValue().routingFilter.bucketManager)
+            .collect(Collectors.toList());
+    }
+
+    private BucketManager getBucketManagerInLeader(String shardId) {
+        // TODO: make routing table right, check gondola status for now.
+        List<BucketManager> bucketManagers = addressTable.entrySet().stream()
+            .filter(e -> {
+                LocalTestRoutingServer server = e.getValue();
+                if (server.routingFilter.getGondola().getShard(shardId) != null
+                    && server.routingFilter.getGondola().getShard(shardId).getLocalMember().isLeader()) {
+                    return true;
+                }
+                return false;
+            })
+            .map(e -> e.getValue().routingFilter.bucketManager)
+            .collect(Collectors.toList());
+        if (bucketManagers.size() == 0) {
+            throw new IllegalStateException("No leader in shard " + shardId);
+        } else if (bucketManagers.size() == 0) {
+            throw new IllegalStateException("2 leaders in shard " + shardId);
+        }
+
+        return bucketManagers.get(0);
     }
 }

@@ -153,9 +153,10 @@ public class AdminClient {
         throws ShardManagerProtocol.ShardManagerException {
         // TODO: implement
         trace("Executing close the state of assign buckets");
+        trace("Writing migration state to all nodes, and waiting all nodes bucket table updated...");
+        shardManagerClient.setBuckets(range, fromShardId, toShardId, false);
+        trace("closing the state of assign buckets...");
         shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
-        trace("Waiting all nodes update bucket table...");
-        trace("closing the state of assign buckets");
         trace("Done!");
     }
 

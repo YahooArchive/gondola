@@ -77,6 +77,13 @@ public interface ShardManagerProtocol {
      * The type Shard manager exception.
      */
     class ShardManagerException extends Exception {
+        public enum CODE {
+            NOT_LEADER
+        }
 
+        public CODE errorCode;
+        public ShardManagerException(CODE code) {
+            this.errorCode = code;
+        }
     }
 }
