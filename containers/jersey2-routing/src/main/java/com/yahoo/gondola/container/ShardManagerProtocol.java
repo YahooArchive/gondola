@@ -20,7 +20,7 @@ public interface ShardManagerProtocol {
      * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
-    void startObserving(String shardId, String observedShardId) throws ShardManagerException;
+    void startObserving(String shardId, String observedShardId) throws ShardManagerException, InterruptedException;
 
     /**
      * Stop observing.
@@ -29,7 +29,7 @@ public interface ShardManagerProtocol {
      * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
-    void stopObserving(String shardId, String observedShardId) throws ShardManagerException;
+    void stopObserving(String shardId, String observedShardId) throws ShardManagerException, InterruptedException;
 
     /**
      * Assign bucket.
@@ -64,34 +64,34 @@ public interface ShardManagerProtocol {
 
     /**
      * Sets buckets.
-     *
-     * @param splitRange        the split range
+     *  @param splitRange        the split range
      * @param fromShardId       the from shard id
      * @param toShardId         the to shard id
      * @param migrationComplete flag to indicate the migration is complete
      */
-    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
-        throws ShardManagerException;
+    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete);
 
     /**
      * The type Shard manager exception.
      */
     class ShardManagerException extends Exception {
+
         public enum CODE {
             NOT_LEADER,
-            FAILED_START_OBSERVER,
-            FAILED_STOP_OBSERVER
+            FAILED_START_SLAVE,
+            FAILED_STOP_SLAVE
 
         }
 
         public CODE errorCode;
+
         public ShardManagerException(CODE code) {
             super(code.name());
             this.errorCode = code;
         }
 
         public ShardManagerException(CODE code, String message) {
-            super(message);
+            super(code.name() + "-" + message);
             this.errorCode = code;
         }
     }

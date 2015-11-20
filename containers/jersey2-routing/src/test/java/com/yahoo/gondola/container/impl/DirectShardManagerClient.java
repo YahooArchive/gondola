@@ -47,9 +47,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     public DirectShardManagerClient(Config config) {
         this.config = config;
 
-        config.registerForUpdates(config1 -> {
-            tracing = config1.getBoolean("tracing.router");
-        });
+        config.registerForUpdates(config1 -> tracing = config1.getBoolean("tracing.router"));
     }
 
     @Override
@@ -86,7 +84,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) throws ShardManagerException {
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         for (Config.ConfigMember m : config.getMembers()) {
             getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId, migrationComplete);
         }
@@ -109,14 +107,16 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void startObserving(String shardId, String observedShardId) throws ShardManagerException {
+    public void startObserving(String shardId, String observedShardId)
+        throws ShardManagerException, InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
             getShardManager(m.getMemberId()).startObserving(shardId, observedShardId);
         }
     }
 
     @Override
-    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException {
+    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException,
+                                                                             InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
             getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId);
         }

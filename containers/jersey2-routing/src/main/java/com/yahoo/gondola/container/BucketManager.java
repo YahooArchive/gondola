@@ -61,17 +61,9 @@ class BucketManager {
         for (String shardId : config.getShardIds()) {
             Map<String, String> attributesForShard = config.getAttributesForShard(shardId);
             String bucketMapString = attributesForShard.get("bucketMap");
+            bucketMapString = validateBucketString(shardId, bucketMapString);
             if (bucketMapString == null) {
-                throw new IllegalStateException("Bucket map must be specified in " + shardId);
-            }
-
-            bucketMapString = bucketMapString.replaceAll("\\s", "");
-            if (bucketMapString.isEmpty()) {
                 continue;
-            }
-
-            if (!bucketMapString.matches("^(\\d+-\\d+|\\d+)(,(\\d+-\\d+|\\d+))*")) {
-                throw new IllegalStateException("Invalid syntax of bucket map - " + bucketMapString);
             }
 
             for (String str : bucketMapString.split(",")) {
@@ -94,6 +86,22 @@ class BucketManager {
             }
         }
         validateBucketMap();
+    }
+
+    private String validateBucketString(String shardId, String bucketMapString) {
+        if (bucketMapString == null) {
+            throw new IllegalStateException("Bucket map must be specified in " + shardId);
+        }
+
+        bucketMapString = bucketMapString.replaceAll("\\s", "");
+        if (bucketMapString.isEmpty()) {
+            return null;
+        }
+
+        if (!bucketMapString.matches("^(\\d+-\\d+|\\d+)(,(\\d+-\\d+|\\d+))*")) {
+            throw new IllegalStateException("Invalid syntax of bucket map - " + bucketMapString);
+        }
+        return bucketMapString;
     }
 
     private void validateBucketMap() {
@@ -123,33 +131,43 @@ class BucketManager {
         }
 
         if (!migrationComplete) {
-            if (!shardState.shardId.equals(fromShardId)) {
-                throw new IllegalStateException(
-                    String.format("Bucket range=%s should be owned by shard=%s, but got shard=%s",
-                                  range, fromShardId, shardState.shardId));
-            }
-
-            if (shardState.migratingShardId != null
-                && shardState.migratingShardId.equals(toShardId)
-                && !shardState.shardId.equals(fromShardId)) {
-                throw new IllegalStateException(
-                    String.format("Bucket range=%s is migrating to shard=%s, cannot be override by shard=%s",
-                                  range, shardState.shardId, toShardId));
-            }
-
-            shardState.migratingShardId = toShardId;
+            handleMigrationInProgress(range, fromShardId, toShardId, shardState);
         } else {
-            if (
-                (shardState.shardId.equals(fromShardId) && toShardId.equals(shardState.migratingShardId))
-                || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
-                shardState.migratingShardId = null;
-                shardState.shardId = toShardId;
-            } else {
-                throw new IllegalStateException(String.format(
-                    "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,
-                    shardState.shardId, toShardId, shardState.migratingShardId));
-            }
+            handleMigrationComplete(range, fromShardId, toShardId, shardState);
         }
+    }
+
+    private void handleMigrationComplete(Range<Integer> range, String fromShardId, String toShardId,
+                                         ShardState shardState) {
+        if (
+            (shardState.shardId.equals(fromShardId) && toShardId.equals(shardState.migratingShardId))
+            || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
+            shardState.migratingShardId = null;
+            shardState.shardId = toShardId;
+        } else {
+            throw new IllegalStateException(String.format(
+                "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,
+                shardState.shardId, toShardId, shardState.migratingShardId));
+        }
+        bucketMap.put(range, shardState);
+    }
+
+    private void handleMigrationInProgress(Range<Integer> range, String fromShardId, String toShardId,
+                                           ShardState shardState) {
+        if (!shardState.shardId.equals(fromShardId)) {
+            throw new IllegalStateException(
+                String.format("Bucket range=%s should be owned by shard=%s, but got shard=%s",
+                              range, fromShardId, shardState.shardId));
+        }
+
+        if (shardState.migratingShardId != null
+            && shardState.migratingShardId.equals(toShardId)
+            && !shardState.shardId.equals(fromShardId)) {
+            throw new IllegalStateException(
+                String.format("Bucket range=%s is migrating to shard=%s, cannot be override by shard=%s",
+                              range, shardState.shardId, toShardId));
+        }
+        shardState.migratingShardId = toShardId;
         bucketMap.put(range, shardState);
     }
 }

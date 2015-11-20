@@ -97,7 +97,7 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @throws AdminException the admin exception
      */
-    public void splitShard(String fromShardId, String toShardId) throws AdminException {
+    public void splitShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupSplitRange(fromShardId, toShardId);
         assignBuckets(range, fromShardId, toShardId);
     }
@@ -109,7 +109,7 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) {
+    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) throws InterruptedException {
         trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         String step = "Before init";
         for (int i = 1; i <= RETRY_COUNT; i++) {
@@ -184,7 +184,7 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @throws AdminException the admin exception
      */
-    public void mergeShard(String fromShardId, String toShardId) throws AdminException {
+    public void mergeShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupMergeRange(fromShardId, toShardId);
         assignBuckets(range, fromShardId, toShardId);
     }

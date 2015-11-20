@@ -24,7 +24,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_OBSERVER;
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_STOP_SLAVE;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
 
 /**
@@ -32,6 +33,7 @@ import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerExcep
  */
 public class ShardManager implements ShardManagerProtocol {
 
+    public static final int SET_SLAVE_TIMEOUT_MS = 500;
     Config config;
     RoutingFilter filter;
 
@@ -53,9 +55,7 @@ public class ShardManager implements ShardManagerProtocol {
         this.filter = filter;
         this.config = config;
         this.shardManagerClient = shardManagerClient;
-        this.config.registerForUpdates(config1 -> {
-            tracing = config1.getBoolean("tracing.router");
-        });
+        this.config.registerForUpdates(config1 -> tracing = config1.getBoolean("tracing.router"));
     }
 
 
@@ -63,42 +63,38 @@ public class ShardManager implements ShardManagerProtocol {
      * Starts observer mode to remote cluster.
      */
     @Override
-    public void startObserving(String shardId, String observedShardId) throws ShardManagerException {
+    public void startObserving(String shardId, String observedShardId)
+        throws ShardManagerException, InterruptedException {
         boolean success = false;
-        if (tracing) {
-            logger.info("[{}] Connect to shardId={} as slave", shardId, observedShardId);
-        }
-        final Member.SlaveStatus[] status = new Member.SlaveStatus[1];
-        for (Config.ConfigMember m :config.getMembersInShard(shardId)) {
-            CountDownLatch latch = new CountDownLatch(1);
-
-            filter.getGondola().getShard(shardId).getLocalMember().setSlave(m.getMemberId(), slaveStatus -> {
-                status[0] = slaveStatus;
-                latch.countDown();
-            });
-            try {
-                boolean passed = latch.await(500, TimeUnit.MILLISECONDS);
-                if (!passed) {
-                    trace("Timeout waiting for master memberId={}", m.getMemberId());
-                }
-            } catch (InterruptedException e) {
-                logger.warn("startObserving Interrupted");
-                return;
-            }
-            if (status[0] != null) {
-                if (status[0].running) {
-                    success = true;
-                    break;
-                } else {
-                    logger.warn("Failed start observing {} on shard={}. msg={}", m.getMemberId(), shardId,
-                                status[0].exception != null ? status[0].exception.getMessage() : "");
-                }
+        trace("[{}] Connect to shardId={} as slave", shardId, observedShardId);
+        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
+            if (success = setSlave(shardId, m.getMemberId())) {
+                break;
             }
         }
         if (!success) {
-            throw new ShardManagerException(FAILED_START_OBSERVER);
+            throw new ShardManagerException(FAILED_START_SLAVE);
         }
         observedShards.add(observedShardId);
+    }
+
+    private boolean setSlave(String shardId, int memberId) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+
+        filter.getGondola().getShard(shardId).getLocalMember().setSlave(memberId, slaveStatus -> latch.countDown());
+
+        if (latch.await(SET_SLAVE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+            trace("Timeout waiting for master memberId={}", memberId);
+        }
+
+        Member.SlaveStatus status = filter.getGondola().getShard(shardId).getLocalMember().getSlaveUpdate();
+
+        if (status == null || !status.running) {
+            logger.warn("Failed start observing {} on shard={}. msg={}", memberId, shardId,
+                        status != null && status.exception != null ? status.exception.getMessage() : "");
+            return false;
+        }
+        return true;
     }
 
 
@@ -106,12 +102,45 @@ public class ShardManager implements ShardManagerProtocol {
      * Stops observer mode to remote cluster, and back to normal mode.
      */
     @Override
-    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException {
-        // TODO: gondola stop observing
-        if (tracing) {
-            logger.info("[{}] Disconnect to shardId={} as slave", shardId, observedShardId);
+    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException,
+                                                                             InterruptedException {
+        trace("[{}] Disconnect to shardId={} as slave", shardId, observedShardId);
+        boolean success = false;
+        for (Config.ConfigMember m : config.getMembersInShard(observedShardId)) {
+            if (success = unsetSlave(shardId, m.getMemberId())) {
+                break;
+            }
+        }
+        if (!success) {
+            throw new ShardManagerException(FAILED_STOP_SLAVE);
         }
         observedShards.remove(observedShardId);
+    }
+
+    private boolean unsetSlave(String shardId, int memberId) throws ShardManagerException, InterruptedException {
+        Member.SlaveStatus slaveUpdate = filter.getGondola().getShard(shardId).getLocalMember().getSlaveUpdate();
+
+        // Not in slave mode, nothing to do.
+        if (slaveUpdate == null) {
+            return true;
+        }
+
+        // Reject if following different leader
+        if (slaveUpdate.memberId != memberId) {
+            throw new ShardManagerException(FAILED_STOP_SLAVE,
+                                            String.format(
+                                                "Cannot stop slave due to different master. current=%d, target=%d",
+                                                slaveUpdate.memberId, memberId));
+        }
+
+        CountDownLatch latch = new CountDownLatch(1);
+        filter.getGondola().getShard(shardId).getLocalMember().setSlave(-1, update -> latch.countDown());
+        latch.await();
+        if (filter.getGondola().getShard(shardId).getLocalMember().getSlaveUpdate() != null) {
+            throw new ShardManagerException(FAILED_STOP_SLAVE);
+        }
+
+        return true;
     }
 
     /**
@@ -164,8 +193,7 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
-        throws ShardManagerException {
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         trace("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
         filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
