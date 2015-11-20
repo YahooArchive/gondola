@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Member;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.slf4j.Logger;
@@ -16,12 +17,14 @@ import org.slf4j.LoggerFactory;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_OBSERVER;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
 
 /**
@@ -61,9 +64,39 @@ public class ShardManager implements ShardManagerProtocol {
      */
     @Override
     public void startObserving(String shardId, String observedShardId) throws ShardManagerException {
-        // TODO: gondola start observing
+        boolean success = false;
         if (tracing) {
             logger.info("[{}] Connect to shardId={} as slave", shardId, observedShardId);
+        }
+        final Member.SlaveStatus[] status = new Member.SlaveStatus[1];
+        for (Config.ConfigMember m :config.getMembersInShard(shardId)) {
+            CountDownLatch latch = new CountDownLatch(1);
+
+            filter.getGondola().getShard(shardId).getLocalMember().setSlave(m.getMemberId(), slaveStatus -> {
+                status[0] = slaveStatus;
+                latch.countDown();
+            });
+            try {
+                boolean passed = latch.await(500, TimeUnit.MILLISECONDS);
+                if (!passed) {
+                    trace("Timeout waiting for master memberId={}", m.getMemberId());
+                }
+            } catch (InterruptedException e) {
+                logger.warn("startObserving Interrupted");
+                return;
+            }
+            if (status[0] != null) {
+                if (status[0].running) {
+                    success = true;
+                    break;
+                } else {
+                    logger.warn("Failed start observing {} on shard={}. msg={}", m.getMemberId(), shardId,
+                                status[0].exception != null ? status[0].exception.getMessage() : "");
+                }
+            }
+        }
+        if (!success) {
+            throw new ShardManagerException(FAILED_START_OBSERVER);
         }
         observedShards.add(observedShardId);
     }

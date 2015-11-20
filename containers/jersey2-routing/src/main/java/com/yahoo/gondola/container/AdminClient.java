@@ -112,7 +112,7 @@ public class AdminClient {
     public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) {
         trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         String step = "Before init";
-        for (int i = 0; i < RETRY_COUNT; i++) {
+        for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 step = "initializing";
                 trace("Initializing slaves on {} ...", toShardId);
@@ -136,8 +136,13 @@ public class AdminClient {
                 trace("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
                 step = "done";
                 break;
-            } catch (RuntimeException | ShardManagerProtocol.ShardManagerException e) {
-                logger.warn("Error occurred in step {}.. retrying {} / {}", step, i, RETRY_COUNT, e);
+            } catch (ShardManagerProtocol.ShardManagerException e) {
+                logger.warn("Error occurred in step {}.. retrying {} / {}, errorMsg={}",
+                            step, i, RETRY_COUNT, e.getMessage());
+                if (i == RETRY_COUNT) {
+                    logger.error("Assign bucket failed, lastError={}", e.getMessage());
+                    throw new RuntimeException(e);
+                }
             }
         }
     }

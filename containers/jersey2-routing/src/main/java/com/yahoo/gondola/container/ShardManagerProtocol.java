@@ -78,11 +78,20 @@ public interface ShardManagerProtocol {
      */
     class ShardManagerException extends Exception {
         public enum CODE {
-            NOT_LEADER
+            NOT_LEADER,
+            FAILED_START_OBSERVER,
+            FAILED_STOP_OBSERVER
+
         }
 
         public CODE errorCode;
         public ShardManagerException(CODE code) {
+            super(code.name());
+            this.errorCode = code;
+        }
+
+        public ShardManagerException(CODE code, String message) {
+            super(message);
             this.errorCode = code;
         }
     }
