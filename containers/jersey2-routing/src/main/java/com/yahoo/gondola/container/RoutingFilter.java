@@ -79,7 +79,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * Disallow default constructor.
      */
-    private RoutingFilter() {
+    RoutingFilter() {
     }
 
     /**
@@ -91,8 +91,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * @param commandListenerProvider the command listener provider
      * @throws ServletException the servlet exception
      */
-    public RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                         CommandListenerProvider commandListenerProvider)
+    RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
+                  CommandListenerProvider commandListenerProvider)
         throws ServletException {
         this.gondola = gondola;
         this.routingHelper = routingHelper;
@@ -177,8 +177,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         trace("Processing request: {} of shard={}, forwarded={}",
               requestContext.getUriInfo().getAbsolutePath(), shardId,
-                requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
-                    .get(X_FORWARDED_BY).toString() : "");
+              requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
+                  .get(X_FORWARDED_BY).toString() : "");
 
         // redirect the request to other shard
         if (!isMyShard(shardId)) {
@@ -507,5 +507,49 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public Gondola getGondola() {
         return gondola;
+    }
+
+    /**
+     * Builder class.
+     */
+    public static class Builder {
+
+        Gondola gondola;
+        RoutingHelper routingHelper;
+        ProxyClientProvider proxyClientProvider;
+        CommandListenerProvider commandListenerProvider;
+
+        public static Builder createRoutingFilter() {
+            return new Builder();
+        }
+
+        Builder() {
+            proxyClientProvider = new ProxyClientProvider();
+            commandListenerProvider = new CommandListenerProvider();
+        }
+
+        public Builder setGondola(Gondola gondola) {
+            this.gondola = gondola;
+            return this;
+        }
+
+        public Builder setRoutingHelper(RoutingHelper routingHelper) {
+            this.routingHelper = routingHelper;
+            return this;
+        }
+
+        public Builder setProxyClientProvider(ProxyClientProvider proxyClientProvider) {
+            this.proxyClientProvider = proxyClientProvider;
+            return this;
+        }
+
+        public Builder setCommandListenerProvider(CommandListenerProvider commandListenerProvider) {
+            this.commandListenerProvider = commandListenerProvider;
+            return this;
+        }
+
+        public RoutingFilter build() throws ServletException {
+            return new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+        }
     }
 }

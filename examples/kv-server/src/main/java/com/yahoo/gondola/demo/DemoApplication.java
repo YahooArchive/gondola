@@ -9,8 +9,6 @@ package com.yahoo.gondola.demo;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.RoleChangeEvent;
-import com.yahoo.gondola.container.CommandListenerProvider;
-import com.yahoo.gondola.container.ProxyClientProvider;
 import com.yahoo.gondola.container.RoutingFilter;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
@@ -60,11 +58,10 @@ public class DemoApplication extends ResourceConfig {
         });
 
         // Register routing filter
-        RoutingFilter routingFilter = new RoutingFilter(gondola,
-                                                        new DemoRoutingHelper(gondola, demoService),
-                                                        new ProxyClientProvider(),
-                                                        new CommandListenerProvider()
-        );
+        RoutingFilter routingFilter = RoutingFilter.Builder.createRoutingFilter()
+            .setRoutingHelper(new DemoRoutingHelper(gondola, demoService))
+            .setGondola(gondola)
+            .build();
         register(routingFilter);
 
         // register resources in the package
