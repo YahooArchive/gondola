@@ -122,15 +122,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
                         String shardId = roleChangeEvent.shard.getShardId();
-                        tracing("Become leader on shard {}, blocking all requests to the shard....", shardId);
+                        trace("Become leader on shard {}, blocking all requests to the shard....", shardId);
                         lockManager.blockRequestOnShard(shardId);
-                        tracing("Wait until raft logs applied to storage...");
+                        trace("Wait until raft logs applied to storage...");
                         waitRaftLogSynced(shardId);
-                        tracing("Raft logs are up-to-date, notify application is ready to serve...");
+                        trace("Raft logs are up-to-date, notify application is ready to serve...");
                         routingHelper.beforeServing(shardId);
-                        tracing("Ready for serving, unblocking the requests...");
+                        trace("Ready for serving, unblocking the requests...");
                         long count = lockManager.unblockRequestOnShard(shardId);
-                        tracing("System is back to serving, unblocked {} requests ...", count);
+                        trace("System is back to serving, unblocked {} requests ...", count);
                     }, singleThreadExecutor).exceptionally(throwable -> {
                         logger.info("Errors while executing leader change event", throwable);
                         return null;
@@ -140,7 +140,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         });
     }
 
-    void tracing(String format, Object... args) {
+    void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -175,8 +175,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         incrementBucketCounter(routingHelper.getBucketId(requestContext));
 
-        tracing("Processing request: {} of shard={}, forwarded={}",
-                requestContext.getUriInfo().getAbsolutePath(), shardId,
+        trace("Processing request: {} of shard={}, forwarded={}",
+              requestContext.getUriInfo().getAbsolutePath(), shardId,
                 requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
                     .get(X_FORWARDED_BY).toString() : "");
 
@@ -194,10 +194,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                                          .status(Response.Status.SERVICE_UNAVAILABLE)
                                          .entity("No leader is available")
                                          .build());
-            tracing("Leader is not available");
+            trace("Leader is not available");
             return;
         } else if (leader.isLocal()) {
-            tracing("Processing this request");
+            trace("Processing this request");
             return;
         }
 
@@ -271,8 +271,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * @param fromShard the from shard
      * @param toShard   the to shard
      */
-    protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard) {
-        bucketManager.updateBucketRange(range, fromShard, toShard);
+    protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard,
+                                     boolean migrationComplete) {
+        bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
 
     /**
@@ -324,7 +325,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (bucketId == -1 && routingHelper != null) {
                 return getAffinityColoShard(request);
             } else {
-                return bucketManager.lookupBucketTable(bucketId);
+                BucketManager.ShardState shardState = bucketManager.lookupBucketTable(bucketId);
+                // If the shard is migrating and it's local shard, forwarding to migrating shard.
+                if (shardState.migratingShardId != null && isMyShard(shardState.shardId)) {
+                    return shardState.migratingShardId;
+                }
+                return shardState.shardId;
             }
         } else {
             return gondola.getShardsOnHost().get(0).getShardId();
@@ -351,8 +357,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         boolean fail = false;
         for (String appUri : appUris) {
             try {
-                tracing("Proxy request to remote server, method={}, URI={}",
-                        request.getMethod(), appUri + ((ContainerRequest) request).getRequestUri().getPath());
+                trace("Proxy request to remote server, method={}, URI={}",
+                      request.getMethod(), appUri + ((ContainerRequest) request).getRequestUri().getPath());
                 List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
                 if (forwardedBy == null) {
                     forwardedBy = new ArrayList<>();

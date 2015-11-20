@@ -22,6 +22,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
+
 /**
  * The Shard manager.
  */
@@ -85,14 +87,15 @@ public class ShardManager implements ShardManagerProtocol {
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs) throws ShardManagerException {
+        // Make sure only leader can execute this request.
         if (!filter.isLeaderInShard(fromShardId)) {
-            return;
+            throw new ShardManagerException(NOT_LEADER);
         } else {
-            assignBucketOnLeader(splitRange, toShardId, timeoutMs, fromShardId);
+            assignBucketOnLeader(splitRange, fromShardId, toShardId, timeoutMs);
         }
     }
 
-    private void assignBucketOnLeader(Range<Integer> splitRange, String toShardId, long timeoutMs, String fromShardId)
+    private void assignBucketOnLeader(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException {
         MigrationType migrationType = getMigrationType(splitRange, toShardId);
         switch (migrationType) {
@@ -102,23 +105,19 @@ public class ShardManager implements ShardManagerProtocol {
                     waitNoRequestsOnBuckets(splitRange, timeoutMs);
                     shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
                     shardManagerClient.stopObserving(toShardId, fromShardId);
-                    setBuckets(splitRange, fromShardId, toShardId);
+                    setBuckets(splitRange, fromShardId, toShardId, false);
                 } catch (InterruptedException | ExecutionException | TimeoutException e) {
                     // TODO: rollback
                     logger.warn("Error occurred, rollback!", e);
                 } finally {
                     filter.unblockRequestOnBuckets(splitRange);
                 }
-                updateGlobalBucketTable(splitRange, fromShardId, toShardId);
+                trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+                shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
                 break;
             case DB:
                 // TODO: implement
         }
-    }
-
-    private void updateGlobalBucketTable(Range<Integer> splitRange, String fromShardId, String toShardId) {
-        // TODO: implement
-        tracing("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
     }
 
     @Override
@@ -132,10 +131,10 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId)
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
         throws ShardManagerException {
-        tracing("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, toShardId);
-        filter.updateBucketRange(splitRange, fromShardId, toShardId);
+        trace("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
+        filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
 
     /**
@@ -155,7 +154,7 @@ public class ShardManager implements ShardManagerProtocol {
         DB
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -164,14 +163,14 @@ public class ShardManager implements ShardManagerProtocol {
     void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
         // TODO: implement
-        tracing("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
+        trace("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
         executeTaskWithTimeout(() -> {
             if (splitRange != null) {
                 //Thread.sleep(timeoutMs * 2);
             }
             return "";
         }, timeoutMs);
-        tracing("No more request on buckets: {}", splitRange);
+        trace("No more request on buckets: {}", splitRange);
     }
 
     void executeTaskWithTimeout(Callable callable, long timeoutMs)

@@ -16,7 +16,7 @@ public interface ShardManagerProtocol {
     /**
      * Start observing.
      *
-     * @param shardId        the shard id
+     * @param shardId         the shard id
      * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
@@ -25,7 +25,7 @@ public interface ShardManagerProtocol {
     /**
      * Stop observing.
      *
-     * @param shardId        the shard id
+     * @param shardId         the shard id
      * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
@@ -60,20 +60,30 @@ public interface ShardManagerProtocol {
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
      */
-    boolean waitApproaching (String shardId, long timeoutMs) throws ShardManagerException;
+    boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException;
 
     /**
      * Sets buckets.
      *
-     * @param splitRange  the split range
-     * @param fromShardId the from shard id
-     * @param toShardId   the to shard id
+     * @param splitRange        the split range
+     * @param fromShardId       the from shard id
+     * @param toShardId         the to shard id
+     * @param migrationComplete flag to indicate the migration is complete
      */
-    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId) throws ShardManagerException;
+    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
+        throws ShardManagerException;
 
     /**
      * The type Shard manager exception.
      */
     class ShardManagerException extends Exception {
+        public enum CODE {
+            NOT_LEADER
+        }
+
+        public CODE errorCode;
+        public ShardManagerException(CODE code) {
+            this.errorCode = code;
+        }
     }
 }

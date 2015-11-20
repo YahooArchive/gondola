@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
+
 /**
  * The Direct shard manager client. Will be only used in test.
  */
@@ -52,12 +54,12 @@ public class DirectShardManagerClient implements ShardManagerClient {
 
     @Override
     public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException {
-        tracing("Waiting for slaves synced ...");
+        trace("Waiting for slaves synced ...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
             .map(getWaitSlavesSyncedFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Waiting for slaves synced {}.", status ? "success" : "failed");
+        trace("Waiting for slaves synced {}.", status ? "success" : "failed");
         return status;
     }
 
@@ -74,19 +76,19 @@ public class DirectShardManagerClient implements ShardManagerClient {
 
     @Override
     public boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException {
-        tracing("Waiting for slaves logs approaching...");
+        trace("Waiting for slaves logs approaching...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
             .map(getWaitApproachingFunction(shardId, timeoutMs))
             .reduce(true, (b1, b2) -> b1 && b2);
-        tracing("Waiting for slaves logs approaching {}.", status ? "success" : "failed");
+        trace("Waiting for slaves logs approaching {}.", status ? "success" : "failed");
         return status;
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId) throws ShardManagerException {
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) throws ShardManagerException {
         for (Config.ConfigMember m : config.getMembers()) {
-            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId);
+            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId, migrationComplete);
         }
     }
 
@@ -124,9 +126,15 @@ public class DirectShardManagerClient implements ShardManagerClient {
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs)
         throws ShardManagerException {
-        // TODO: lookup leader in routing table.
+        // TODO: lookup leader in routing table
         for (Config.ConfigMember m : config.getMembersInShard(fromShardId)) {
-            getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+            try {
+                getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+            } catch (ShardManagerException e) {
+                if (e.errorCode != NOT_LEADER) {
+                    throw e;
+                }
+            }
         }
     }
 
@@ -142,7 +150,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
         return shardManagers;
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }

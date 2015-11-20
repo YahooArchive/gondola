@@ -99,7 +99,7 @@ public class AdminClient {
      */
     public void splitShard(String fromShardId, String toShardId) throws AdminException {
         Range<Integer> range = lookupSplitRange(fromShardId, toShardId);
-        assignBuckets(fromShardId, toShardId, range);
+        assignBuckets(range, fromShardId, toShardId);
     }
 
     /**
@@ -109,31 +109,31 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void assignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
-        tracing("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
+    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) {
+        trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         String step = "Before init";
         for (int i = 0; i < RETRY_COUNT; i++) {
             try {
                 step = "initializing";
-                tracing("Initializing slaves on {} ...", toShardId);
+                trace("Initializing slaves on {} ...", toShardId);
                 for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
                     shardManagerClient.startObserving(toShardId, fromShardId);
                 }
 
                 step = "waiting for slave logs approaching";
-                tracing(
+                trace(
                     "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
                     toShardId);
                 shardManagerClient.waitApproaching(toShardId, -1);
 
                 step = "assigning buckets";
-                tracing("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
-                        range);
+                trace("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
+                      range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
                 shardManagerClient.migrateBuckets(range, fromShardId, toShardId, 2000);
 
-                tracing("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
+                trace("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
                 step = "done";
                 break;
             } catch (RuntimeException | ShardManagerProtocol.ShardManagerException e) {
@@ -149,15 +149,18 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void closeAssignBuckets(String fromShardId, String toShardId, Range<Integer> range) {
+    public void closeAssignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+        throws ShardManagerProtocol.ShardManagerException {
         // TODO: implement
-        tracing("Executing close the state of assign buckets");
-        tracing("Waiting all nodes update bucket table...");
-        tracing("closing the state of assign buckets");
-        tracing("Done!");
+        trace("Executing close the state of assign buckets");
+        trace("Writing migration state to all nodes, and waiting all nodes bucket table updated...");
+        shardManagerClient.setBuckets(range, fromShardId, toShardId, false);
+        trace("closing the state of assign buckets...");
+        shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
+        trace("Done!");
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -178,7 +181,7 @@ public class AdminClient {
      */
     public void mergeShard(String fromShardId, String toShardId) throws AdminException {
         Range<Integer> range = lookupMergeRange(fromShardId, toShardId);
-        assignBuckets(fromShardId, toShardId, range);
+        assignBuckets(range, fromShardId, toShardId);
     }
 
     private Range<Integer> lookupMergeRange(String fromShardId, String toShardId) {
@@ -225,7 +228,7 @@ public class AdminClient {
 
 
     /**
-     * Enable tracing.
+     * Enable trace.
      *
      * @param target   the target
      * @param targetId the target id
@@ -237,7 +240,7 @@ public class AdminClient {
 
 
     /**
-     * Disable tracing.
+     * Disable trace.
      *
      * @param target   the target
      * @param targetId the target id

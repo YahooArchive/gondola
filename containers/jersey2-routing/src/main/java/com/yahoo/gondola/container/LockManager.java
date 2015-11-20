@@ -51,20 +51,20 @@ class LockManager {
      */
     public void filterRequest(int bucketId, String shardId) throws InterruptedException {
         if (globalLock != null) {
-            tracing("Request blocked by global lock");
+            trace("Request blocked by global lock");
             globalLock.await();
         }
 
         CountDownLatch shardLock = shards.get(shardId);
         if (shardLock != null) {
-            tracing("Request blocked by shard lock - shardId={}", shardId);
+            trace("Request blocked by shard lock - shardId={}", shardId);
             shardLock.await();
         }
 
         List<CountDownLatch> bucketLocks = getBucketLocks(bucketId);
         if (bucketLocks.size() != 0) {
             for (CountDownLatch bucketLock : bucketLocks) {
-                tracing("Request blocked by bucket lock - bucketId={}", bucketId);
+                trace("Request blocked by bucket lock - bucketId={}", bucketId);
                 bucketLock.await();
             }
         }
@@ -82,7 +82,7 @@ class LockManager {
             // TODO: this is not the expected blocking count.
             long count = lock.getCount();
             lock.countDown();
-            tracing("Request unblocked on shardId={}", shardId);
+            trace("Request unblocked on shardId={}", shardId);
             return count;
         }
         return 0;
@@ -94,7 +94,7 @@ class LockManager {
      * @param shardId the shard id
      */
     public void blockRequestOnShard(String shardId) {
-        tracing("Block requests on shard : {}", shardId);
+        trace("Block requests on shard : {}", shardId);
         shards.putIfAbsent(shardId, new CountDownLatch(1));
     }
 
@@ -102,7 +102,7 @@ class LockManager {
      * Unblock all requests.
      */
     public void unblockRequest() {
-        tracing("Unblock all requests");
+        trace("Unblock all requests");
         if (globalLock != null) {
             globalLock.countDown();
             globalLock = null;
@@ -113,7 +113,7 @@ class LockManager {
      * Block all requests.
      */
     public void blockRequest() {
-        tracing("Block all requests");
+        trace("Block all requests");
         globalLock = new CountDownLatch(1);
     }
 
@@ -123,7 +123,7 @@ class LockManager {
      * @param splitRange the split range
      */
     public void unblockRequestOnBuckets(Range<Integer> splitRange) {
-        tracing("Unblock requests on buckets : {}", splitRange);
+        trace("Unblock requests on buckets : {}", splitRange);
         CountDownLatch lock = buckets.remove(splitRange);
         if (lock != null) {
             lock.countDown();
@@ -137,7 +137,7 @@ class LockManager {
      * @param splitRange the split range
      */
     public void blockRequestOnBuckets(Range<Integer> splitRange) {
-        tracing("Block requests on buckets : {}", splitRange);
+        trace("Block requests on buckets : {}", splitRange);
         buckets.putIfAbsent(splitRange, new CountDownLatch(1));
     }
 
@@ -153,7 +153,7 @@ class LockManager {
         }
     }
 
-    private void tracing(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
