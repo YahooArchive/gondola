@@ -15,11 +15,13 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.io.File;
 import java.net.URL;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
@@ -76,17 +78,17 @@ public class ShardManagerTest {
     @Test
     public void testStartObserving_success() throws Exception {
         callbackAnswer(86, true, null);
-        assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertFalse(getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
-        assertTrue(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertTrue(getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
-        assertTrue(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertTrue(getObservedShards().contains(TARGET_SHARD));
     }
 
     @Test(expectedExceptions = ShardManagerProtocol.ShardManagerException.class)
     public void testStartObserving_failed() throws Exception {
         callbackAnswer(86, false, null);
-        assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertFalse(getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
     }
 
@@ -96,17 +98,17 @@ public class ShardManagerTest {
         // Start observing
         callbackAnswer(86, true, null);
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
-        assertTrue(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertTrue(getObservedShards().contains(TARGET_SHARD));
 
         // Stop observing successfully
         callbackAnswer(-1, true, null);
         shardManager.stopObserving(FROM_SHARD, TARGET_SHARD);
-        assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertFalse(getObservedShards().contains(TARGET_SHARD));
 
         // Stop observing again
         callbackAnswer(-1, true, null);
         shardManager.stopObserving(FROM_SHARD, TARGET_SHARD);
-        assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
+        assertFalse(getObservedShards().contains(TARGET_SHARD));
     }
 
     @Test
@@ -131,5 +133,10 @@ public class ShardManagerTest {
             return null;
         }).when(member).setSlave(anyInt(), any());
         when(member.getSlaveUpdate()).thenReturn(slaveStatus);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Set<String> getObservedShards() {
+        return (Set<String>) Whitebox.getInternalState(shardManager, "observedShards");
     }
 }

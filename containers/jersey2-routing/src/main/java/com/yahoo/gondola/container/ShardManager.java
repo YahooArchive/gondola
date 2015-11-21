@@ -48,10 +48,6 @@ public class ShardManager implements ShardManagerProtocol {
 
     private Set<String> observedShards = new HashSet<>();
 
-    public Set<String> getObservedShards() {
-        return observedShards;
-    }
-
     private ShardManagerClient shardManagerClient;
 
     boolean tracing = false;
