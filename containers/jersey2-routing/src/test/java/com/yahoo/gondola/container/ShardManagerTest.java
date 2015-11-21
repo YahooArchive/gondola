@@ -67,10 +67,9 @@ public class ShardManagerTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(filter.isLeaderInShard(any())).thenReturn(true);
-        when(filter.getGondola()).thenReturn(gondola);
         when(gondola.getShard(any())).thenReturn(shard);
         when(shard.getLocalMember()).thenReturn(member);
-        shardManager = new ShardManager(filter, config, shardManagerClient);
+        shardManager = new ShardManager(gondola, filter, config, shardManagerClient);
     }
 
     @Test

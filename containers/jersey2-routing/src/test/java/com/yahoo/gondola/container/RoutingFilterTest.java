@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.internal.util.reflection.Whitebox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.annotations.BeforeMethod;
@@ -29,6 +30,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import javax.ws.rs.core.MultivaluedHashMap;
@@ -147,10 +150,10 @@ public class RoutingFilterTest {
         when(proxyClient.proxyRequest(any(),any()))
             .thenThrow(new IOException(""))
             .thenReturn(proxedResponse);
-        String newLeaderUri = router.routingTable.get("shard1").get(1);
+        String newLeaderUri = getRoutingTable(router).get("shard1").get(1);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertEquals(router.routingTable.get("shard1").get(0), newLeaderUri);
+        assertEquals(getRoutingTable(router).get("shard1").get(0), newLeaderUri);
     }
 
     /**
@@ -171,7 +174,7 @@ public class RoutingFilterTest {
         router.filter(request);
         verify(request).abortWith(response.capture());
         assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
-        assertEquals(router.routingTable.get("shard2").get(0), "foo_remote_addr");
+        assertEquals(getRoutingTable(router).get("shard2").get(0), "foo_remote_addr");
 
     }
 
@@ -203,4 +206,8 @@ public class RoutingFilterTest {
     public void testBucketSplit_migrate_db_block_shards() throws Exception {
     }
 
+
+    private Map<String, List<String>> getRoutingTable(RoutingFilter filter) {
+        return (Map<String, List<String>>) Whitebox.getInternalState(filter, "routingTable");
+    }
 }

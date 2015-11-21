@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ShardManagerClient;
@@ -37,10 +38,11 @@ public class ShardManager implements ShardManagerProtocol {
     public static final int POLLING_TIMES = 3;
     public static final int LOG_APPROACHING_DIFF = 1000;
 
-    Config config;
-    RoutingFilter filter;
+    private Config config;
+    private RoutingFilter filter;
+    private Gondola gondola;
 
-    ExecutorService executor = Executors.newSingleThreadExecutor();
+    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     static Logger logger = LoggerFactory.getLogger(ShardManager.class);
 
@@ -50,7 +52,8 @@ public class ShardManager implements ShardManagerProtocol {
 
     boolean tracing = false;
 
-    public ShardManager(RoutingFilter filter, Config config, ShardManagerClient shardManagerClient) {
+    public ShardManager(Gondola gondola, RoutingFilter filter, Config config, ShardManagerClient shardManagerClient) {
+        this.gondola = gondola;
         this.filter = filter;
         this.config = config;
         this.shardManagerClient = shardManagerClient;
@@ -78,13 +81,13 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     private boolean setSlave(String shardId, int memberId, long timeoutMs) throws InterruptedException {
-        filter.getGondola().getShard(shardId).getLocalMember().setSlave(memberId);
+        gondola.getShard(shardId).getLocalMember().setSlave(memberId);
         long defaultSleep = timeoutMs / POLLING_TIMES;
         long start = System.currentTimeMillis();
         long now = start;
         Member.SlaveStatus status;
         while (true) {
-            status = filter.getGondola().getShard(shardId).getLocalMember().getSlaveStatus();
+            status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
             if (!status.running) {
                 long remain = timeoutMs - (now - start);
                 Thread.sleep(defaultSleep > remain ? defaultSleep : remain);
@@ -122,7 +125,7 @@ public class ShardManager implements ShardManagerProtocol {
 
     private boolean unsetSlave(String shardId, int memberId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        Member.SlaveStatus status = filter.getGondola().getShard(shardId).getLocalMember().getSlaveStatus();
+        Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
 
         // Not in slave mode, nothing to do.
         if (status == null) {
@@ -137,14 +140,14 @@ public class ShardManager implements ShardManagerProtocol {
                                                 status.memberId, memberId));
         }
 
-        filter.getGondola().getShard(shardId).getLocalMember().setSlave(-1);
+        gondola.getShard(shardId).getLocalMember().setSlave(-1);
 
         long start = System.currentTimeMillis();
         long now = start;
         long defaultSleep = timeoutMs / POLLING_TIMES;
 
         while (true) {
-            if (filter.getGondola().getShard(shardId).getLocalMember().getSlaveStatus() != null) {
+            if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() != null) {
                 long remain = defaultSleep - (now - start);
                 Thread.sleep(defaultSleep < remain ? defaultSleep : remain);
                 now = System.currentTimeMillis();
@@ -204,7 +207,7 @@ public class ShardManager implements ShardManagerProtocol {
 
     private boolean waitLogApproach(String shardId, long timeoutMs, int logPosDiff)
         throws ShardManagerException, InterruptedException {
-        Shard shard = filter.getGondola().getShard(shardId);
+        Shard shard = gondola.getShard(shardId);
         boolean complete = false;
         long start = System.currentTimeMillis();
         long now = start;

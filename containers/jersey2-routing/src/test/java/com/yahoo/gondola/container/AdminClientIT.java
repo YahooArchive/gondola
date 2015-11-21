@@ -14,6 +14,7 @@ import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -91,7 +92,7 @@ public class AdminClientIT {
             // inject shardManager instance
             for (Config.ConfigMember m : config.getMembersInHost(hostId)) {
                 shardManagerClient.getShardManagers()
-                    .put(m.getMemberId(), new ShardManager(testServer.routingFilter, config, shardManagerClient));
+                    .put(m.getMemberId(), new ShardManager(gondola, testServer.routingFilter, config, shardManagerClient));
             }
         }
 
@@ -123,7 +124,7 @@ public class AdminClientIT {
     }
 
     private List<BucketManager> getBucketManagersFromAllHosts() {
-        return addressTable.entrySet().stream().map(e -> e.getValue().routingFilter.bucketManager)
+        return addressTable.entrySet().stream().map(e -> getBucketManager(e.getValue().routingFilter))
             .collect(Collectors.toList());
     }
 
@@ -132,13 +133,13 @@ public class AdminClientIT {
         List<BucketManager> bucketManagers = addressTable.entrySet().stream()
             .filter(e -> {
                 LocalTestRoutingServer server = e.getValue();
-                if (server.routingFilter.getGondola().getShard(shardId) != null
-                    && server.routingFilter.getGondola().getShard(shardId).getLocalMember().isLeader()) {
+                if (getGondola(server.routingFilter).getShard(shardId) != null
+                    && getGondola(server.routingFilter).getShard(shardId).getLocalMember().isLeader()) {
                     return true;
                 }
                 return false;
             })
-            .map(e -> e.getValue().routingFilter.bucketManager)
+            .map(e -> getBucketManager(e.getValue().routingFilter))
             .collect(Collectors.toList());
         if (bucketManagers.size() == 0) {
             throw new IllegalStateException("No leader in shard " + shardId);
@@ -147,5 +148,13 @@ public class AdminClientIT {
         }
 
         return bucketManagers.get(0);
+    }
+
+    private Gondola getGondola(RoutingFilter routingFilter) {
+        return (Gondola) Whitebox.getInternalState(routingFilter, "gondola");
+    }
+
+    private BucketManager getBucketManager(RoutingFilter filter) {
+        return (BucketManager) Whitebox.getInternalState(filter, "bucketManager");
     }
 }

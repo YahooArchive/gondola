@@ -58,7 +58,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private Set<String> myShardIds;
 
     // shardId --> list of available servers. (URI)
-    Map<String, List<String>> routingTable;
+    private Map<String, List<String>> routingTable;
 
     private Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
     private CommandListener commandListener;
@@ -72,7 +72,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     private boolean tracing = false;
     private String myAppUri;
-    BucketManager bucketManager;
+    private BucketManager bucketManager;
 
     /**
      * Disallow default constructor.
@@ -96,7 +96,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.routingHelper = routingHelper;
         lockManager = new LockManager(gondola.getConfig());
         commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
-        ShardManager shardManager = new ShardManager(this, gondola.getConfig(), null);
+        ShardManager shardManager = new ShardManager(gondola, this, gondola.getConfig(), null);
         commandListener.setShardManagerHandler(shardManager);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
@@ -123,7 +123,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         trace("Become leader on shard {}, blocking all requests to the shard....", shardId);
                         lockManager.blockRequestOnShard(shardId);
                         trace("Wait until raft logs applied to storage...");
-                        waitRaftLogSynced(shardId);
+                        waitDrainRaftLogs(shardId);
                         trace("Raft logs are up-to-date, notify application is ready to serve...");
                         routingHelper.beforeServing(shardId);
                         trace("Ready for serving, unblocking the requests...");
@@ -138,7 +138,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         });
     }
 
-    void trace(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -147,6 +147,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
+        // TODO: implement processing chain.
         if (processRoutingLoop(requestContext)) {
             return;
         }
@@ -156,6 +157,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     private void processRequest(ContainerRequestContext requestContext) throws IOException {
         int bucketId = routingHelper.getBucketId(requestContext);
+        incrementBucketCounter(bucketId);
+
         String shardId = getShardId(requestContext);
         if (shardId == null) {
             requestContext.abortWith(
@@ -171,7 +174,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             throw new IOException(e);
         }
 
-        incrementBucketCounter(routingHelper.getBucketId(requestContext));
 
         trace("Processing request: {} of shard={}, forwarded={}",
               requestContext.getUriInfo().getAbsolutePath(), shardId,
@@ -435,8 +437,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * Find random shardId in siteId.
      */
     private String getAnyShardInSite(String siteId) {
-        //TODO: implement
-        return null;
+        Config config = gondola.getConfig();
+        return config.getHostIds().stream()
+            .map(config::getSiteIdForHost)
+            .filter(s -> s.equals(siteId))
+            .findAny().orElseThrow(() -> new IllegalStateException("Cannot find any shard in siteId=" + siteId));
     }
 
     private int incrementBucketCounter(int bucketId) {
@@ -459,7 +464,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return counter;
     }
 
-    private void waitRaftLogSynced(String shardId) {
+    private void waitDrainRaftLogs(String shardId) {
         boolean synced = false;
 
         long startTime = System.currentTimeMillis();
@@ -496,15 +501,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     public void unblockRequestOnBuckets(Range<Integer> splitRange) {
         lockManager.unblockRequestOnBuckets(splitRange);
-    }
-
-    /**
-     * Gets gondola.
-     *
-     * @return the gondola
-     */
-    public Gondola getGondola() {
-        return gondola;
     }
 
     /**
