@@ -66,14 +66,14 @@ public class DirectShardManagerClient implements ShardManagerClient {
         return memberId -> {
             try {
                 return getShardManager(memberId).waitSlavesSynced(shardId, timeoutMs);
-            } catch (ShardManagerException e) {
+            } catch (ShardManagerException|InterruptedException  e) {
                 return false;
             }
         };
     }
 
     @Override
-    public boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException {
+    public boolean waitSlavesApproaching(String shardId, long timeoutMs) throws ShardManagerException {
         trace("Waiting for slaves logs approaching...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
@@ -93,8 +93,8 @@ public class DirectShardManagerClient implements ShardManagerClient {
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
         return memberId -> {
             try {
-                return getShardManager(memberId).waitApproaching(shardId, timeoutMs);
-            } catch (ShardManagerException e) {
+                return getShardManager(memberId).waitSlavesApproaching(shardId, timeoutMs);
+            } catch (ShardManagerException|InterruptedException  e) {
                 return false;
             }
         };

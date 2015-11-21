@@ -124,7 +124,7 @@ public class AdminClient {
                 trace(
                     "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
                     toShardId);
-                shardManagerClient.waitApproaching(toShardId, -1);
+                shardManagerClient.waitSlavesApproaching(toShardId, -1);
 
                 step = "assigning buckets";
                 trace("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,

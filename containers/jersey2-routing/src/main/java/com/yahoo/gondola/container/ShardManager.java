@@ -9,6 +9,7 @@ package com.yahoo.gondola.container;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Member;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.slf4j.Logger;
@@ -33,7 +34,11 @@ import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerExcep
  */
 public class ShardManager implements ShardManagerProtocol {
 
+    // TODO: move to config
     public static final int SET_SLAVE_TIMEOUT_MS = 500;
+    public static final int POLLING_TIMES = 5;
+    public static final int LOG_APPROACHING_DIFF = 1000;
+
     Config config;
     RoutingFilter filter;
 
@@ -183,13 +188,41 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException {
-        return true;
+    public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException {
+        return waitLogApproach(shardId, timeoutMs, 0);
+    }
+
+    private boolean waitLogApproach(String shardId, long timeoutMs, int logPosDiff)
+        throws ShardManagerException, InterruptedException {
+        Shard shard = filter.getGondola().getShard(shardId);
+        boolean complete = false;
+        long start = System.currentTimeMillis();
+        long now = start;
+        long defaultSleep = timeoutMs / POLLING_TIMES;
+        while (now - start < timeoutMs) {
+            if (shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
+                complete = true;
+                break;
+            }
+            long remain = start + timeoutMs - System.currentTimeMillis();
+            Thread.sleep(defaultSleep < remain ? remain : defaultSleep);
+            now = System.currentTimeMillis();
+        }
+        return complete;
+    }
+
+    private int getSavedIndex(Shard shard) throws ShardManagerException{
+        try {
+            return shard.getLastSavedIndex();
+        } catch (Exception e) {
+            throw new ShardManagerException(e);
+        }
     }
 
     @Override
-    public boolean waitApproaching(String clusterId, long timeoutMs) throws ShardManagerException {
-        return true;
+    public boolean waitSlavesApproaching(String clusterId, long timeoutMs)
+        throws ShardManagerException, InterruptedException {
+        return waitLogApproach(clusterId, timeoutMs, LOG_APPROACHING_DIFF);
     }
 
     @Override
@@ -221,7 +254,7 @@ public class ShardManager implements ShardManagerProtocol {
         }
     }
 
-    void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
+    private void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
         // TODO: implement
         trace("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
@@ -234,7 +267,7 @@ public class ShardManager implements ShardManagerProtocol {
         trace("No more request on buckets: {}", splitRange);
     }
 
-    void executeTaskWithTimeout(Callable callable, long timeoutMs)
+    private void executeTaskWithTimeout(Callable callable, long timeoutMs)
         throws InterruptedException, ExecutionException, TimeoutException {
         executor.submit(callable)
             .get(timeoutMs, TimeUnit.MILLISECONDS);

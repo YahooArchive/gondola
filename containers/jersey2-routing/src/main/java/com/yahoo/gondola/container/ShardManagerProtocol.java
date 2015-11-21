@@ -50,7 +50,7 @@ public interface ShardManagerProtocol {
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
      */
-    boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException;
+    boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException;
 
     /**
      * Wait approaching boolean.
@@ -60,7 +60,7 @@ public interface ShardManagerProtocol {
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
      */
-    boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException;
+    boolean waitSlavesApproaching(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException;
 
     /**
      * Sets buckets.
@@ -75,6 +75,10 @@ public interface ShardManagerProtocol {
      * The type Shard manager exception.
      */
     class ShardManagerException extends Exception {
+
+        public ShardManagerException(Exception e) {
+            super(e);
+        }
 
         public enum CODE {
             NOT_LEADER,
