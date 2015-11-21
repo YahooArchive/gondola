@@ -97,9 +97,8 @@ public class Command {
     }
 
     /**
-     * Equivalent to commit(buf, buffOffset, bufLen, -1);
+     * Equivalent to commit(buf, buffOffset, bufLen, -1).
      *
-     * @return 0 if successful.
      * @throws NotLeaderException if the member is not currently the leader.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen)
@@ -116,7 +115,6 @@ public class Command {
      * After this call, this command object can be used again.
      *
      * @param timeout If -1, timeout is disabled.
-     * @return 0 if successful.
      * @throws NotLeaderException if the member is not currently the leader.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen, int timeout)

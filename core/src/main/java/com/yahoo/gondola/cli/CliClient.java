@@ -54,14 +54,13 @@ public class CliClient {
     }
 
     /**
+     * Attempts to make the member the leader. Continues trying to do this until timeout has expired.
+     *
+     * @return the response of the send or null if the send was unsuccesful.
      * @param timeout -1 means no timeout. In milliseconds.
      */
     public String forceLeader(int timeout) throws Exception {
         return channel.send("F " + timeout);
-    }
-
-    public String getLastIndex() throws Exception {
-        return channel.send("l");
     }
 
     /**

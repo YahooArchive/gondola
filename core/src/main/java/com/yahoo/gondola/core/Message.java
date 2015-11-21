@@ -158,9 +158,7 @@ public class Message {
         return batching && size + cmdSize + 2 <= buffer.length && !isHeartbeat();
     }
 
-    /**
-     * *************************** header *****************************
-     */
+    /* *************************** header ***************************** */
 
     public int size() {
         return byteBuffer.getShort(0);

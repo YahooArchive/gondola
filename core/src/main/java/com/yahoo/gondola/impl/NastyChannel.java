@@ -34,7 +34,7 @@ public class NastyChannel extends SocketChannel {
      */
     @Override
     public OutputStream getOutputStream(OutputStream out, boolean errorOccurred)
-        throws InterruptedException, EOFException {
+            throws InterruptedException, EOFException {
         OutputStream os = super.getOutputStream(out, errorOccurred);
         if (os != lastOutputStream) {
             lastOutputStream = os;
@@ -51,7 +51,7 @@ public class NastyChannel extends SocketChannel {
         enabled = on;
     }
 
-    /*********************** non-public methods ********************/
+    /* ********************** non-public methods ******************* */
 
     class NastyOutputStream extends OutputStream {
         OutputStream wrapped;

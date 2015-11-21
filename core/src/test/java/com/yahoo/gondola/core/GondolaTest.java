@@ -6,10 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Command;
-import com.yahoo.gondola.Member;
-import com.yahoo.gondola.Role;
-import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.*;
 import com.yahoo.gondola.rc.GondolaRc;
 import com.yahoo.gondola.rc.MemberRc;
 
@@ -43,9 +40,9 @@ import static org.testng.Assert.assertTrue;
  * This is the TestNG suite of Gondola unit tests.
  * See conf/gondola-rc.conf to see how the gondola instances are configured.
  * All the unit tests assume a three-node shard configuration.
- *
+ * <p>
  * The test makes extensive use of GondolaRc and MemberRc objects (rc stands for remote control).
- * These objects are wrappers around the regular Gondola and Member instances and provides methods 
+ * These objects are wrappers around the regular Gondola and Member instances and provides methods
  * that make it easier to set up a test case.
  * For example, you can use MemberRc to initialize the Raft log of a particular member with a few entries.
  */
@@ -166,7 +163,9 @@ public class GondolaTest {
         c.release();
     }
 
-    /************************** connection test cases ***********************/
+    /**************************
+     * connection test cases
+     ***********************/
 
     @Test
     public void socketInactivity() throws Exception {
@@ -178,7 +177,7 @@ public class GondolaTest {
         runningTick = 50;
     }
 
-    
+
     /************************** log test cases ***********************/
 
     /**
@@ -189,7 +188,7 @@ public class GondolaTest {
         member1.setMaxGap(99);
         assertEquals(member1.getMaxGap(), 99);
     }
-    
+
     /**
      * The log has a gap. The leader should discard the command after the gap and then insert a no-op.
      */
@@ -210,7 +209,7 @@ public class GondolaTest {
         assertCommand(member3, -1, 1, "command 1");
         assertCommand(member3, -1, 2, "command 2");
     }
-    
+
     /**
      * The log has an entry that has not been committed. It should be overwritten.
      */
@@ -231,7 +230,7 @@ public class GondolaTest {
         assertCommand(member3, -1, 1, "command 1");
         assertCommand(member3, -1, 2, "command 2");
     }
-    
+
     /**
      * A new leader writes a no-op if it has uncommitted entries.
      */
@@ -266,9 +265,9 @@ public class GondolaTest {
         // Second entry should be a empty command
         assertCommand(member1, -1, 2, "");
     }
-    
+
     /**
-     * The log has two no-ops in a row. 
+     * The log has two no-ops in a row.
      */
     @Test
     public void twoNoops() throws Exception {
@@ -286,9 +285,9 @@ public class GondolaTest {
         assertCommand(member3, -1, 2, "");
         assertCommand(member3, -1, 3, "command 1");
     }
-    
+
     /**
-     * The log has two no-ops in a row. 
+     * The log has two no-ops in a row.
      */
     @Test
     public void twoNoopsWithOldEntries() throws Exception {
@@ -310,7 +309,7 @@ public class GondolaTest {
         assertCommand(member3, -1, 2, "");
         assertCommand(member3, -1, 3, "command 1");
     }
-    
+
     /************************** election test cases ***********************/
 
     /**
@@ -328,7 +327,7 @@ public class GondolaTest {
         }
         assertTrue(leaderCount == 1, "More than one leader elected");
     }
-    
+
     /**
      * The term after an election is greater than the term before the election.
      */
@@ -355,7 +354,7 @@ public class GondolaTest {
         }
         assertTrue(member1.cmember.currentTerm > term);
     }
-    
+
     /**
      * Two nodes have lower term but newest logs. Other node has higher term but older log.
      */
@@ -380,7 +379,7 @@ public class GondolaTest {
             leaderCount = members.stream().filter(m -> m.cmember.isLeader()).count();
         }
     }
-    
+
     /**
      * A leader (term 101) wrote in it's log but did not succeed in sending it out. This entry should be deleted.
      */
@@ -400,7 +399,7 @@ public class GondolaTest {
 
         assertCommand(member1, 100, 1, "command 1");
     }
-    
+
     /**
      * Only the members with the longer log can be a leader.
      */
@@ -424,7 +423,7 @@ public class GondolaTest {
         // Member3 can't be a leader
         assertTrue(!member3.cmember.isLeader());
     }
-    
+
     /**
      * Only the members with the later log can be a leader.
      */
@@ -610,7 +609,7 @@ public class GondolaTest {
         // eember1 can't be a leader
         assertTrue(!member1.cmember.isLeader());
     }
-    
+
     /**
      * All nodes start out as followers then change to candidate. Ensure that an event is fired.
      */
@@ -640,7 +639,7 @@ public class GondolaTest {
         }
         member1.unregisterForRoleChanges(listener);
     }
-    
+
     /************************** backfill test cases ***********************/
 
     /**
@@ -649,12 +648,12 @@ public class GondolaTest {
     @Test
     public void largeBackfill() throws Exception {
         // Init state
-        for (int i=1; i<=1000; i++) {
-            member1.insert(1, i, "older "+i);
+        for (int i = 1; i <= 1000; i++) {
+            member1.insert(1, i, "older " + i);
         }
-        for (int i=1; i<=1000; i++) {
-            member2.insert(2, i, "newer "+i);
-            member3.insert(2, i, "newer "+i);
+        for (int i = 1; i <= 1000; i++) {
+            member2.insert(2, i, "newer " + i);
+            member3.insert(2, i, "newer " + i);
         }
         gondolaRc.resetMembers(); // Pick up new storage state
         runningTick = 50;
@@ -673,9 +672,9 @@ public class GondolaTest {
         // Init state
         int cterm = 100;
         int term = 5;
-        for (int i=1; i<=10; i++) {
-            member1.insert(term+i, i, "command "+i);
-            member2.insert(term+i, i, "command "+i);
+        for (int i = 1; i <= 10; i++) {
+            member1.insert(term + i, i, "command " + i);
+            member2.insert(term + i, i, "command " + i);
         }
         member1.saveVote(cterm, -1);
         gondolaRc.resetMembers(); // Pick up new storage state
@@ -685,8 +684,8 @@ public class GondolaTest {
         runningTick = 50;
 
         // Retrieve the command after member 3 is backfilled
-        for (int i=1; i<=10; i++) {
-            assertCommand(member3, term+i, i, "command "+i);
+        for (int i = 1; i <= 10; i++) {
+            assertCommand(member3, term + i, i, "command " + i);
         }
     }
 
@@ -699,9 +698,9 @@ public class GondolaTest {
         // Init state
         int cterm = 100;
         int term = 5;
-        for (int i=1; i<=10; i++) {
-            member1.insert(term, i, "command "+i);
-            member2.insert(term, i, "command "+i);
+        for (int i = 1; i <= 10; i++) {
+            member1.insert(term, i, "command " + i);
+            member2.insert(term, i, "command " + i);
         }
         member1.saveVote(cterm, -1);
         gondolaRc.resetMembers(); // Pick up new storage state
@@ -713,8 +712,8 @@ public class GondolaTest {
         runningTick = 50;
 
         // Retrieve the command after member 3 is backfilled
-        for (int i=1; i<=10; i++) {
-            assertCommand(member3, term, i, "command "+i);
+        for (int i = 1; i <= 10; i++) {
+            assertCommand(member3, term, i, "command " + i);
         }
     }
 
@@ -743,8 +742,8 @@ public class GondolaTest {
     public void backfillUntilUpToDate() throws Exception {
         // Init state
         int term = 5;
-        for (int i=1; i<=10; i++) {
-            member1.insert(term+i, i, "command "+i);
+        for (int i = 1; i <= 10; i++) {
+            member1.insert(term + i, i, "command " + i);
         }
         gondolaRc.resetMembers(); // Pick up new storage state
         member1.setLeader();
@@ -900,7 +899,7 @@ public class GondolaTest {
     public void readEndDead() throws Exception {
         PipedInputStream pin = new PipedInputStream();
         PipedOutputStream pout = new PipedOutputStream(pin);
-        
+
         pout.write(1);
         Thread t = new Thread() {
             public void run() {
@@ -910,7 +909,7 @@ public class GondolaTest {
                     Assert.fail();
                 }
             }
-            };
+        };
         t.start();
         t.join();
         try {
@@ -921,7 +920,41 @@ public class GondolaTest {
         }
     }
 
-    /************************* utilities **********************/
+    /**************************
+     * slave mode
+     ***********************/
+
+    //@Test
+    public void slaveMode() throws Exception {
+        // Init state
+        for (int i = 1; i <= 100; i++) {
+            member1.insert(101, i, "command " + i);
+            member2.insert(101, i, "command " + i);
+            member3.insert(101, i, "command " + i);
+        }
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        gondolaRc.resetMembers(); // Pick up new storage state
+        runningTick = 50;
+
+        // Create a new shard
+        Gondola g = new Gondola(gondolaRc.getConfig(), "D");
+        g.start();
+        Member slave1 = g.getShard("shard2").getMember(4);
+        slave1.setSlave(1);
+        while (slave1.isLogUpToDate()) {
+            Member.SlaveStatus status = slave1.getSlaveStatus();
+            logger.info("slave status running={}", status.running);
+            Thread.sleep(100);
+        }
+        slave1.setSlave(-1);
+        assertNull(slave1.getSlaveStatus());
+    }
+
+    /*************************
+     * utilities
+     **********************/
 
     class SummaryThread extends Thread {
         public SummaryThread() {

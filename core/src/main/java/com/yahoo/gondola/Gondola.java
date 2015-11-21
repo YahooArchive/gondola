@@ -194,11 +194,12 @@ public class Gondola implements Stoppable {
         return shards;
     }
 
+    /**
+     * Available only after calling start().
+     *
+     * @return null if the shard id does not exist.
+     */
     public Shard getShard(String id) {
-        return shardMap.get(id);
-    }
-
-    Shard get(String id) {
         return shardMap.get(id);
     }
 
@@ -239,6 +240,11 @@ public class Gondola implements Stoppable {
     }
 
     class RoleChangeNotifier extends Thread {
+        public RoleChangeNotifier() {
+            setName("RoleChangeNotifier-" + hostId);
+            setDaemon(true);
+        }
+
         public void run() {
             while (true) {
                 try {

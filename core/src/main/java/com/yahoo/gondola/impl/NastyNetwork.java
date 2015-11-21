@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import java.net.SocketException;
 
 /**
+ * Class that wraps a SocketNetwork class and causes random failures to clients.
  */
 public class NastyNetwork extends SocketNetwork {
     final static Logger logger = LoggerFactory.getLogger(NastyNetwork.class);

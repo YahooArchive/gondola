@@ -232,7 +232,6 @@ public class Peer {
      */
 
     class Backfiller extends Thread {
-
         public Backfiller() {
             setName("Backfiller-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -408,7 +407,6 @@ public class Peer {
      * on the receive queue.
      */
     class Receiver extends Thread {
-
         Receiver() {
             setName("PeerReceiver-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -485,7 +483,6 @@ public class Peer {
      * The peer only processes ae messages. The rest are forwarded to the member.
      */
     class MyMessageHandler extends MessageHandler {
-
         @Override
         public boolean appendEntryRequest(Message message, int fromMemberId, int term,
                                           int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat,
@@ -602,7 +599,6 @@ public class Peer {
      * This thread retrieves messages from the send queue and delivers them to the remote member.
      */
     class Sender extends Thread {
-
         Sender() {
             setName("PeerSender-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
@@ -675,7 +671,6 @@ public class Peer {
 
     // Stat
     class Stat {
-
         int value;
         int lastValue;
         long lastTs;
@@ -692,4 +687,7 @@ public class Peer {
 
     /******************** slave mode *********************/
 
+    public void setChannel(Channel channe) {
+        this.channel = channel;
+    }
 }

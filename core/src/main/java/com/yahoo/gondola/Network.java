@@ -42,7 +42,7 @@ public interface Network extends Stoppable {
     /**
      * Returns true if the member at the given address is active.
      *
-     * @param Non-null address string that was returned from getAddress().
+     * @param address non-null string that was returned from getAddress().
      * @return The active state of the member at the specified address.
      */
     public boolean isActive(String address);
