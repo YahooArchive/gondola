@@ -45,7 +45,9 @@ public class Channel {
     }
 
     /**
-     * Equivalent to send(command, true);
+     * Equivalent to send(command, true).
+     *
+     * @return the response or null if the send was unsuccessful.
      */
     public String send(String command) throws Exception {
         return send(command, true);
@@ -55,6 +57,8 @@ public class Channel {
      * Blocks until the command is successfully sent to the remote process.
      * If the connection to the remote process fails, this method will continuously attempt
      * to reestablish the connection.
+     *
+     * @return the response or null if the send was unsuccessful.
      */
     public String send(String command, boolean retry) throws Exception {
         ChannelResult result = null;
@@ -89,10 +93,10 @@ public class Channel {
                 }
             }
         }
-        if (result.success) {
-            return result.message;
+        if (!result.success) {
+            throw new Exception(String.format("[%s:%d] %s -> %s", host, port, command, result.message));
         }
-        throw new Exception(String.format("[%s:%d] %s -> %s", host, port, command, result.message));
+        return result.message;
     }
 
     public void close() {

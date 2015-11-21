@@ -64,9 +64,10 @@ public class SocketNetwork implements Network {
     static boolean networkTracing;
     static int connTimeout;
 
-    // Used to interrupt the acceptor thread. IO methods throw InterruptedIOException when interrupted and when closed.
-    // This variable allows the acceptor thread to distinguish between the two. If the generation is updated, then
-    // an interrupt occured.
+    // Used to interrupt the acceptor thread. IO methods throw
+    // InterruptedIOException when interrupted and when closed.  This
+    // variable allows the acceptor thread to distinguish between the
+    // two. If the generation is updated, then an interrupt occured.
     int generation = 0;
 
     // List of threads running in this class
@@ -247,17 +248,16 @@ public class SocketNetwork implements Network {
                     }
                 }
 
-                // The target member id is not known so reject the connection request
                 if (channel == null && listener == null) {
+                    // The target member id is not known so reject the connection request
                     logger.info("[{}] Connection request from {} to {} rejected because the channel is not registered",
                             gondola.getHostId(), hello.fromMemberId, hello.toMemberId);
                     hello.close(socket);
                 } else if (channel == null) {
+                    // The channel is a slave
                     channel = new SocketChannel(gondola, hello.toMemberId, hello.fromMemberId);
                     channel.setSocket(socket, hello.in, hello.out);
                     if (!listener.apply(channel)) {
-                        logger.info("[{}] Connection request from {} to {} rejected",
-                                gondola.getHostId(), hello.fromMemberId, hello.toMemberId);
                         hello.close(socket);
                     }
                 } else {

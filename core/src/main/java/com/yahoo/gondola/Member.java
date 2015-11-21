@@ -86,14 +86,22 @@ public class Member {
      */
     public static class SlaveStatus {
         // The id of the current member
-        int memberId;
+        public int memberId;
+
+        public int masterId;
 
         // True if the member is connected to the leader
-        boolean running;
+        public boolean running;
+
+        // The commitIndex can be 0
+        public int commitIndex;
+
+        // The savedIndex <= commitIndex
+        public int savedIndex;
 
         // Non-null if an error occurred while connecting to or retrieving data from the leader.
         // When non-null, running will be false.
-        Throwable exception;
+        public Throwable exception;
     }
 
     /**
@@ -102,15 +110,16 @@ public class Member {
      * <li> the member contacts the specified address, which is expected to be a leader
      * <li> once successfully connected, the member becomes a follower
      * <li> the member ignores all RequestVote messages
-     * <li> the member continues to connect to the specified address
+     * <li> if the connection fails, the member continues to retry connecting to the specified address
+     *
+     * After this call, the commitIndex and savedIndex will be 0.
      *
      * If masterAddress is -1, this member leaves slave mode.
      *
-     * @param masterId the id of the leader to sync with. Set to -1 to leave slave mode.
-     * @param updateCallback the possibly-null function called whenever there's a status change.
+     * @param masterId the member id of the leader to sync with. Set to -1 to leave slave mode.
      */
-    public void setSlave(int masterId, Consumer<SlaveStatus> updateCallback) {
-        cmember.setSlave(masterId, updateCallback);
+    public void setSlave(int masterId) {
+        cmember.setSlave(masterId);
     }
 
     /**
@@ -118,7 +127,7 @@ public class Member {
      *
      * @return null if the member is no in slave mode.
      */
-    public SlaveStatus getSlaveUpdate() {
-        return cmember.getSlaveUpdate();
+    public SlaveStatus getSlaveStatus() {
+        return cmember.getSlaveStatus();
     }
 }

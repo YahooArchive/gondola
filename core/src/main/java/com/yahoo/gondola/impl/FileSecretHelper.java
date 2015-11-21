@@ -19,7 +19,7 @@ public class FileSecretHelper implements Function<String, String> {
     Properties properties;
 
     /**
-     * Read secret property from file
+     * Reads secret property from the secret file.
      *
      * @param secretFile secret file in Java property format
      * @throws IOException

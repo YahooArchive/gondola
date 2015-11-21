@@ -19,6 +19,8 @@ public interface Clock extends Stoppable {
 
     /**
      * See Stoppable.stop().
+     *
+     * @return true if no errors were detected.
      */
     public boolean stop();
 
@@ -37,7 +39,8 @@ public interface Clock extends Stoppable {
     public void sleep(long delayMs) throws InterruptedException;
 
     /**
-     * Equivlant to:
+     * Waits on the specified condition for at most the specified timeout period.
+     * Equivalent to:
      * lock.lock();
      * cond.await(TimeUnit.MILLISECONDS, timeMs);
      * lock.unlock();

@@ -31,9 +31,10 @@ public class GondolaRc {
 
     Map<Integer, MemberRc> members = new HashMap<>();
     List<Gondola> gondolas = new ArrayList<>();
+    Config config;
 
     public GondolaRc() throws Exception {
-        Config config = new Config(new File("conf/gondola-rc.conf"));
+        config = new Config(new File("conf/gondola-rc.conf"));
 
         // Create list of three gondola instances
         gondolas = Stream.of(new Gondola(config, "A"), new Gondola(config, "B"), new Gondola(config, "C"))
@@ -56,6 +57,10 @@ public class GondolaRc {
             }
         }
         members.clear();
+    }
+
+    public Config getConfig() {
+        return config;
     }
 
     /**

@@ -37,7 +37,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * socket, in, and out will all be null.
  */
 public class SocketChannel implements Channel {
-
     final static Logger logger = LoggerFactory.getLogger(SocketChannel.class);
 
     Gondola gondola;
@@ -306,9 +305,8 @@ public class SocketChannel implements Channel {
         // will be initiated by the other member.
         // Also, if this member is a slave, initiate the connection as well.
         Config config = gondola.getConfig();
-        boolean
-            callFrom =
-            memberId > peerId || config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
+        boolean isSlave = config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
+        boolean callFrom = memberId > peerId || isSlave;
         new SocketCreator(callFrom).start();
     }
 
@@ -317,7 +315,6 @@ public class SocketChannel implements Channel {
      * dies.
      */
     class SocketCreator extends Thread {
-
         Socket socket = null;
         InputStream in = null;
         OutputStream out = null;

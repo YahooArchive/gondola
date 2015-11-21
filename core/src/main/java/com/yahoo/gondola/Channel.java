@@ -37,11 +37,15 @@ public interface Channel extends Stoppable {
 
     /**
      * See Stoppable.stop().
+     *
+     * @return true if no errors were detected.
      */
     boolean stop();
 
     /**
      * Returns the id of the remote member for this channel.
+     *
+     * @return the id of the member at the other end of this channel.
      */
     public int getRemoteMemberId();
 
@@ -54,7 +58,9 @@ public interface Channel extends Stoppable {
     public String getRemoteAddress();
 
     /**
-     * Returns true if the input and output streams are valid.
+     * Returns whether the input and output streams are useable.
+     *
+     * @return true if the input and output streams are valid.
      */
     public boolean isOperational();
 
