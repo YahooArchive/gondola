@@ -18,7 +18,8 @@ import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.util.Arrays;
+import java.io.File;
+import java.net.URL;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
@@ -30,9 +31,8 @@ import static org.testng.Assert.assertTrue;
 
 public class ShardManagerTest {
 
-    public static final String FROM_SHARD = "c1";
-    public static final String TARGET_SHARD = "c2";
-    public static final Integer FROM_MEMBER = 1;
+    public static final String FROM_SHARD = "shard1";
+    public static final String TARGET_SHARD = "shard2";
     public static final int TIMEOUT_MS = 1000;
     ShardManager shardManager;
 
@@ -42,8 +42,8 @@ public class ShardManagerTest {
     @Mock
     LockManager lockManager;
 
-    @Mock
-    Config config;
+    URL configUrl = ShardManagerTest.class.getClassLoader().getResource("gondola.conf");
+    Config config = new Config(new File(configUrl.getFile()));
 
     @Mock
     Config.ConfigMember configMember;
@@ -66,9 +66,6 @@ public class ShardManagerTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        when(config.getMembersInShard(any())).thenReturn(Arrays.asList(configMember, configMember, configMember));
-        when(configMember.getMemberId()).thenReturn(1,2,3);
-        when(config.getMember(anyInt())).thenReturn(configMember);
         when(filter.isLeaderInShard(any())).thenReturn(true);
         when(filter.getGondola()).thenReturn(gondola);
         when(gondola.getShard(any())).thenReturn(shard);
@@ -78,7 +75,7 @@ public class ShardManagerTest {
 
     @Test
     public void testStartObserving_success() throws Exception {
-        callbackAnswer(true);
+        callbackAnswer(86, true, null);
         assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
         assertTrue(shardManager.getObservedShards().contains(TARGET_SHARD));
@@ -88,7 +85,7 @@ public class ShardManagerTest {
 
     @Test(expectedExceptions = ShardManagerProtocol.ShardManagerException.class)
     public void testStartObserving_failed() throws Exception {
-        callbackAnswer(false);
+        callbackAnswer(86, false, null);
         assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
     }
@@ -96,12 +93,18 @@ public class ShardManagerTest {
 
     @Test
     public void testStopObserving() throws Exception {
-        callbackAnswer(true);
-
+        // Start observing
+        callbackAnswer(86, true, null);
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD);
         assertTrue(shardManager.getObservedShards().contains(TARGET_SHARD));
+
+        // Stop observing successfully
+        callbackAnswer(-1, true, null);
         shardManager.stopObserving(FROM_SHARD, TARGET_SHARD);
         assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
+
+        // Stop observing again
+        callbackAnswer(-1, true, null);
         shardManager.stopObserving(FROM_SHARD, TARGET_SHARD);
         assertFalse(shardManager.getObservedShards().contains(TARGET_SHARD));
     }
@@ -113,12 +116,20 @@ public class ShardManagerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private void callbackAnswer(boolean running) {
-        Member.SlaveStatus slaveStatus = new Member.SlaveStatus();
-        slaveStatus.running = running;
+    private void callbackAnswer(int memberId, boolean running, Exception e) {
+        Member.SlaveStatus slaveStatus;
+        if (memberId == -1) {
+            slaveStatus = null;
+        } else {
+            slaveStatus = new Member.SlaveStatus();
+            slaveStatus.running = running;
+            slaveStatus.memberId = memberId;
+            slaveStatus.exception = e;
+        }
         doAnswer(invocation -> {
             ((Consumer<Member.SlaveStatus>) invocation.getArguments()[1]).accept(slaveStatus);
             return null;
         }).when(member).setSlave(anyInt(), any());
+        when(member.getSlaveUpdate()).thenReturn(slaveStatus);
     }
 }
