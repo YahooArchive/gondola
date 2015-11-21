@@ -107,18 +107,18 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void startObserving(String shardId, String observedShardId)
+    public void startObserving(String observedShardId, String shardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            getShardManager(m.getMemberId()).startObserving(shardId, observedShardId);
+            getShardManager(m.getMemberId()).startObserving(observedShardId, shardId, timeoutMs);
         }
     }
 
     @Override
-    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException,
-                                                                             InterruptedException {
+    public void stopObserving(String shardId, String observedShardId, long timeoutMs) throws ShardManagerException,
+                                                                                             InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId);
+            getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId, timeoutMs);
         }
     }
 

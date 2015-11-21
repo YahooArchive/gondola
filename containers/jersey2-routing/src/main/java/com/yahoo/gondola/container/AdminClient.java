@@ -21,7 +21,9 @@ import java.util.Map;
  */
 public class AdminClient {
 
+    // TODO: move to config
     private static final int RETRY_COUNT = 3;
+    public static final int TIMEOUT_MS = 300;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
@@ -117,7 +119,7 @@ public class AdminClient {
                 step = "initializing";
                 trace("Initializing slaves on {} ...", toShardId);
                 for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
-                    shardManagerClient.startObserving(toShardId, fromShardId);
+                    shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
                 }
 
                 step = "waiting for slave logs approaching";

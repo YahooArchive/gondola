@@ -16,11 +16,12 @@ public interface ShardManagerProtocol {
     /**
      * Start observing.
      *
-     * @param shardId         the shard id
      * @param observedShardId the observed shard id
+     * @param shardId         the shard id
      * @throws ShardManagerException the shard manager exception
      */
-    void startObserving(String shardId, String observedShardId) throws ShardManagerException, InterruptedException;
+    void startObserving(String observedShardId, String shardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException;
 
     /**
      * Stop observing.
@@ -29,7 +30,8 @@ public interface ShardManagerProtocol {
      * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
-    void stopObserving(String shardId, String observedShardId) throws ShardManagerException, InterruptedException;
+    void stopObserving(String shardId, String observedShardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException;
 
     /**
      * Assign bucket.
@@ -64,7 +66,8 @@ public interface ShardManagerProtocol {
 
     /**
      * Sets buckets.
-     *  @param splitRange        the split range
+     *
+     * @param splitRange        the split range
      * @param fromShardId       the from shard id
      * @param toShardId         the to shard id
      * @param migrationComplete flag to indicate the migration is complete

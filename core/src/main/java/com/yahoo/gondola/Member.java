@@ -101,7 +101,7 @@ public class Member {
 
         // Non-null if an error occurred while connecting to or retrieving data from the leader.
         // When non-null, running will be false.
-        Throwable exception;
+        public Throwable exception;
     }
 
     /**
