@@ -12,7 +12,6 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
-import com.yahoo.gondola.container.client.SnapshotManagerClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.glassfish.jersey.server.ContainerRequest;
@@ -61,7 +60,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     // shardId --> list of available servers. (URI)
     Map<String, List<String>> routingTable;
 
-    private SnapshotManagerClient snapshotManagerClient;
     private Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
     private CommandListener commandListener;
     private ProxyClient proxyClient;
