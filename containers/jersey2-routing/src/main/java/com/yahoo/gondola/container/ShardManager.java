@@ -177,27 +177,20 @@ public class ShardManager implements ShardManagerProtocol {
 
     private void assignBucketOnLeader(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException {
-        MigrationType migrationType = getMigrationType(splitRange, toShardId);
-        switch (migrationType) {
-            case APP:
-                try {
-                    filter.blockRequestOnBuckets(splitRange);
-                    waitNoRequestsOnBuckets(splitRange, timeoutMs);
-                    shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
-                    shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
-                    setBuckets(splitRange, fromShardId, toShardId, false);
-                } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    // TODO: rollback
-                    logger.warn("Error occurred, rollback!", e);
-                } finally {
-                    filter.unblockRequestOnBuckets(splitRange);
-                }
-                trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
-                shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
-                break;
-            case DB:
-                // TODO: implement
+        try {
+            filter.blockRequestOnBuckets(splitRange);
+            waitNoRequestsOnBuckets(splitRange, timeoutMs);
+            shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
+            shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
+            setBuckets(splitRange, fromShardId, toShardId, false);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            // TODO: rollback
+            logger.warn("Error occurred, rollback!", e);
+        } finally {
+            filter.unblockRequestOnBuckets(splitRange);
         }
+        trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+        shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
     }
 
     @Override
@@ -243,23 +236,6 @@ public class ShardManager implements ShardManagerProtocol {
     public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         trace("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
         filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
-    }
-
-    /**
-     * Returns the migration type by inspect config, DB -> if two shards use different database APP -> if two shards use
-     * same database.
-     */
-    private MigrationType getMigrationType(Range<Integer> splitRange, String toShard) {
-        //TODO: implement
-        return MigrationType.APP;
-    }
-
-    /**
-     * Two types of migration APP -> Shared the same DB DB  -> DB migration.
-     */
-    enum MigrationType {
-        APP,
-        DB
     }
 
     private void trace(String format, Object... args) {
