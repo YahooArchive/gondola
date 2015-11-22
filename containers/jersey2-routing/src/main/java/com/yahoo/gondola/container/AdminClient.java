@@ -111,22 +111,25 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) throws InterruptedException {
+    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+        throws InterruptedException, AdminException {
         trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         String step = "Before init";
+        boolean complete = false;
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 step = "initializing";
                 trace("Initializing slaves on {} ...", toShardId);
-                for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
-                    shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
-                }
+                shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
 
                 step = "waiting for slave logs approaching";
                 trace(
                     "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
                     toShardId);
-                shardManagerClient.waitSlavesApproaching(toShardId, -1);
+
+                if (!shardManagerClient.waitSlavesApproaching(toShardId, -1)) {
+                    break;
+                }
 
                 step = "assigning buckets";
                 trace("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
@@ -137,15 +140,20 @@ public class AdminClient {
 
                 trace("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
                 step = "done";
+                complete = true;
                 break;
             } catch (ShardManagerProtocol.ShardManagerException e) {
-                logger.warn("Error occurred in step {}.. retrying {} / {}, errorMsg={}",
-                            step, i, RETRY_COUNT, e.getMessage());
-                if (i == RETRY_COUNT) {
+                if (i != RETRY_COUNT) {
+                    logger.warn("Error occurred in step {}.. retrying {} / {}, errorMsg={}",
+                                step, i, RETRY_COUNT, e.getMessage());
+                } else {
                     logger.error("Assign bucket failed, lastError={}", e.getMessage());
                     throw new RuntimeException(e);
                 }
             }
+        }
+        if (!complete) {
+            throw new AdminException();
         }
     }
 
@@ -160,8 +168,8 @@ public class AdminClient {
         throws ShardManagerProtocol.ShardManagerException {
         // TODO: implement
         trace("Executing close the state of assign buckets");
-        trace("Writing migration state to all nodes, and waiting all nodes bucket table updated...");
-        shardManagerClient.setBuckets(range, fromShardId, toShardId, false);
+        trace("Waiting all nodes bucket table updated...");
+        // waiting..
         trace("closing the state of assign buckets...");
         shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
         trace("Done!");
@@ -257,78 +265,37 @@ public class AdminClient {
 
     }
 
-    /**
-     * The enum Target.
-     */
     enum Target {
-        /**
-         * Host target.
-         */
-        HOST, /**
-         * Shard target.
-         */
-        SHARD, /**
-         * Site target.
-         */
-        SITE, /**
-         * Storage target.
-         */
-        STORAGE, /**
-         * All target.
-         */
+        HOST,
+        SHARD,
+        SITE,
+        STORAGE,
         ALL
     }
 
-    /**
-     * The type Stat.
-     */
     class Stat {
 
     }
 
-    /**
-     * The type Host stat.
-     */
     class HostStat extends Stat {
 
     }
 
-    /**
-     * The type Storage stat.
-     */
     class StorageStat extends Stat {
 
     }
 
-    /**
-     * The type Shard stat.
-     */
     class ShardStat extends Stat {
 
     }
 
-    /**
-     * The type Admin exception.
-     */
     class AdminException extends Exception {
-
-        /**
-         * The Error code.
-         */
         ErrorCode errorCode;
     }
 
-    /**
-     * The enum Error code.
-     */
     enum ErrorCode {
-        /**
-         * Config not found error code.
-         */
         CONFIG_NOT_FOUND(10000);
-
         private int code;
-
         ErrorCode(int code) {
             this.code = code;
         }

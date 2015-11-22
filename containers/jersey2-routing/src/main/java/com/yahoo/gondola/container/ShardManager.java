@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_STOP_SLAVE;
@@ -60,7 +61,7 @@ public class ShardManager implements ShardManagerProtocol {
     public void startObserving(String observedShardId, String shardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
         boolean success = false;
-        trace("[{}] Connect to shardId={} as slave", shardId, observedShardId);
+        trace("[{}] shardId={} follows shardId={} as slave", gondola.getHostId(), shardId, observedShardId);
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
             if (success = setSlave(shardId, m.getMemberId(), timeoutMs)) {
                 break;
@@ -72,26 +73,23 @@ public class ShardManager implements ShardManagerProtocol {
         observedShards.add(observedShardId);
     }
 
-    private boolean setSlave(String shardId, int memberId, long timeoutMs) throws InterruptedException {
+    private boolean setSlave(String shardId, int memberId, long timeoutMs)
+        throws InterruptedException, ShardManagerException {
         gondola.getShard(shardId).getLocalMember().setSlave(memberId);
-        long defaultSleep = timeoutMs / POLLING_TIMES;
-        long start = System.currentTimeMillis();
-        long now = start;
-        Member.SlaveStatus status;
-        while (true) {
-            status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
-            if (!status.running) {
-                long remain = timeoutMs - (now - start);
-                Thread.sleep(defaultSleep > remain ? defaultSleep : remain);
-            } else {
-                return status.running;
-            }
-            now = System.currentTimeMillis();
-            if (now - start >= timeoutMs) {
+
+        try {
+            return Utils.pollingWithTimeout(() -> {
+                Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
+                if (status != null && status.running) {
+                    return true;
+                }
                 logger.warn("Failed start observing {} on shard={}, msg={}",
-                            memberId, shardId, status.exception != null ? status.exception.getMessage() : "n/a");
+                            memberId, shardId,
+                            status != null && status.exception != null ? status.exception.getMessage() : "n/a");
                 return false;
-            }
+            }, timeoutMs / POLLING_TIMES, timeoutMs);
+        } catch (ExecutionException e) {
+            throw new ShardManagerException(e);
         }
     }
 
@@ -102,7 +100,7 @@ public class ShardManager implements ShardManagerProtocol {
     @Override
     public void stopObserving(String shardId, String observedShardId, long timeoutMs) throws ShardManagerException,
                                                                                              InterruptedException {
-        trace("[{}] Disconnect to shardId={} as slave", shardId, observedShardId);
+        trace("[{}] shardId={} un-followed shardId={}", gondola.getHostId(), shardId, observedShardId);
         boolean success = false;
         for (Config.ConfigMember m : config.getMembersInShard(observedShardId)) {
             if (success = unsetSlave(shardId, m.getMemberId(), timeoutMs)) {
@@ -134,22 +132,17 @@ public class ShardManager implements ShardManagerProtocol {
 
         gondola.getShard(shardId).getLocalMember().setSlave(-1);
 
-        long start = System.currentTimeMillis();
-        long now = start;
-        long defaultSleep = timeoutMs / POLLING_TIMES;
-
-        while (true) {
-            if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() != null) {
-                long remain = defaultSleep - (now - start);
-                Thread.sleep(defaultSleep < remain ? defaultSleep : remain);
-                now = System.currentTimeMillis();
-                if (now - start >= timeoutMs) {
-                    logger.warn("Failed stop observing {} on shard={}", memberId, shardId);
-                    return false;
-                }
-            } else {
-                return true;
-            }
+        try {
+            return Utils.pollingWithTimeout(() -> {
+                                        if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() == null) {
+                                            return true;
+                                        }
+                                        logger.warn("Failed stop observing {} on shard={}", memberId, shardId);
+                                        return false;
+                                    }
+                , timeoutMs / POLLING_TIMES, timeoutMs);
+        } catch (ExecutionException e) {
+            throw new ShardManagerException(e);
         }
     }
 
@@ -175,7 +168,7 @@ public class ShardManager implements ShardManagerProtocol {
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             setBuckets(splitRange, fromShardId, toShardId, false);
-        } catch (InterruptedException e) {
+        } catch (InterruptedException|ExecutionException  e) {
             // TODO: rollback
             logger.warn("Error occurred, rollback!", e);
         } finally {
@@ -186,28 +179,27 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException {
+    public boolean waitSlavesSynced(String shardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException {
         return waitLogApproach(shardId, timeoutMs, 0);
     }
 
     private boolean waitLogApproach(String shardId, long timeoutMs, int logPosDiff)
         throws ShardManagerException, InterruptedException {
         Shard shard = gondola.getShard(shardId);
-        boolean complete = false;
-        long start = System.currentTimeMillis();
-        long now = start;
-        long defaultSleep = timeoutMs / POLLING_TIMES;
-        while (now - start < timeoutMs) {
-            if (shard.getCommitIndex() != 0
-                && shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
-                complete = true;
-                break;
-            }
-            long remain = start + timeoutMs - System.currentTimeMillis();
-            Thread.sleep(defaultSleep < remain ? defaultSleep : remain);
-            now = System.currentTimeMillis();
+        try {
+            return Utils.pollingWithTimeout(() -> {
+                if (shard.getCommitIndex() != 0 && shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
+                    return true;
+                }
+                trace("[{}] {} Log status={}, currentDiff={}, targetDiff={}",
+                      gondola.getHostId(), shardId, shard.getCommitIndex() != 0 ? "RUNNING":"DOWN",
+                      shard.getCommitIndex() - getSavedIndex(shard), logPosDiff);
+                return false;
+            }, timeoutMs / POLLING_TIMES, timeoutMs);
+        } catch (ExecutionException e) {
+            throw new ShardManagerException(e);
         }
-        return complete;
     }
 
     private int getSavedIndex(Shard shard) throws ShardManagerException {
@@ -226,7 +218,8 @@ public class ShardManager implements ShardManagerProtocol {
 
     @Override
     public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
-        trace("Update local bucket table: buckets={} => {} -> {}", splitRange, fromShardId, migrationComplete);
+        trace("[{}] Update local bucket table: buckets={} {} => {}. status={}",
+              gondola.getHostId(), splitRange, fromShardId, toShardId, migrationComplete ? "COMPLETE" : "MIGRATING");
         filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
 

@@ -91,8 +91,9 @@ public class AdminClientIT {
 
             // inject shardManager instance
             for (Config.ConfigMember m : config.getMembersInHost(hostId)) {
-                shardManagerClient.getShardManagers()
-                    .put(m.getMemberId(), new ShardManager(gondola, testServer.routingFilter, config, shardManagerClient));
+                shardManagerClient
+                    .setShardManager(m.getMemberId(),
+                                     new ShardManager(gondola, testServer.routingFilter, config, shardManagerClient));
             }
         }
 
@@ -129,7 +130,6 @@ public class AdminClientIT {
     }
 
     private BucketManager getBucketManagerInLeader(String shardId) {
-        // TODO: make routing table right, check gondola status for now.
         List<BucketManager> bucketManagers = addressTable.entrySet().stream()
             .filter(e -> {
                 LocalTestRoutingServer server = e.getValue();

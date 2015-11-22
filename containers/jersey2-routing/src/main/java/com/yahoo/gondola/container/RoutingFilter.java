@@ -280,15 +280,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      *
      * @param splitRange
      * @param timeoutMs
-     * @return
+     * @return true if no requests on buckets, false if timeout.
      * @throws InterruptedException
      */
     protected boolean waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
-        throws InterruptedException {
+        throws InterruptedException, ExecutionException {
 
         trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
               splitRange, timeoutMs, getRequestCount(splitRange));
-        return pollingWithTimeout(() -> {
+        return Utils.pollingWithTimeout(() -> {
             long requestCount = getRequestCount(splitRange);
             if (requestCount != 0) {
                 trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
@@ -296,23 +296,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return false;
             }
             return true;
-        }, POLLING_TIMES, timeoutMs);
-    }
-
-    private boolean pollingWithTimeout(BooleanSupplier supplier, int retryCount, long timeoutMs)
-        throws InterruptedException {
-
-        long start = System.currentTimeMillis();
-        long defaultWait = timeoutMs / retryCount;
-        while (System.currentTimeMillis() - start < timeoutMs) {
-            boolean success = supplier.getAsBoolean();
-            if (success) {
-                return true;
-            }
-            long remain = timeoutMs - (System.currentTimeMillis() - start);
-            Thread.sleep(defaultWait < remain ? defaultWait : remain);
-        }
-        return false;
+        }, timeoutMs / POLLING_TIMES, timeoutMs);
     }
 
     private boolean executeTaskWithTimeout(BooleanSupplier supplier, long timeoutMs)
@@ -324,7 +308,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private long getRequestCount(Range<Integer> splitRange) {
         long requestCount = 0;
         for (int i = splitRange.lowerEndpoint(); i <= splitRange.upperEndpoint(); i++) {
-            requestCount += bucketRequestCounters.get(i).get();
+            if (bucketRequestCounters.containsKey(i)) {
+                requestCount += bucketRequestCounters.get(i).get();
+            }
         }
         return requestCount;
     }
