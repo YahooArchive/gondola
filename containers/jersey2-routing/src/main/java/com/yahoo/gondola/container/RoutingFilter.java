@@ -44,6 +44,8 @@ import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.Response;
 
+import static javax.ws.rs.core.Response.Status.*;
+
 
 /**
  * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
@@ -152,53 +154,41 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
 
     @Override
-    public void filter(ContainerRequestContext requestContext) throws IOException {
-        // TODO: implement processing chain.
-        if (processRoutingLoop(requestContext)) {
-            return;
-        }
-
-        processRequest(requestContext);
-    }
-
-    private void processRequest(ContainerRequestContext requestContext) throws IOException {
-        int bucketId = routingHelper.getBucketId(requestContext);
+    public void filter(ContainerRequestContext request) throws IOException {
+        // Extract required data
+        int bucketId = routingHelper.getBucketId(request);
         incrementBucketCounter(bucketId);
-
-        String shardId = getShardId(requestContext);
-        if (shardId == null) {
-            requestContext.abortWith(
-                Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Cannot find shard for bucketId=" + bucketId)
-                    .build());
-            return;
-        }
-
-        try {
-            lockManager.filterRequest(bucketId, shardId);
-        } catch (InterruptedException e) {
-            throw new IOException(e);
-        }
+        String shardId = getShardId(request);
 
         trace("Processing request: {} of shard={}, forwarded={}",
-              requestContext.getUriInfo().getAbsolutePath(), shardId,
-              requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
+              request.getUriInfo().getAbsolutePath(), shardId,
+              request.getHeaders().containsKey(X_FORWARDED_BY) ? request.getHeaders()
                   .get(X_FORWARDED_BY).toString() : "");
+
+        if (hasRoutingLoop(request)) {
+            abortResponse(request, BAD_REQUEST, "Routing loop detected");
+            return;
+        }
+
+        if (shardId == null) {
+            abortResponse(request, BAD_REQUEST, "Cannot find shard for bucketId=" + bucketId);
+            return;
+        }
 
         // redirect the request to other shard
         if (!isMyShard(shardId)) {
-            proxyRequestToLeader(requestContext, shardId);
+            proxyRequestToLeader(request, shardId);
             return;
         }
+
+        // Block request if needed
+        blockRequest(bucketId, shardId);
 
         Member leader = getLeader(shardId);
         // Those are the condition that the server should process this request
         // Still under leader election
         if (leader == null) {
-            requestContext.abortWith(Response
-                                         .status(Response.Status.SERVICE_UNAVAILABLE)
-                                         .entity("No leader is available")
-                                         .build());
+            abortResponse(request, SERVICE_UNAVAILABLE, "No leader is available");
             trace("Leader is not available");
             return;
         } else if (leader.isLocal()) {
@@ -207,19 +197,23 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
 
         // redirect the request to leader
-        proxyRequestToLeader(requestContext, shardId);
+        proxyRequestToLeader(request, shardId);
     }
 
-    private boolean processRoutingLoop(ContainerRequestContext requestContext) {
-        if (hasRoutingLoop(requestContext)) {
-            requestContext.abortWith(
-                Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Routing loop detected")
-                    .build()
-            );
-            return true;
+    private void abortResponse(ContainerRequestContext requestContext, Response.Status status, String stringEntity) {
+        requestContext.abortWith(
+            Response.status(status)
+                .entity(stringEntity)
+                .build()
+        );
+    }
+
+    private void blockRequest(int bucketId, String shardId) throws IOException {
+        try {
+            lockManager.filterRequest(bucketId, shardId);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
         }
-        return false;
     }
 
     private boolean hasRoutingLoop(ContainerRequestContext requestContext) {
@@ -283,6 +277,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     /**
      * Waits until there is no request to the target buckets.
+     *
+     * @param splitRange
+     * @param timeoutMs
+     * @return
+     * @throws InterruptedException
      */
     protected boolean waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException {
@@ -439,10 +438,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 logger.error("Error while forwarding request to shard:{} {}", shardId, appUri, e);
             }
         }
-        request.abortWith(Response
-                              .status(Response.Status.BAD_GATEWAY)
-                              .entity("All servers are not available in Shard: " + shardId)
-                              .build());
+        abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
     }
 
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
