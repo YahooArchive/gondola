@@ -43,34 +43,29 @@ public class AdminClientTest {
         assertEquals(adminClient.getConfig(), null);
     }
 
+    // TODO: implement split shard unit test.
     @Test
     public void testSplitShard_success() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed_on_allow_observer() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed_on_start_observing() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed_on_assign_bucket() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed_on_disallow_observer() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed() throws Exception {
-        adminClient.splitShard("c1", "c2");
     }
 
 

@@ -18,12 +18,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_STOP_SLAVE;
@@ -41,8 +35,6 @@ public class ShardManager implements ShardManagerProtocol {
     private Config config;
     private RoutingFilter filter;
     private Gondola gondola;
-
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
     static Logger logger = LoggerFactory.getLogger(ShardManager.class);
 
@@ -179,11 +171,11 @@ public class ShardManager implements ShardManagerProtocol {
         throws ShardManagerException {
         try {
             filter.blockRequestOnBuckets(splitRange);
-            waitNoRequestsOnBuckets(splitRange, timeoutMs);
+            filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             setBuckets(splitRange, fromShardId, toShardId, false);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (InterruptedException e) {
             // TODO: rollback
             logger.warn("Error occurred, rollback!", e);
         } finally {
@@ -244,22 +236,5 @@ public class ShardManager implements ShardManagerProtocol {
         }
     }
 
-    private void waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
-        throws InterruptedException, ExecutionException, TimeoutException {
-        // TODO: implement
-        trace("Waiting for no requests on buckets: {} with timeout={}ms", splitRange, timeoutMs);
-        executeTaskWithTimeout(() -> {
-            if (splitRange != null) {
-                //Thread.sleep(timeoutMs * 2);
-            }
-            return "";
-        }, timeoutMs);
-        trace("No more request on buckets: {}", splitRange);
-    }
 
-    private void executeTaskWithTimeout(Callable callable, long timeoutMs)
-        throws InterruptedException, ExecutionException, TimeoutException {
-        executor.submit(callable)
-            .get(timeoutMs, TimeUnit.MILLISECONDS);
-    }
 }

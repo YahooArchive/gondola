@@ -27,9 +27,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
@@ -46,6 +51,7 @@ import javax.ws.rs.core.Response;
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
+    public static final int POLLING_TIMES = 3;
     private static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
@@ -174,7 +180,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             throw new IOException(e);
         }
 
-
         trace("Processing request: {} of shard={}, forwarded={}",
               requestContext.getUriInfo().getAbsolutePath(), shardId,
               requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
@@ -274,6 +279,55 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard,
                                      boolean migrationComplete) {
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
+    }
+
+    /**
+     * Waits until there is no request to the target buckets.
+     */
+    protected boolean waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
+        throws InterruptedException {
+
+        trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
+              splitRange, timeoutMs, getRequestCount(splitRange));
+        return pollingWithTimeout(() -> {
+            long requestCount = getRequestCount(splitRange);
+            if (requestCount != 0) {
+                trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
+                      splitRange, timeoutMs, getRequestCount(splitRange));
+                return false;
+            }
+            return true;
+        }, POLLING_TIMES, timeoutMs);
+    }
+
+    private boolean pollingWithTimeout(BooleanSupplier supplier, int retryCount, long timeoutMs)
+        throws InterruptedException {
+
+        long start = System.currentTimeMillis();
+        long defaultWait = timeoutMs / retryCount;
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            boolean success = supplier.getAsBoolean();
+            if (success) {
+                return true;
+            }
+            long remain = timeoutMs - (System.currentTimeMillis() - start);
+            Thread.sleep(defaultWait < remain ? defaultWait : remain);
+        }
+        return false;
+    }
+
+    private boolean executeTaskWithTimeout(BooleanSupplier supplier, long timeoutMs)
+        throws InterruptedException, TimeoutException, ExecutionException {
+        Future<Boolean> result = singleThreadExecutor.submit(supplier::getAsBoolean);
+        return result.get(timeoutMs, TimeUnit.MILLISECONDS);
+    }
+
+    private long getRequestCount(Range<Integer> splitRange) {
+        long requestCount = 0;
+        for (int i = splitRange.lowerEndpoint(); i <= splitRange.upperEndpoint(); i++) {
+            requestCount += bucketRequestCounters.get(i).get();
+        }
+        return requestCount;
     }
 
     /**
