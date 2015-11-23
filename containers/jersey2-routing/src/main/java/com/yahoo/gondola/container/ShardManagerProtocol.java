@@ -45,7 +45,7 @@ public interface ShardManagerProtocol {
                         long timeoutMs) throws ShardManagerException;
 
     /**
-     * WashardId boolean.
+     * Wait slave until slave synced.
      *
      * @param shardId   the shard id
      * @param timeoutMs the timeout ms
@@ -76,6 +76,16 @@ public interface ShardManagerProtocol {
      */
     void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete);
 
+    /**
+     * Wait for certain bucket condition.
+     *
+     * @param range
+     * @param fromShardId
+     * @param toShardId
+     * @param timeoutMs
+     * @return
+     * @throws InterruptedException
+     */
     boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
         throws InterruptedException;
 
@@ -91,7 +101,8 @@ public interface ShardManagerProtocol {
         public enum CODE {
             NOT_LEADER,
             FAILED_START_SLAVE,
-            FAILED_STOP_SLAVE
+            FAILED_STOP_SLAVE,
+            SLAVE_NOT_SYNC
 
         }
 
