@@ -173,6 +173,7 @@
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <version>2.18.1</version>
+                <!-- TODO: enable this after complete gondola implementation
                 <executions>
                     <execution>
                         <id>integration-test</id>
@@ -182,6 +183,7 @@
                         </goals>
                     </execution>
                 </executions>
+                -->
             </plugin>
             <plugin>
                 <artifactId>maven-deploy-plugin</artifactId>
