@@ -75,9 +75,9 @@ public class ShardManager implements ShardManagerProtocol {
 
     private boolean setSlave(String shardId, int memberId, long timeoutMs)
         throws InterruptedException, ShardManagerException {
-        gondola.getShard(shardId).getLocalMember().setSlave(memberId);
 
         try {
+            gondola.getShard(shardId).getLocalMember().setSlave(memberId);
             return Utils.pollingWithTimeout(() -> {
                 Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
                 if (status != null && status.running) {
@@ -88,7 +88,7 @@ public class ShardManager implements ShardManagerProtocol {
                             status != null && status.exception != null ? status.exception.getMessage() : "n/a");
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);
-        } catch (ExecutionException e) {
+        } catch (Exception e) {
             throw new ShardManagerException(e);
         }
     }
@@ -115,33 +115,34 @@ public class ShardManager implements ShardManagerProtocol {
 
     private boolean unsetSlave(String shardId, int memberId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
-
-        // Not in slave mode, nothing to do.
-        if (status == null) {
-            return true;
-        }
-
-        // Reject if following different leader
-        if (status.memberId != memberId) {
-            throw new ShardManagerException(FAILED_STOP_SLAVE,
-                                            String.format(
-                                                "Cannot stop slave due to different master. current=%d, target=%d",
-                                                status.memberId, memberId));
-        }
-
-        gondola.getShard(shardId).getLocalMember().setSlave(-1);
 
         try {
-            return Utils.pollingWithTimeout(() -> {
-                                        if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() == null) {
-                                            return true;
-                                        }
-                                        logger.warn("Failed stop observing {} on shard={}", memberId, shardId);
-                                        return false;
-                                    }
-                , timeoutMs / POLLING_TIMES, timeoutMs);
-        } catch (ExecutionException e) {
+            Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
+
+            // Not in slave mode, nothing to do.
+            if (status == null) {
+                return true;
+            }
+
+            // Reject if following different leader
+            if (status.memberId != memberId) {
+                throw new ShardManagerException(FAILED_STOP_SLAVE,
+                                                String.format(
+                                                    "Cannot stop slave due to different master. current=%d, target=%d",
+                                                    status.memberId, memberId));
+            }
+
+            gondola.getShard(shardId).getLocalMember().setSlave(-1);
+
+            return
+                Utils.pollingWithTimeout(() -> {
+                    if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() == null) {
+                        return true;
+                    }
+                    logger.warn("Failed stop observing {} on shard={}", memberId, shardId);
+                    return false;
+                }, timeoutMs / POLLING_TIMES, timeoutMs);
+        } catch (Exception e) {
             throw new ShardManagerException(e);
         }
     }
@@ -168,7 +169,7 @@ public class ShardManager implements ShardManagerProtocol {
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             setBuckets(splitRange, fromShardId, toShardId, false);
-        } catch (InterruptedException|ExecutionException  e) {
+        } catch (InterruptedException | ExecutionException e) {
             // TODO: rollback
             logger.warn("Error occurred, rollback!", e);
         } finally {
@@ -193,7 +194,7 @@ public class ShardManager implements ShardManagerProtocol {
                     return true;
                 }
                 trace("[{}] {} Log status={}, currentDiff={}, targetDiff={}",
-                      gondola.getHostId(), shardId, shard.getCommitIndex() != 0 ? "RUNNING":"DOWN",
+                      gondola.getHostId(), shardId, shard.getCommitIndex() != 0 ? "RUNNING" : "DOWN",
                       shard.getCommitIndex() - getSavedIndex(shard), logPosDiff);
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);

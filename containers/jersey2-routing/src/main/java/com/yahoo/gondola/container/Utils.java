@@ -8,6 +8,9 @@ package com.yahoo.gondola.container;
 
 import java.util.concurrent.ExecutionException;
 
+/**
+ * Utility class.
+ */
 public class Utils {
 
     /**
@@ -17,15 +20,12 @@ public class Utils {
      * @param supplier
      * @param waitTimeMs
      * @param timeoutMs
-     * @return
+     * @return true if success, false if timeout reached.
      * @throws InterruptedException
      * @throws ExecutionException
      */
     public static boolean pollingWithTimeout(CheckedBooleanSupplier supplier, long waitTimeMs, long timeoutMs)
         throws InterruptedException, ExecutionException  {
-        if (timeoutMs == -1) {
-            waitTimeMs = 1000;
-        }
         long start = System.currentTimeMillis();
         // TODO: default timeout MS should be provided by upper layer.
         if (timeoutMs == -1) {
@@ -46,6 +46,9 @@ public class Utils {
         }
     }
 
+    /**
+     * A functional interface that return boolean value and throw Exception if any error.
+     */
     @FunctionalInterface
     public interface CheckedBooleanSupplier {
         boolean getAsBoolean() throws Exception;
