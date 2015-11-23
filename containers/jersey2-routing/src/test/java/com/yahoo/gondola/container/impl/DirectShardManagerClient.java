@@ -91,6 +91,17 @@ public class DirectShardManagerClient implements ShardManagerClient {
         }
     }
 
+    @Override
+    public boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
+        throws InterruptedException {
+        for (Config.ConfigMember m : config.getMembers()) {
+            if (!getShardManager(m.getMemberId()).waitBucketsCondition(range, fromShardId, toShardId, 3000)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
         return memberId -> {
             try {

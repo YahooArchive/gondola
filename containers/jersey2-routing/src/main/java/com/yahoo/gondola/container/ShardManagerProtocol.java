@@ -76,6 +76,9 @@ public interface ShardManagerProtocol {
      */
     void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete);
 
+    boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
+        throws InterruptedException;
+
     /**
      * The type Shard manager exception.
      */

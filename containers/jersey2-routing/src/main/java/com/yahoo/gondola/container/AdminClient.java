@@ -165,11 +165,11 @@ public class AdminClient {
      * @param range       the range
      */
     public void closeAssignBuckets(Range<Integer> range, String fromShardId, String toShardId)
-        throws ShardManagerProtocol.ShardManagerException {
-        // TODO: implement
+        throws ShardManagerProtocol.ShardManagerException, InterruptedException {
         trace("Executing close the state of assign buckets");
+
         trace("Waiting all nodes bucket table updated...");
-        // waiting..
+        shardManagerClient.waitBucketsCondition(range, fromShardId, toShardId, 3000);
         trace("closing the state of assign buckets...");
         shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
         trace("Done!");

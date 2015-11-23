@@ -275,6 +275,15 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
 
+    protected boolean isBucketRange(Range<Integer> range, String shardId, String migratingShardId) {
+        BucketManager.ShardState shardState = bucketManager.lookupBucketTable(range);
+        if (shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId)) {
+            return true;
+        }
+        return false;
+    }
+
+
     /**
      * Waits until there is no request to the target buckets.
      *
@@ -538,6 +547,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public void unblockRequestOnBuckets(Range<Integer> splitRange) {
         lockManager.unblockRequestOnBuckets(splitRange);
     }
+
 
     /**
      * Builder class.

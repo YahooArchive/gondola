@@ -224,6 +224,17 @@ public class ShardManager implements ShardManagerProtocol {
         filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
     }
 
+    @Override
+    public boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
+        throws InterruptedException {
+        try {
+            return Utils.pollingWithTimeout(() -> filter.isBucketRange(range, fromShardId, toShardId), timeoutMs / 3,
+                                            timeoutMs);
+        } catch (ExecutionException e) {
+            return false;
+        }
+    }
+
     private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
