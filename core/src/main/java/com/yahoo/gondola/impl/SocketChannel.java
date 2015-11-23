@@ -296,18 +296,19 @@ public class SocketChannel implements Channel {
     }
 
     /**
-     * By calling this method, the connection's setSocket() method will eventually get called when a socket connection
-     * is established to peerId.
+     * By calling this method, the connection's setSocket() method
+     * will eventually get called when a socket connection is established to peerId.
      */
     void reconnect() {
-        // Initiate the connection only if this member id is larger than the other.
-        // When this member id is larger than the other, it is assumed that the connection
-        // will be initiated by the other member.
-        // Also, if this member is a slave, initiate the connection as well.
         Config config = gondola.getConfig();
+
+        // If the remote member is not part of this member's shard, this member is assumed to be a slave
         boolean isSlave = config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
-        boolean callFrom = memberId > peerId || isSlave;
-        new SocketCreator(callFrom).start();
+
+        // Initiate the connection only if this member id is larger than the remote member or if this member is a slave.
+        // Otherwise, it's assumed that the remote member will initiate the connectin.
+        boolean initiateCall = memberId > peerId || isSlave;
+        new SocketCreator(initiateCall).start();
     }
 
     /**
@@ -318,11 +319,15 @@ public class SocketChannel implements Channel {
         Socket socket = null;
         InputStream in = null;
         OutputStream out = null;
-        boolean callFrom;
+        boolean makeCall;
 
-        SocketCreator(boolean callFrom) {
+        /**
+         * @param makeCall if true, this thread initiates a call to the remote member. Otherwise,
+         *                 a request is make to the remote member to call back.
+         */
+        SocketCreator(boolean makeCall) {
             setName(String.format("SocketCreator-%d-%d", memberId, peerId));
-            this.callFrom = callFrom;
+            this.makeCall = makeCall;
         }
 
         public void run() {
@@ -346,15 +351,15 @@ public class SocketChannel implements Channel {
                     in = socket.getInputStream();
                     out = socket.getOutputStream();
                     SocketNetwork.Hello hello = new SocketNetwork.Hello(gondola.getHostId(), in, out);
-                    if (callFrom) {
+                    if (makeCall) {
                         // Wait for call from peer
-                        hello.callFrom(memberId, peerId);
+                        hello.makeCall(memberId, peerId);
 
                         // Socket is now valid
                         setSocket(socket, in, out);
                     } else {
-                        // Ping the peer to call back and initiate a connection
-                        hello.callBack(memberId, peerId);
+                        // Ask the peer to call back and initiate a connection
+                        hello.requestCallBack(memberId, peerId);
                         close();
                     }
 

@@ -43,19 +43,6 @@ public class MemberRc {
         network = (RcNetwork) gondola.getNetwork();
     }
 
-    /*
-    public void start() throws Exception {
-    }
-
-    public boolean stop() {
-        boolean status = network.stop();
-        status = storage.stop() & status;
-        status = cmember.stop() & status;
-        status = shard.stop() & status;
-        return status;
-    }
-    */
-
     public void reset() throws Exception {
         cmember.reset();
     }
@@ -72,6 +59,10 @@ public class MemberRc {
         return cmember.getMemberId();
     }
 
+    public int getCommitIndex() {
+        return cmember.getCommitIndex();
+    }
+    
     public Command checkoutCommand() throws Exception {
         return shard.checkoutCommand();
     }

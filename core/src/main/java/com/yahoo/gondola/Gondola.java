@@ -37,6 +37,7 @@ import javax.management.ObjectName;
  * <pre>
  *   Config config = Config.fromFile(confFile));
  *   Gondola gondola = new Gondola(config, hostId);
+ *   gondola.start();
  *   Shard shard = gondola.getShard(shardId);
  *   Command command = shard.checkoutCommand();
  *   byte[] buffer = new byte[]{0, 1, 2, 3}; // some data to commit
@@ -63,8 +64,13 @@ public class Gondola implements Stoppable {
     // Get the pid of this process
     final String processId = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 
-    List<Shard> shards = new ArrayList<Shard>();
+    // When null, indicates that start() has not been called yet
+    List<Shard> shards;
+
+    // Shard id to shard map
     Map<String, Shard> shardMap = new HashMap<>();
+
+    // Member id to member map
     Map<Integer, CoreMember> memberMap = new HashMap<>();
 
     List<Consumer<RoleChangeEvent>> listeners = new CopyOnWriteArrayList<>();
@@ -87,15 +93,14 @@ public class Gondola implements Stoppable {
     public Gondola(Config config, String hostId) throws Exception {
         this.config = config;
         this.hostId = hostId;
-        logger
-            .info("------- Gondola init: {}, {}, pid={} -------", hostId, config.getAddressForHost(hostId), processId);
     }
 
     /**
      * Starts all threads and enables the Gondola instance.
      */
     public void start() throws Exception {
-        logger.info("Starting up Gondola host {}...", hostId);
+        logger.info("------- Gondola start: {}, {}, pid={} -------",
+                    hostId, config.getAddressForHost(hostId), processId);
 
         // Initialize static config values
         CoreCmd.initConfig(config);
@@ -118,6 +123,7 @@ public class Gondola implements Stoppable {
                 .newInstance(this, hostId);
 
         // Create the shards running on a host
+        shards = new ArrayList<Shard>();
         List<String> shardIds = config.getShardIds(hostId);
         for (String shardId : shardIds) {
             Shard shard = new Shard(this, shardId);
@@ -130,12 +136,11 @@ public class Gondola implements Stoppable {
         clock.start();
         network.start();
         storage.start();
-        for (Shard c : shards) {
-            c.start();
+        for (Shard s : shards) {
+            s.start();
         }
 
         // Start local threads
-        assert threads.size() == 0;
         threads.add(new RoleChangeNotifier());
         threads.forEach(t -> t.start());
         objectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
@@ -162,13 +167,13 @@ public class Gondola implements Stoppable {
         status = clock.stop() && status;
 
         threads.clear();
-        shards.clear();
         shardMap.clear();
         try {
             mbs.unregisterMBean(objectName);
         } catch (InstanceNotFoundException | MBeanRegistrationException e) {
             logger.info("Unregister MBean failed -- {}", e.getMessage());
         }
+        shards = null;
         return status;
     }
 
@@ -185,21 +190,27 @@ public class Gondola implements Stoppable {
     }
 
     /**
-     * Returns the shards that reside on the host as specified in the constructor.
+     * Returns the shards that appear on this host.
+     * The shard information is available only after start() has been called.
      *
      * @return non-null list of shards.
-     * @throw IllegalArgumentException if host is not found
      */
     public List<Shard> getShardsOnHost() {
+        if (shards == null) {
+            throw new IllegalStateException("start() must first be called");
+        }
         return shards;
     }
 
     /**
-     * Available only after calling start().
+     * The shard information is available only after start() has been called.
      *
      * @return null if the shard id does not exist.
      */
     public Shard getShard(String id) {
+        if (shards == null) {
+            throw new IllegalStateException("start() must first be called");
+        }
         return shardMap.get(id);
     }
 
@@ -211,26 +222,45 @@ public class Gondola implements Stoppable {
         return config;
     }
 
+    /**
+     * The message pool is created after start() has been called.
+     *
+     */
     public MessagePool getMessagePool() {
         return messagePool;
     }
 
+    /**
+     * The clock is created after start() has been called.
+     */
     public Clock getClock() {
         return clock;
     }
 
+    /**
+     * The network is created after start() has been called.
+     */
     public Network getNetwork() {
         return network;
     }
 
+    /**
+     * The stats instance is created after start() has been called.
+     */
     public Stats getStats() {
         return stats;
     }
 
+    /**
+     * Can be called before calling start(). The listener is not unregistered when stop() is called.
+     */
     public void registerForRoleChanges(Consumer<RoleChangeEvent> listener) {
         listeners.add(listener);
     }
 
+    /**
+     * This method is ignored if the listener is not in the list of known listeners.
+     */
     public void unregisterForRoleChanges(Consumer<RoleChangeEvent> listener) {
         listeners.remove(listener);
     }

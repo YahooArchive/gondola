@@ -85,7 +85,6 @@ public class RcClock implements Clock {
 
     public void tick(int time) {
         now += time;
-        logger.info("tick({}): current={}", time, now);
         lock.lock();
         try {
             // Wake all sleepers

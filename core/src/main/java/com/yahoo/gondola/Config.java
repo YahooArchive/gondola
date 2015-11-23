@@ -198,8 +198,8 @@ public class Config {
      * host and shard
      *******************/
 
-    public Set<String> getHostIds() {
-        return configData.hostToShards.keySet();
+    public List<String> getHostIds() {
+        return new ArrayList<String>(configData.hostToShards.keySet());
     }
 
     /**
