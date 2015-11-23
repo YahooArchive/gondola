@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
- * The implementation of RegistryClient using zookeeper & apache Curator
+ * The implementation of RegistryClient using zookeeper & apache Curator.
  */
 public class ZookeeperRegistryClient implements RegistryClient {
 

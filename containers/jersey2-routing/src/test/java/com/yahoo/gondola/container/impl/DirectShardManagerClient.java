@@ -47,9 +47,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     public DirectShardManagerClient(Config config) {
         this.config = config;
 
-        config.registerForUpdates(config1 -> {
-            tracing = config1.getBoolean("tracing.router");
-        });
+        config.registerForUpdates(config1 -> tracing = config1.getBoolean("tracing.router"));
     }
 
     @Override
@@ -68,14 +66,14 @@ public class DirectShardManagerClient implements ShardManagerClient {
         return memberId -> {
             try {
                 return getShardManager(memberId).waitSlavesSynced(shardId, timeoutMs);
-            } catch (ShardManagerException e) {
+            } catch (ShardManagerException|InterruptedException  e) {
                 return false;
             }
         };
     }
 
     @Override
-    public boolean waitApproaching(String shardId, long timeoutMs) throws ShardManagerException {
+    public boolean waitSlavesApproaching(String shardId, long timeoutMs) throws ShardManagerException {
         trace("Waiting for slaves logs approaching...");
         Boolean status = getMemberIds(shardId)
             .parallelStream()
@@ -86,7 +84,7 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) throws ShardManagerException {
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         for (Config.ConfigMember m : config.getMembers()) {
             getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId, migrationComplete);
         }
@@ -95,8 +93,8 @@ public class DirectShardManagerClient implements ShardManagerClient {
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
         return memberId -> {
             try {
-                return getShardManager(memberId).waitApproaching(shardId, timeoutMs);
-            } catch (ShardManagerException e) {
+                return getShardManager(memberId).waitSlavesApproaching(shardId, timeoutMs);
+            } catch (ShardManagerException|InterruptedException  e) {
                 return false;
             }
         };
@@ -109,16 +107,18 @@ public class DirectShardManagerClient implements ShardManagerClient {
     }
 
     @Override
-    public void startObserving(String shardId, String observedShardId) throws ShardManagerException {
+    public void startObserving(String observedShardId, String shardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            getShardManager(m.getMemberId()).startObserving(shardId, observedShardId);
+            getShardManager(m.getMemberId()).startObserving(observedShardId, shardId, timeoutMs);
         }
     }
 
     @Override
-    public void stopObserving(String shardId, String observedShardId) throws ShardManagerException {
+    public void stopObserving(String shardId, String observedShardId, long timeoutMs) throws ShardManagerException,
+                                                                                             InterruptedException {
         for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId);
+            getShardManager(m.getMemberId()).stopObserving(shardId, observedShardId, timeoutMs);
         }
     }
 
