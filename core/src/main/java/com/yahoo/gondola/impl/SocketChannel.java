@@ -372,11 +372,12 @@ public class SocketChannel implements Channel {
                     close();
 
                     // Log each type of error once
-                    if (e.getMessage() == null || !e.getMessage().equals(lastError)) {
-                        lastError = e.getMessage();
+                    String eMsg = e.getMessage() == null ? "null" : e.getMessage();
+                    if (!eMsg.equals(lastError)) {
+                        lastError = eMsg;
                         String m = String.format("[%s-%d] Failed to create socket to %d (%s): %s",
                                                  gondola.getHostId(), memberId, peerId, inetSocketAddress,
-                                                 e.getMessage());
+                                                 eMsg);
                         if (e instanceof ConnectException
                             || e instanceof SocketTimeoutException
                             || lastError.equals("Connection reset")
