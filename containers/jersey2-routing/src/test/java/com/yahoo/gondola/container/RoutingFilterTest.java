@@ -6,7 +6,11 @@
 
 package com.yahoo.gondola.container;
 
-import com.yahoo.gondola.*;
+import com.google.common.collect.Range;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Member;
+import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
@@ -19,8 +23,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -29,17 +32,23 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.Response;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 public class RoutingFilterTest {
 
@@ -48,8 +57,6 @@ public class RoutingFilterTest {
 
     @Mock
     Gondola gondola;
-
-    final Logger logger = LoggerFactory.getLogger(RoutingFilterTest.class);
 
     @Mock
     RoutingHelper routingHelper;
@@ -87,14 +94,15 @@ public class RoutingFilterTest {
 
     Config config = new Config(new File(getResourceFile("gondola.conf")));
 
-    LockManager lockManager;
-
     static {
         PropertyConfigurator.configure(getResourceFile("log4j.properties"));
     }
 
     @Mock
     ExtendedUriInfo uriInfo;
+
+    @Mock
+    Map<Integer, AtomicInteger> bucketRequestCounters;
 
     MultivaluedHashMap<String, String> headersMap = new MultivaluedHashMap<>();
 
@@ -147,10 +155,10 @@ public class RoutingFilterTest {
         when(proxyClient.proxyRequest(any(),any()))
             .thenThrow(new IOException(""))
             .thenReturn(proxedResponse);
-        String newLeaderUri = router.routingTable.get("shard1").get(1);
+        String newLeaderUri = getRoutingTable(router).get("shard1").get(1);
         router.filter(request);
         verify(request).abortWith(response.capture());
-        assertEquals(router.routingTable.get("shard1").get(0), newLeaderUri);
+        assertEquals(getRoutingTable(router).get("shard1").get(0), newLeaderUri);
     }
 
     /**
@@ -171,7 +179,7 @@ public class RoutingFilterTest {
         router.filter(request);
         verify(request).abortWith(response.capture());
         assertEquals(headersMap.get(RoutingFilter.X_FORWARDED_BY).get(headersMap.size()-1), MY_APP_URI);
-        assertEquals(router.routingTable.get("shard2").get(0), "foo_remote_addr");
+        assertEquals(getRoutingTable(router).get("shard2").get(0), "foo_remote_addr");
 
     }
 
@@ -201,6 +209,44 @@ public class RoutingFilterTest {
 
     @Test
     public void testBucketSplit_migrate_db_block_shards() throws Exception {
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private Map<String, List<String>> getRoutingTable(RoutingFilter filter) {
+        return (Map<String, List<String>>) Whitebox.getInternalState(filter, "routingTable");
+    }
+
+    @Test
+    public void testWaitNoRequestsOnBuckets_success() throws Exception {
+        when(bucketRequestCounters.get(anyInt())).thenReturn(new AtomicInteger(0));
+        when(bucketRequestCounters.containsKey(anyInt())).thenReturn(true);
+        mockCounterMap();
+        assertTrue(router.waitNoRequestsOnBuckets(Range.closed(1, 1), 100));
+    }
+
+    @Test
+    public void testWaitNoRequestsOnBuckets_failed() throws Exception {
+        when(bucketRequestCounters.get(anyInt())).thenReturn(new AtomicInteger(1));
+        when(bucketRequestCounters.containsKey(anyInt())).thenReturn(true);
+        mockCounterMap();
+        assertFalse(router.waitNoRequestsOnBuckets(Range.closed(1, 1), 100));
+    }
+
+    @Test
+    public void testWaitNoRequestsOnBuckets_success_blocked_and_released() throws Exception {
+        when(bucketRequestCounters.containsKey(anyInt())).thenReturn(true);
+        when(bucketRequestCounters.get(anyInt()))
+            .thenReturn(new AtomicInteger(1))
+            .thenReturn(new AtomicInteger(1))
+            .thenReturn(new AtomicInteger(0));
+        mockCounterMap();
+        assertTrue(router.waitNoRequestsOnBuckets(Range.closed(1, 1), 100));
+    }
+
+
+    private void mockCounterMap() {
+        Whitebox.setInternalState(router, "bucketRequestCounters", bucketRequestCounters);
     }
 
 }

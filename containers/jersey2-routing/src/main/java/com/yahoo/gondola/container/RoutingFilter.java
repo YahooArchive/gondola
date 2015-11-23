@@ -27,9 +27,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletException;
@@ -39,6 +44,8 @@ import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.Response;
 
+import static javax.ws.rs.core.Response.Status.*;
+
 
 /**
  * RoutingFilter is a Jersey2 compatible routing filter that provides routing request to leader host before hitting the
@@ -46,6 +53,7 @@ import javax.ws.rs.core.Response;
  */
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
+    public static final int POLLING_TIMES = 3;
     private static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
@@ -58,7 +66,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private Set<String> myShardIds;
 
     // shardId --> list of available servers. (URI)
-    Map<String, List<String>> routingTable;
+    private Map<String, List<String>> routingTable;
 
     private Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
     private CommandListener commandListener;
@@ -72,7 +80,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     private boolean tracing = false;
     private String myAppUri;
-    BucketManager bucketManager;
+    private BucketManager bucketManager;
 
     /**
      * Disallow default constructor.
@@ -96,7 +104,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.routingHelper = routingHelper;
         lockManager = new LockManager(gondola.getConfig());
         commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
-        ShardManager shardManager = new ShardManager(this, gondola.getConfig(), null);
+        ShardManager shardManager = new ShardManager(gondola, this, gondola.getConfig(), null);
         commandListener.setShardManagerHandler(shardManager);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
@@ -123,7 +131,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         trace("Become leader on shard {}, blocking all requests to the shard....", shardId);
                         lockManager.blockRequestOnShard(shardId);
                         trace("Wait until raft logs applied to storage...");
-                        waitRaftLogSynced(shardId);
+                        waitDrainRaftLogs(shardId);
                         trace("Raft logs are up-to-date, notify application is ready to serve...");
                         routingHelper.beforeServing(shardId);
                         trace("Ready for serving, unblocking the requests...");
@@ -138,7 +146,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         });
     }
 
-    void trace(String format, Object... args) {
+    private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
@@ -146,52 +154,41 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
 
     @Override
-    public void filter(ContainerRequestContext requestContext) throws IOException {
-        if (processRoutingLoop(requestContext)) {
-            return;
-        }
-
-        processRequest(requestContext);
-    }
-
-    private void processRequest(ContainerRequestContext requestContext) throws IOException {
-        int bucketId = routingHelper.getBucketId(requestContext);
-        String shardId = getShardId(requestContext);
-        if (shardId == null) {
-            requestContext.abortWith(
-                Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Cannot find shard for bucketId=" + bucketId)
-                    .build());
-            return;
-        }
-
-        try {
-            lockManager.filterRequest(bucketId, shardId);
-        } catch (InterruptedException e) {
-            throw new IOException(e);
-        }
-
-        incrementBucketCounter(routingHelper.getBucketId(requestContext));
+    public void filter(ContainerRequestContext request) throws IOException {
+        // Extract required data
+        int bucketId = routingHelper.getBucketId(request);
+        incrementBucketCounter(bucketId);
+        String shardId = getShardId(request);
 
         trace("Processing request: {} of shard={}, forwarded={}",
-              requestContext.getUriInfo().getAbsolutePath(), shardId,
-              requestContext.getHeaders().containsKey(X_FORWARDED_BY) ? requestContext.getHeaders()
+              request.getUriInfo().getAbsolutePath(), shardId,
+              request.getHeaders().containsKey(X_FORWARDED_BY) ? request.getHeaders()
                   .get(X_FORWARDED_BY).toString() : "");
+
+        if (hasRoutingLoop(request)) {
+            abortResponse(request, BAD_REQUEST, "Routing loop detected");
+            return;
+        }
+
+        if (shardId == null) {
+            abortResponse(request, BAD_REQUEST, "Cannot find shard for bucketId=" + bucketId);
+            return;
+        }
 
         // redirect the request to other shard
         if (!isMyShard(shardId)) {
-            proxyRequestToLeader(requestContext, shardId);
+            proxyRequestToLeader(request, shardId);
             return;
         }
+
+        // Block request if needed
+        blockRequest(bucketId, shardId);
 
         Member leader = getLeader(shardId);
         // Those are the condition that the server should process this request
         // Still under leader election
         if (leader == null) {
-            requestContext.abortWith(Response
-                                         .status(Response.Status.SERVICE_UNAVAILABLE)
-                                         .entity("No leader is available")
-                                         .build());
+            abortResponse(request, SERVICE_UNAVAILABLE, "No leader is available");
             trace("Leader is not available");
             return;
         } else if (leader.isLocal()) {
@@ -200,19 +197,23 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
 
         // redirect the request to leader
-        proxyRequestToLeader(requestContext, shardId);
+        proxyRequestToLeader(request, shardId);
     }
 
-    private boolean processRoutingLoop(ContainerRequestContext requestContext) {
-        if (hasRoutingLoop(requestContext)) {
-            requestContext.abortWith(
-                Response.status(Response.Status.BAD_REQUEST)
-                    .entity("Routing loop detected")
-                    .build()
-            );
-            return true;
+    private void abortResponse(ContainerRequestContext requestContext, Response.Status status, String stringEntity) {
+        requestContext.abortWith(
+            Response.status(status)
+                .entity(stringEntity)
+                .build()
+        );
+    }
+
+    private void blockRequest(int bucketId, String shardId) throws IOException {
+        try {
+            lockManager.filterRequest(bucketId, shardId);
+        } catch (InterruptedException e) {
+            throw new IOException(e);
         }
-        return false;
     }
 
     private boolean hasRoutingLoop(ContainerRequestContext requestContext) {
@@ -272,6 +273,55 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard,
                                      boolean migrationComplete) {
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
+    }
+
+    protected boolean isBucketRange(Range<Integer> range, String shardId, String migratingShardId) {
+        BucketManager.ShardState shardState = bucketManager.lookupBucketTable(range);
+        if (shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId)) {
+            return true;
+        }
+        return false;
+    }
+
+
+    /**
+     * Waits until there is no request to the target buckets.
+     *
+     * @param splitRange
+     * @param timeoutMs
+     * @return true if no requests on buckets, false if timeout.
+     * @throws InterruptedException
+     */
+    protected boolean waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
+        throws InterruptedException, ExecutionException {
+
+        trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
+              splitRange, timeoutMs, getRequestCount(splitRange));
+        return Utils.pollingWithTimeout(() -> {
+            long requestCount = getRequestCount(splitRange);
+            if (requestCount != 0) {
+                trace("Waiting for no requests on buckets: {} with timeout={}ms, current requestCount={}",
+                      splitRange, timeoutMs, getRequestCount(splitRange));
+                return false;
+            }
+            return true;
+        }, timeoutMs / POLLING_TIMES, timeoutMs);
+    }
+
+    private boolean executeTaskWithTimeout(BooleanSupplier supplier, long timeoutMs)
+        throws InterruptedException, TimeoutException, ExecutionException {
+        Future<Boolean> result = singleThreadExecutor.submit(supplier::getAsBoolean);
+        return result.get(timeoutMs, TimeUnit.MILLISECONDS);
+    }
+
+    private long getRequestCount(Range<Integer> splitRange) {
+        long requestCount = 0;
+        for (int i = splitRange.lowerEndpoint(); i <= splitRange.upperEndpoint(); i++) {
+            if (bucketRequestCounters.containsKey(i)) {
+                requestCount += bucketRequestCounters.get(i).get();
+            }
+        }
+        return requestCount;
     }
 
     /**
@@ -383,10 +433,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 logger.error("Error while forwarding request to shard:{} {}", shardId, appUri, e);
             }
         }
-        request.abortWith(Response
-                              .status(Response.Status.BAD_GATEWAY)
-                              .entity("All servers are not available in Shard: " + shardId)
-                              .build());
+        abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
     }
 
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
@@ -435,8 +482,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * Find random shardId in siteId.
      */
     private String getAnyShardInSite(String siteId) {
-        //TODO: implement
-        return null;
+        Config config = gondola.getConfig();
+        return config.getHostIds().stream()
+            .map(config::getSiteIdForHost)
+            .filter(s -> s.equals(siteId))
+            .findAny().orElseThrow(() -> new IllegalStateException("Cannot find any shard in siteId=" + siteId));
     }
 
     private int incrementBucketCounter(int bucketId) {
@@ -459,7 +509,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return counter;
     }
 
-    private void waitRaftLogSynced(String shardId) {
+    private void waitDrainRaftLogs(String shardId) {
         boolean synced = false;
 
         long startTime = System.currentTimeMillis();
@@ -498,14 +548,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         lockManager.unblockRequestOnBuckets(splitRange);
     }
 
-    /**
-     * Gets gondola.
-     *
-     * @return the gondola
-     */
-    public Gondola getGondola() {
-        return gondola;
-    }
 
     /**
      * Builder class.

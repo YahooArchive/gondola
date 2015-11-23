@@ -1,6 +1,7 @@
 package com.yahoo.gondola.container;
 
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.mockito.Mock;
@@ -8,6 +9,13 @@ import org.mockito.MockitoAnnotations;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotEquals;
 
@@ -45,62 +53,44 @@ public class AdminClientTest {
 
     @Test
     public void testSplitShard_success() throws Exception {
-        adminClient.splitShard("c1", "c2");
-    }
-
-    @Test
-    public void testSplitShard_failed_on_allow_observer() throws Exception {
+        when(shardManagerClient.waitSlavesApproaching(any(), anyLong())).thenReturn(true);
         adminClient.splitShard("c1", "c2");
     }
 
     @Test
     public void testSplitShard_failed_on_start_observing() throws Exception {
-        adminClient.splitShard("c1", "c2");
+        doThrow(new ShardManagerException(FAILED_START_SLAVE))
+            .when(shardManagerClient).startObserving(any(), any(), anyLong());
+        try {
+            adminClient.splitShard("c1", "c2");
+        } catch (AdminClient.AdminException e) {
+            assertEquals(e.getClass(), AdminClient.AdminException.class);
+        }
+        verify(shardManagerClient, times(AdminClient.RETRY_COUNT)).stopObserving(any(), any(), anyLong());
     }
 
     @Test
-    public void testSplitShard_failed_on_assign_bucket() throws Exception {
-        adminClient.splitShard("c1", "c2");
-    }
-
-    @Test
-    public void testSplitShard_failed_on_disallow_observer() throws Exception {
-        adminClient.splitShard("c1", "c2");
-    }
-
-    @Test
-    public void testSplitShard_failed() throws Exception {
-        adminClient.splitShard("c1", "c2");
-    }
-
-
-    @Test
-    public void testMergeShard() throws Exception {
-
-    }
-
-    @Test
-    public void testEnable() throws Exception {
+    public void testSplitShard_failed_on_wait_slave_approaching() throws Exception {
+        doThrow(new ShardManagerException(FAILED_START_SLAVE))
+            .when(shardManagerClient).waitSlavesApproaching(any(), anyLong());
+        try {
+            adminClient.splitShard("c1", "c2");
+        } catch (AdminClient.AdminException e) {
+            assertEquals(e.getClass(), AdminClient.AdminException.class);
+        }
+        verify(shardManagerClient, times(AdminClient.RETRY_COUNT)).stopObserving(any(), any(), anyLong());
 
     }
 
     @Test
-    public void testDisable() throws Exception {
-
-    }
-
-    @Test
-    public void testGetStats() throws Exception {
-
-    }
-
-    @Test
-    public void testEnableTracing() throws Exception {
-
-    }
-
-    @Test
-    public void testDisableTracing() throws Exception {
-
+    public void testSplitShard_failed_on_migrate_buckets() throws Exception {
+        doThrow(new ShardManagerException(FAILED_START_SLAVE))
+            .when(shardManagerClient).migrateBuckets(any(), any(), any(), anyLong());
+        try {
+            adminClient.splitShard("c1", "c2");
+        } catch (AdminClient.AdminException e) {
+            assertEquals(e.getClass(), AdminClient.AdminException.class);
+        }
+        verify(shardManagerClient, times(AdminClient.RETRY_COUNT)).stopObserving(any(), any(), anyLong());
     }
 }

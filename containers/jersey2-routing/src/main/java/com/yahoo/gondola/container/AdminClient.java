@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.slf4j.Logger;
@@ -16,13 +17,15 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.*;
+
 /**
  * The type Admin client.
  */
 public class AdminClient {
 
     // TODO: move to config
-    private static final int RETRY_COUNT = 3;
+    public static final int RETRY_COUNT = 3;
     public static final int TIMEOUT_MS = 300;
     private String serviceName;
     private Config config;
@@ -111,24 +114,22 @@ public class AdminClient {
      * @param toShardId   the to shard id
      * @param range       the range
      */
-    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId) throws InterruptedException {
+    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+        throws InterruptedException, AdminException {
         trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
-        String step = "Before init";
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
-                step = "initializing";
                 trace("Initializing slaves on {} ...", toShardId);
-                for (Config.ConfigMember member : config.getMembersInShard(toShardId)) {
-                    shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
-                }
+                shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
 
-                step = "waiting for slave logs approaching";
                 trace(
                     "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
                     toShardId);
-                shardManagerClient.waitSlavesApproaching(toShardId, -1);
 
-                step = "assigning buckets";
+                if (!shardManagerClient.waitSlavesApproaching(toShardId, -1)) {
+                    throw new ShardManagerException(SLAVE_NOT_SYNC);
+                }
+
                 trace("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
                       range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
@@ -136,14 +137,19 @@ public class AdminClient {
                 shardManagerClient.migrateBuckets(range, fromShardId, toShardId, 2000);
 
                 trace("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
-                step = "done";
                 break;
-            } catch (ShardManagerProtocol.ShardManagerException e) {
-                logger.warn("Error occurred in step {}.. retrying {} / {}, errorMsg={}",
-                            step, i, RETRY_COUNT, e.getMessage());
-                if (i == RETRY_COUNT) {
+            } catch (ShardManagerException e) {
+                try {
+                    shardManagerClient.stopObserving(fromShardId, toShardId, TIMEOUT_MS);
+                } catch (ShardManagerException e1) {
+                    logger.info("Rollback, Stop observing failed, ignoring the error.");
+                }
+                if (i != RETRY_COUNT) {
+                    logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
+                                i, RETRY_COUNT, e.getMessage());
+                } else {
                     logger.error("Assign bucket failed, lastError={}", e.getMessage());
-                    throw new RuntimeException(e);
+                    throw new AdminException(e);
                 }
             }
         }
@@ -157,11 +163,11 @@ public class AdminClient {
      * @param range       the range
      */
     public void closeAssignBuckets(Range<Integer> range, String fromShardId, String toShardId)
-        throws ShardManagerProtocol.ShardManagerException {
-        // TODO: implement
+        throws ShardManagerException, InterruptedException {
         trace("Executing close the state of assign buckets");
-        trace("Writing migration state to all nodes, and waiting all nodes bucket table updated...");
-        shardManagerClient.setBuckets(range, fromShardId, toShardId, false);
+
+        trace("Waiting all nodes bucket table updated...");
+        shardManagerClient.waitBucketsCondition(range, fromShardId, toShardId, 3000);
         trace("closing the state of assign buckets...");
         shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
         trace("Done!");
@@ -175,7 +181,7 @@ public class AdminClient {
 
     private Range<Integer> lookupSplitRange(String fromShardId, String toShardId) {
         // TODO: implement
-        return Range.closed(1, 5);
+        return Range.closed(0, 5);
     }
 
 
@@ -257,78 +263,46 @@ public class AdminClient {
 
     }
 
-    /**
-     * The enum Target.
-     */
     enum Target {
-        /**
-         * Host target.
-         */
-        HOST, /**
-         * Shard target.
-         */
-        SHARD, /**
-         * Site target.
-         */
-        SITE, /**
-         * Storage target.
-         */
-        STORAGE, /**
-         * All target.
-         */
+        HOST,
+        SHARD,
+        SITE,
+        STORAGE,
         ALL
     }
 
-    /**
-     * The type Stat.
-     */
     class Stat {
 
     }
 
-    /**
-     * The type Host stat.
-     */
     class HostStat extends Stat {
 
     }
 
-    /**
-     * The type Storage stat.
-     */
     class StorageStat extends Stat {
 
     }
 
-    /**
-     * The type Shard stat.
-     */
     class ShardStat extends Stat {
 
     }
 
-    /**
-     * The type Admin exception.
-     */
     class AdminException extends Exception {
-
-        /**
-         * The Error code.
-         */
         ErrorCode errorCode;
+
+
+        public AdminException(ShardManagerException e) {
+            super(e);
+        }
+
+        public AdminException() {
+
+        }
     }
 
-    /**
-     * The enum Error code.
-     */
     enum ErrorCode {
-        /**
-         * Config not found error code.
-         */
         CONFIG_NOT_FOUND(10000);
-
         private int code;
-
         ErrorCode(int code) {
             this.code = code;
         }

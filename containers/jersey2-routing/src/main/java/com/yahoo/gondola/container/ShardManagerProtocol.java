@@ -45,14 +45,15 @@ public interface ShardManagerProtocol {
                         long timeoutMs) throws ShardManagerException;
 
     /**
-     * WashardId boolean.
+     * Wait slave until slave synced.
      *
      * @param shardId   the shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
      */
-    boolean waitSlavesSynced(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException;
+    boolean waitSlavesSynced(String shardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException;
 
     /**
      * Wait approaching boolean.
@@ -62,7 +63,8 @@ public interface ShardManagerProtocol {
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
      */
-    boolean waitSlavesApproaching(String shardId, long timeoutMs) throws ShardManagerException, InterruptedException;
+    boolean waitSlavesApproaching(String shardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException;
 
     /**
      * Sets buckets.
@@ -73,6 +75,19 @@ public interface ShardManagerProtocol {
      * @param migrationComplete flag to indicate the migration is complete
      */
     void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete);
+
+    /**
+     * Wait for certain bucket condition.
+     *
+     * @param range
+     * @param fromShardId
+     * @param toShardId
+     * @param timeoutMs
+     * @return
+     * @throws InterruptedException
+     */
+    boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
+        throws InterruptedException;
 
     /**
      * The type Shard manager exception.
@@ -86,7 +101,8 @@ public interface ShardManagerProtocol {
         public enum CODE {
             NOT_LEADER,
             FAILED_START_SLAVE,
-            FAILED_STOP_SLAVE
+            FAILED_STOP_SLAVE,
+            SLAVE_NOT_SYNC
 
         }
 
