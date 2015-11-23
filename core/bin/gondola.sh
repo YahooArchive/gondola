@@ -8,7 +8,7 @@ then
   echo "$GONDOLA_CMD does not exist. Execute 'mvn package' to create it."
 fi
 
-export CLASSPATH_PREFIX=target/classes
+export CLASSPATH_PREFIX=target/classes:target/test-classes;
 
 # If unset, set it
 if [ -z "$JAVA_OPTS" ]; then
