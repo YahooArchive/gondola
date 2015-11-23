@@ -35,7 +35,7 @@ public class MemoryNetwork implements Network {
     }
 
     @Override
-    public void register(Function<Channel, Boolean> listener) {
+    public void register(int memberId, Function<Channel, Boolean> listener) {
     }
 
     @Override

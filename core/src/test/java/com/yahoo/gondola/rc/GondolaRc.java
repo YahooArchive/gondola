@@ -31,14 +31,34 @@ public class GondolaRc {
 
     Map<Integer, MemberRc> members = new HashMap<>();
     List<Gondola> gondolas = new ArrayList<>();
+    List<Gondola> extras = new ArrayList<>();
     Config config;
 
+    /**
+     * Creates all gondola instances in shard1. 
+     */
     public GondolaRc() throws Exception {
         config = new Config(new File("conf/gondola-rc.conf"));
 
-        // Create list of three gondola instances
-        gondolas = Stream.of(new Gondola(config, "A"), new Gondola(config, "B"), new Gondola(config, "C"))
-                .collect(Collectors.toList());
+        // Create all gondola instances involved with the shard "shard1".
+        for (String h : config.getHostIds()) {
+            for (String s : config.getShardIds(h)) {
+                if (s.equals("shard1")) {
+                    gondolas.add(new Gondola(config, h));
+                }
+            }
+        }
+    }
+
+    /**
+     * Add other gondola instances to this rc. Currently only used to help advance the clock
+     * of these extra instances. The gondola instance will be forgotten when stop() is called.
+     * Neither start() nor stop() will not be called on the supplied gondola instance.
+     *
+     * @param gondola non-null gondola instance.
+     */
+    public void add(Gondola gondola) {
+        extras.add(gondola);
     }
 
     public void start() throws Exception {
@@ -56,6 +76,7 @@ public class GondolaRc {
                 logger.warn("Failed to properly stop Gondola instance for host " + g.getHostId());
             }
         }
+        extras.clear();
         members.clear();
     }
 
@@ -87,6 +108,9 @@ public class GondolaRc {
         for (Gondola g : gondolas) {
             ((RcClock) g.getClock()).tick(ms);
         }
+        for (Gondola g : extras) {
+            ((RcClock) g.getClock()).tick(ms);
+        }
 
         // Let things progress after advancing the clock
         try {
@@ -94,6 +118,14 @@ public class GondolaRc {
         } catch (InterruptedException e) {
             logger.error(e.getMessage(), e);
         }
+    }
+
+    /**
+     * Returns the current virtual time.
+     */
+    public long getCurrentTime() {
+        // All clocks should be the same so return the value from the first one
+        return ((RcClock) gondolas.get(0).getClock()).now();
     }
 
     /**

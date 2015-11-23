@@ -24,6 +24,10 @@ public class Member {
     final CoreMember cmember;
     final Peer peer;
 
+    /**
+     * If this member is the local member, peer should be null.
+     * If this member represents a remote member, peer should not be null.
+     */
     Member(Gondola gondola, CoreMember cmember, Peer peer) throws Exception {
         this.gondola = gondola;
         this.cmember = cmember;
@@ -43,18 +47,37 @@ public class Member {
     }
 
     /**
-     * The results are valid only if the local member is the leader.
+     * Returns the commit index last known by this member.
+     *
+     * @throws IllegalStateException if the member is a remote member.
      */
-    public boolean isLogUpToDate() throws Exception {
+    public int getCommitIndex() {
         if (peer == null) {
-            return cmember.sentRid.index == cmember.getSavedIndex();
+            // Local member
+            return cmember.getCommitIndex();
         } else {
-            return cmember.sentRid.index == peer.matchIndex;
+            // Remote member
+            throw new IllegalStateException("Cannot get the commit index of the remote member");
         }
     }
 
     /**
-     * Returns the commit index for this cluster.
+     * The results are valid only if the local member is the leader.
+     */
+    public boolean isLogUpToDate() throws Exception {
+        if (peer == null) {
+            // Local member
+            return cmember.sentRid.index > 0 && cmember.sentRid.index == cmember.getSavedIndex();
+        } else {
+            // Remote member
+            return cmember.sentRid.index > 0 && cmember.sentRid.index == peer.matchIndex;
+        }
+    }
+
+    /**
+     * Returns whether this member is a leader.
+     *
+     * @return true if this member is a leader.
      */
     public boolean isLeader() {
         return getMemberId() == cmember.getLeaderId();
@@ -65,8 +88,10 @@ public class Member {
      */
     public boolean isOperational() {
         if (peer == null) {
+            // Local member. Always operational.
             return true;
         } else {
+            // Remote member
             return peer.isOperational();
         }
     }
@@ -85,13 +110,13 @@ public class Member {
      * This class conveys the current status of this member.
      */
     public static class SlaveStatus {
+        // True if the member is connected to the leader
+        public boolean running;
+
         // The id of the current member
         public int memberId;
 
         public int masterId;
-
-        // True if the member is connected to the leader
-        public boolean running;
 
         // The commitIndex can be 0
         public int commitIndex;
@@ -118,7 +143,7 @@ public class Member {
      *
      * @param masterId the member id of the leader to sync with. Set to -1 to leave slave mode.
      */
-    public void setSlave(int masterId) {
+    public void setSlave(int masterId) throws Exception {
         cmember.setSlave(masterId);
     }
 
@@ -127,7 +152,7 @@ public class Member {
      *
      * @return null if the member is no in slave mode.
      */
-    public SlaveStatus getSlaveStatus() {
+    public SlaveStatus getSlaveStatus() throws Exception {
         return cmember.getSlaveStatus();
     }
 }

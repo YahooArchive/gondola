@@ -101,6 +101,7 @@ public class GondolaTest {
     @AfterMethod(alwaysRun = true)
     public void doAfterMethod(ITestContext tc, ITestResult tr, Method m) throws Exception {
         runningTick = 0;
+        gondolaRc.stop();
 
         if (tr.getStatus() != ITestResult.SUCCESS) {
             Throwable t = tr.getThrowable();
@@ -112,7 +113,6 @@ public class GondolaTest {
             logger.error("Test case failed.\n\n" + exceptionInAnotherThread.getMessage(), exceptionInAnotherThread);
             tr.setStatus(ITestResult.FAILURE);
         }
-        gondolaRc.stop();
     }
 
     /**
@@ -924,33 +924,126 @@ public class GondolaTest {
      * slave mode
      ***********************/
 
-    //@Test
+    @Test
     public void slaveMode() throws Exception {
         // Init state
+        int term = 77;
         for (int i = 1; i <= 100; i++) {
-            member1.insert(101, i, "command " + i);
-            member2.insert(101, i, "command " + i);
-            member3.insert(101, i, "command " + i);
+            member1.insert(term, i, "command " + i);
+            member2.insert(term, i, "command " + i);
+            member3.insert(term, i, "command " + i);
         }
+        gondolaRc.resetMembers(); // Pick up new storage state
         member1.setLeader();
         member2.setFollower();
         member3.setFollower();
-        gondolaRc.resetMembers(); // Pick up new storage state
         runningTick = 50;
 
-        // Create a new shard
+        // Create the slave
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
+        gondolaRc.add(g);
         g.start();
         Member slave1 = g.getShard("shard2").getMember(4);
+
+        // Enable the slave
         slave1.setSlave(1);
-        while (slave1.isLogUpToDate()) {
+        while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
-            logger.info("slave status running={}", status.running);
+            assertTrue(status.running, "slave should be running");
+            logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
             Thread.sleep(100);
         }
+        Member.SlaveStatus status = slave1.getSlaveStatus();
+        logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
+
+        // Disable the slave
         slave1.setSlave(-1);
         assertNull(slave1.getSlaveStatus());
+        g.stop();
     }
+
+    @Test
+    public void slaveModeNonLeader() throws Exception {
+        // Init state
+        int term = 77;
+        for (int i = 1; i <= 100; i++) {
+            member1.insert(term, i, "command " + i);
+            member2.insert(term, i, "command " + i);
+            member3.insert(term, i, "command " + i);
+        }
+        gondolaRc.resetMembers(); // Pick up new storage state
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        runningTick = 50;
+
+        // Create the slave
+        Gondola g = new Gondola(gondolaRc.getConfig(), "D");
+        gondolaRc.add(g);
+        g.start();
+        Member slave1 = g.getShard("shard2").getMember(4);
+
+        // Enable the slave
+        slave1.setSlave(2);
+
+        // Wait until it fails
+        for (int i=0; i<5 && slave1.getSlaveStatus().running; i++) {
+            Thread.sleep(1000);
+        }
+        assertTrue(!slave1.getSlaveStatus().running, "Slave should not be running");
+
+        // Disable the slave
+        slave1.setSlave(-1);
+        g.stop();
+    }
+
+    //@Test
+    public void slaveModeLeaderFails() throws Exception {
+        // Init state
+        int term = 77;
+        for (int i = 1; i <= 100; i++) {
+            member1.insert(term, i, "command " + i);
+            member2.insert(term, i, "command " + i);
+            member3.insert(term, i, "command " + i);
+        }
+        gondolaRc.resetMembers(); // Pick up new storage state
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        runningTick = 50;
+
+        // Create the slave
+        Gondola g = new Gondola(gondolaRc.getConfig(), "D");
+        gondolaRc.add(g);
+        g.start();
+        Member slave1 = g.getShard("shard2").getMember(4);
+
+        // Enable the slave
+        slave1.setSlave(1);
+        here:
+        while (true) {
+            Member.SlaveStatus status = slave1.getSlaveStatus();
+            if (status.running) {
+                member1.setCandidate();
+                while (status.running) {
+                    status = slave1.getSlaveStatus();
+                    if (!status.running) {
+                        break here;
+                    }
+                }
+            }
+            assertTrue(status.running, "slave should be running");
+            Thread.sleep(3000);
+        }
+
+        // Disable the slave
+        slave1.setSlave(-1);
+        assertNull(slave1.getSlaveStatus());
+        g.stop();
+    }
+
+    // the slave should fail when the master is no longer a leader
+    // the slave should delete its log when it joins the master
 
     /*************************
      * utilities
@@ -968,15 +1061,21 @@ public class GondolaTest {
                 try {
                     if (runningTick > 0) {
                         gondolaRc.tick(runningTick);
+                        long clockNow = gondolaRc.getCurrentTime();
+                        if (now % 1000 == 0) {
+                            logger.info("tick={} time={}", runningTick, clockNow);
+                        }
                         if (now > startTimer + 5000) {
                             logger.info("Executing " + currentTest);
                             gondolaRc.showSummaries();
 
-                            // No need to print another for a while
+                            // No need to print another for awhile
                             startTimer = now + 60 * 1000;
                         }
+                        Thread.sleep(runningTick);
+                    } else {
+                        Thread.sleep(100);
                     }
-                    Thread.sleep(100);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

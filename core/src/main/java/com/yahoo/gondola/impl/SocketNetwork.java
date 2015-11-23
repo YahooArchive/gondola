@@ -56,6 +56,7 @@ public class SocketNetwork implements Network {
 
     final Gondola gondola;
     final String hostId;
+    int listenerMemberId;
 
     List<Channel> channels = new CopyOnWriteArrayList<>();
     Function<Channel, Boolean> listener;
@@ -117,7 +118,8 @@ public class SocketNetwork implements Network {
     }
 
     @Override
-    public void register(Function<Channel, Boolean> listener) {
+    public void register(int memberId, Function<Channel, Boolean> listener) {
+        this.listenerMemberId = memberId;
         this.listener = listener;
     }
 
@@ -263,7 +265,7 @@ public class SocketNetwork implements Network {
                 } else {
                     hello.ok();
 
-                    if (hello.callFrom) {
+                    if (hello.makeCall) {
                         // Make the socket available to the channel
                         channel.setSocket(socket, hello.in, hello.out);
                     } else {
@@ -295,8 +297,8 @@ public class SocketNetwork implements Network {
         }
     }
 
-    static Pattern callFromPtrn = Pattern.compile("call from (\\d+) to (\\d+)");
-    static Pattern callBackPtrn = Pattern.compile("call back (\\d+) from (\\d+)");
+    static Pattern makeCallPattern = Pattern.compile("call from (\\d+) to (\\d+)");
+    static Pattern requestCallBackPattern = Pattern.compile("call back (\\d+) from (\\d+)");
 
     /**
      * protocol:
@@ -310,7 +312,7 @@ public class SocketNetwork implements Network {
         OutputStream out;
         int fromMemberId;
         int toMemberId;
-        boolean callFrom;
+        boolean makeCall;
 
         Hello(String hostId, InputStream in, OutputStream out) {
             this.hostId = hostId;
@@ -330,16 +332,16 @@ public class SocketNetwork implements Network {
             if (networkTracing) {
                 logger.info("[{}] {}", hostId, line);
             }
-            Matcher matcher = callFromPtrn.matcher(line);
+            Matcher matcher = makeCallPattern.matcher(line);
             if (matcher.find()) {
-                callFrom = true;
+                makeCall = true;
                 fromMemberId = Integer.parseInt(matcher.group(1));
                 toMemberId = Integer.parseInt(matcher.group(2));
                 if (fromMemberId <= toMemberId) {
                     throw new IllegalStateException("From id must be > to id: " + line);
                 }
             } else {
-                matcher = callBackPtrn.matcher(line);
+                matcher = requestCallBackPattern.matcher(line);
                 if (matcher.find()) {
                     fromMemberId = Integer.parseInt(matcher.group(1));
                     toMemberId = Integer.parseInt(matcher.group(2));
@@ -357,19 +359,25 @@ public class SocketNetwork implements Network {
             writeLine("ok");
         }
 
-        void callFrom(int fromMemberId, int toMemberId) throws Exception {
+        /**
+         * Initiates a call to the remote member.
+         */
+        void makeCall(int fromMemberId, int toMemberId) throws Exception {
             assert fromMemberId > toMemberId;
 
             outgoing(true, fromMemberId, toMemberId);
         }
 
-        void callBack(int fromMemberId, int toMemberId) throws Exception {
+        /**
+         * Sends a message to the remote member to call back.
+         */
+        void requestCallBack(int fromMemberId, int toMemberId) throws Exception {
             assert fromMemberId < toMemberId;
 
             outgoing(false, fromMemberId, toMemberId);
         }
 
-        void outgoing(boolean callFrom, int fromMemberId, int toMemberId) throws Exception {
+        void outgoing(boolean makeCall, int fromMemberId, int toMemberId) throws Exception {
             // Get greeting from remote
             String line = readLine();
             if (networkTracing) {
@@ -380,7 +388,7 @@ public class SocketNetwork implements Network {
             }
 
             // Send target id to remote
-            if (callFrom) {
+            if (makeCall) {
                 writeLine(String.format("call from %d to %d", fromMemberId, toMemberId));
             } else {
                 writeLine(String.format("call back %d from %d", fromMemberId, toMemberId));

@@ -25,11 +25,14 @@ public interface Network extends Stoppable {
     public Channel createChannel(int fromMemberId, int toMemberId);
 
     /**
-     * Registers a callback which will be called for new connections that don't match any created channels.
+     * Registers a callback which will be called for newly received connections
+     * that don't match any existing channels and is targeted for the specified member id.
+     * Such connections come from slaves.
      *
-     * @param listener a non-null function that takes a channel and returns true the channel is valid.
+     * @param memberId the id of the local member.
+     * @param listener a non-null function that takes a channel and returns true if the channel is valid.
      */
-    public void register(Function<Channel, Boolean> listener);
+    public void register(int memberId, Function<Channel, Boolean> listener);
 
     /**
      * Returns a string that can be used to contact the local member. The storage system
