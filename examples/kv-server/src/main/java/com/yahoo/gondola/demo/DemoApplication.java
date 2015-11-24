@@ -51,6 +51,7 @@ public class DemoApplication extends ResourceConfig {
 
         // Register routing filter
         register(RoutingFilter.Builder.createRoutingFilter()
+                     .setApplication(this)
                      .setRoutingHelper(new DemoRoutingHelper(gondola, demoService))
                      .setGondola(gondola)
                      .build());

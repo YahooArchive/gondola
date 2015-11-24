@@ -120,7 +120,7 @@ public class AdminClient {
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 trace("Initializing slaves on {} ...", toShardId);
-                shardManagerClient.startObserving(fromShardId, toShardId, TIMEOUT_MS);
+                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
                     "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",

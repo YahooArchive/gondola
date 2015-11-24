@@ -43,10 +43,10 @@ public class AdminClientIT {
     RoutingHelper routingHelper;
 
     @Mock
-    CommandListenerProvider commandListenerProvider;
+    ShardManagerProvider shardManagerProvider;
 
     @Mock
-    CommandListener commandListener;
+    ShardManagerServer shardManagerServer;
 
     // shardId -> hostId
     Map<String, String> routingTable = new ConcurrentHashMap<>();
@@ -64,7 +64,7 @@ public class AdminClientIT {
         adminClient = new AdminClient("fooService", shardManagerClient, config);
         MockitoAnnotations.initMocks(this);
         when(routingHelper.getBucketId(any())).thenReturn(1);
-        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
+        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
         // shardId -> memberId
         // hostId -> baseUri
 
@@ -86,7 +86,8 @@ public class AdminClientIT {
             gondolas.add(gondola);
             LocalTestRoutingServer
                 testServer =
-                new LocalTestRoutingServer(gondola, routingHelper, new ProxyClientProvider(), commandListenerProvider);
+                new LocalTestRoutingServer(gondola, routingHelper, new ProxyClientProvider(),
+                                           shardManagerProvider);
             addressTable.put(hostId, testServer);
 
             // inject shardManager instance

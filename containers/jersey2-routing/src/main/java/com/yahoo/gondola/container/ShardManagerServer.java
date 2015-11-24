@@ -9,11 +9,13 @@ package com.yahoo.gondola.container;
 /**
  * Listens to the admin command.
  */
-public interface CommandListener {
+public interface ShardManagerServer {
 
     /**
      * set shard manager handler.
-     * @param handler
+     * @param shardManager
      */
-    void setShardManagerHandler (ShardManager handler);
+    void setShardManager(ShardManager shardManager);
+
+    void stop();
 }

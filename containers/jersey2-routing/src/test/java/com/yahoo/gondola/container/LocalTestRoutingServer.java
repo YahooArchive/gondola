@@ -34,8 +34,8 @@ public class LocalTestRoutingServer {
     RoutingFilter routingFilter;
 
     public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                                  CommandListenerProvider commandListenerProvider) throws Exception {
-        routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+                                  ShardManagerProvider shardManagerProvider) throws Exception {
+        routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, null);
         localTestServer = new LocalTestServer((request, response, context) -> {
             try {
                 URI requestUri = URI.create(request.getRequestLine().getUri());
@@ -44,7 +44,8 @@ public class LocalTestRoutingServer {
                     URI.create(requestUri.getScheme() + "://" + requestUri.getHost() + ":" + requestUri.getPort());
                 ContainerRequest
                     containerRequest =
-                    new ContainerRequest(baseUri, requestUri, request.getRequestLine().getMethod(), null, new MapPropertiesDelegate());
+                    new ContainerRequest(baseUri, requestUri, request.getRequestLine().getMethod(), null,
+                                         new MapPropertiesDelegate());
                 routingFilter.filter(containerRequest);
 
                 Response abortResponse = containerRequest.getAbortResponse();

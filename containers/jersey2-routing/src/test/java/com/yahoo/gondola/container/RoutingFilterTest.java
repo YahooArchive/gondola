@@ -83,12 +83,6 @@ public class RoutingFilterTest {
     @Mock
     Response proxedResponse;
 
-    @Mock
-    CommandListenerProvider commandListenerProvider;
-
-    @Mock
-    CommandListener commandListener;
-
     @Captor
     ArgumentCaptor<Consumer<RoleChangeEvent>> consumer;
 
@@ -116,12 +110,11 @@ public class RoutingFilterTest {
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
-        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
 
-        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, null);
     }
 
     private static String getResourceFile(String file) {

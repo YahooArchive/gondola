@@ -55,10 +55,10 @@ public class ShardManager implements ShardManagerProtocol {
 
 
     /**
-     * Starts observer mode to remote cluster.
+     * Starts observer mode to remote shard.
      */
     @Override
-    public void startObserving(String observedShardId, String shardId, long timeoutMs)
+    public void startObserving(String shardId, String observedShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
         boolean success = false;
         trace("[{}] shardId={} follows shardId={} as slave", gondola.getHostId(), shardId, observedShardId);
@@ -95,7 +95,7 @@ public class ShardManager implements ShardManagerProtocol {
 
 
     /**
-     * Stops observer mode to remote cluster, and back to normal mode.
+     * Stops observer mode to remote shard, and back to normal mode.
      */
     @Override
     public void stopObserving(String shardId, String observedShardId, long timeoutMs) throws ShardManagerException,
@@ -148,7 +148,7 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     /**
-     * Splits the bucket of fromCluster, and reassign the buckets to toCluster.
+     * Splits the bucket of fromShard, and reassign the buckets to toShard.
      */
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
@@ -174,7 +174,7 @@ public class ShardManager implements ShardManagerProtocol {
         } catch (InterruptedException | ExecutionException e) {
             logger.warn("Error occurred, rollback!", e);
             try {
-                shardManagerClient.startObserving(toShardId, fromShardId, timeoutMs);
+                shardManagerClient.startObserving(fromShardId, toShardId, timeoutMs);
             } catch (InterruptedException e1) {
                 logger.warn("Cannot start observing while performing rollback operation. msg={}", e1.getMessage());
             }
@@ -216,9 +216,9 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     @Override
-    public boolean waitSlavesApproaching(String clusterId, long timeoutMs)
+    public boolean waitSlavesApproaching(String shardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        return waitLogApproach(clusterId, timeoutMs, LOG_APPROACHING_DIFF);
+        return waitLogApproach(shardId, timeoutMs, LOG_APPROACHING_DIFF);
     }
 
     @Override

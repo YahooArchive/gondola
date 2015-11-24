@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -14,6 +15,7 @@ import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
+import org.glassfish.jersey.server.ResourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,11 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletContext;
@@ -76,7 +74,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private Map<String, List<String>> routingTable;
 
     private Map<Integer, AtomicInteger> bucketRequestCounters = new ConcurrentHashMap<>();
-    private CommandListener commandListener;
     private ProxyClient proxyClient;
 
     // Serialized command executor.
@@ -89,44 +86,52 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private String myAppUri;
     private BucketManager bucketManager;
 
-    private static RoutingFilter instance;
+    private List<Runnable> shutdownCallbacks = new ArrayList<>();
+
+    private static List<RoutingFilter> instances = new ArrayList<>();
+    private ResourceConfig application;
 
     /**
      * Disallow default constructor.
      */
-    RoutingFilter() {
+    private RoutingFilter() {
+    }
+
+    /**
+     * Get application instance.
+     *
+     * @return Application instance.
+     */
+    public ResourceConfig getApplication() {
+        return application;
     }
 
     /**
      * Instantiates a new Routing filter.
      *
-     * @param gondola                 the gondola
-     * @param routingHelper           the routing helper
-     * @param proxyClientProvider     the proxy client provider
-     * @param commandListenerProvider the command listener provider
+     * @param gondola             the gondola
+     * @param routingHelper       the routing helper
+     * @param proxyClientProvider the proxy client provider
+     * @param application         the application instance
      * @throws ServletException the servlet exception
      */
     RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                  CommandListenerProvider commandListenerProvider)
+                  ResourceConfig application)
         throws ServletException {
         this.gondola = gondola;
         this.routingHelper = routingHelper;
+        this.application = application;
         lockManager = new LockManager(gondola.getConfig());
-        commandListener = commandListenerProvider.getCommandListner(gondola.getConfig());
-        ShardManager shardManager = new ShardManager(gondola, this, gondola.getConfig(), null);
-        commandListener.setShardManagerHandler(shardManager);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
         loadConfig();
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
-        System.out.println("Initializing");
+        instances.add(this);
     }
 
     private void loadConfig() {
-        gondola.getConfig().registerForUpdates(config -> {
-            tracing = config.getBoolean("tracing.router");
-        });
+        gondola.getConfig().registerForUpdates(config -> tracing = config.getBoolean("tracing.router"));
     }
 
     private void watchGondolaEvent() {
@@ -247,14 +252,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         StringBuilder sb = new StringBuilder();
         for (String shardId : config.getShardIds()) {
             if (!config.getAttributesForShard(shardId).containsKey("bucketMap")) {
-                sb.append("Shard bucketMap attribute is missing on Shard - " + shardId + "\n");
+                sb.append("Shard bucketMap attribute is missing on Shard - ").append(shardId).append("\n");
             }
         }
 
         for (String hostId : config.getHostIds()) {
             Map<String, String> attributes = config.getAttributesForHost(hostId);
             if (!attributes.containsKey("appScheme") || !attributes.containsKey("appPort")) {
-                sb.append("Host attributes appScheme and appPort is missing on Host - " + hostId + "\n");
+                sb.append("Host attributes appScheme and appPort is missing on Host - ").append(hostId).append("\n");
             }
         }
 
@@ -287,10 +292,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     protected boolean isBucketRange(Range<Integer> range, String shardId, String migratingShardId) {
         BucketManager.ShardState shardState = bucketManager.lookupBucketTable(range);
-        if (shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId)) {
-            return true;
-        }
-        return false;
+        return shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId);
     }
 
 
@@ -313,12 +315,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             }
             return true;
         }, timeoutMs / POLLING_TIMES, timeoutMs);
-    }
-
-    private boolean executeTaskWithTimeout(BooleanSupplier supplier, long timeoutMs)
-        throws InterruptedException, TimeoutException, ExecutionException {
-        Future<Boolean> result = singleThreadExecutor.submit(supplier::getAsBoolean);
-        return result.get(timeoutMs, TimeUnit.MILLISECONDS);
     }
 
     private long getRequestCount(Range<Integer> splitRange) {
@@ -556,7 +552,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
+    public void registerShutdownFunction(Runnable runnable) {
+        shutdownCallbacks.add(runnable);
+    }
+
     private void stop() {
+        shutdownCallbacks.forEach(Runnable::run);
         gondola.stop();
     }
 
@@ -568,7 +569,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         Gondola gondola;
         RoutingHelper routingHelper;
         ProxyClientProvider proxyClientProvider;
-        CommandListenerProvider commandListenerProvider;
+        ShardManagerProvider shardManagerProvider;
+        ResourceConfig application;
 
         public static Builder createRoutingFilter() {
             return new Builder();
@@ -576,7 +578,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         Builder() {
             proxyClientProvider = new ProxyClientProvider();
-            commandListenerProvider = new CommandListenerProvider();
         }
 
         public Builder setGondola(Gondola gondola) {
@@ -594,18 +595,40 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             return this;
         }
 
-        public Builder setCommandListenerProvider(CommandListenerProvider commandListenerProvider) {
-            this.commandListenerProvider = commandListenerProvider;
+        public Builder setShardManagerProvider(ShardManagerProvider shardManagerProvider) {
+            this.shardManagerProvider = shardManagerProvider;
+            return this;
+        }
+
+        public Builder setApplication(ResourceConfig application) {
+            this.application = application;
             return this;
         }
 
         public RoutingFilter build() throws ServletException {
-            return new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+            Preconditions.checkState(gondola != null, "Gondola instance must be set");
+            Preconditions.checkState(routingHelper != null, "RoutingHelper instance must be set");
+            Preconditions.checkState(application != null, "ResourceConfig instance must be set");
+            if (shardManagerProvider == null) {
+                shardManagerProvider = new ShardManagerProvider(gondola.getConfig());
+            }
+            RoutingFilter routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, application);
+            initializeShardManagerServer(routingFilter);
+            return routingFilter;
+        }
+
+        private void initializeShardManagerServer(RoutingFilter routingFilter) {
+            ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
+            ShardManager shardManager =
+                new ShardManager(gondola, routingFilter, gondola.getConfig(),
+                                 shardManagerProvider.getShardManagerClient());
+            shardManagerServer.setShardManager(shardManager);
+            routingFilter.registerShutdownFunction(shardManagerServer::stop);
         }
     }
 
-    public static RoutingFilter getInstance() {
-        return instance;
+    public static List<RoutingFilter> getInstance() {
+        return instances;
     }
 
     /**
@@ -618,7 +641,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         public void contextInitialized(ServletContextEvent sce) {
         }
 
-        private int jersey9PortExtractor(ServletContextEvent sce) {
+        private int discoveryJersey9Port(ServletContextEvent sce) {
             try {
                 ServletContext servletContext = sce.getServletContext();
                 Field webAppContextField = servletContext.getClass().getDeclaredField("this$0");
@@ -628,14 +651,16 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 Object connector =
                     ((Object[]) server.getClass().getMethod("getConnectors").invoke(server))[0];
                 return (int) connector.getClass().getDeclaredMethod("getPort").invoke(connector);
-            } catch (NoSuchFieldException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+            } catch (NoSuchFieldException | NoSuchMethodException
+                | InvocationTargetException | IllegalAccessException e) {
                 throw new IllegalStateException("Extract information from Jetty9 failed...");
             }
         }
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
-            RoutingFilter.getInstance().stop();
+            RoutingFilter.getInstance().forEach(RoutingFilter::stop);
+            RoutingFilter.getInstance().clear();
         }
     }
 }
