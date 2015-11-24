@@ -10,11 +10,13 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.GondolaException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.util.Map;
 import java.util.Queue;
@@ -41,7 +43,7 @@ public class FakeStorage implements Storage {
     // Config variables
     int maxCommandSize;
 
-    public FakeStorage(Gondola gondola, String hostId) throws Exception {
+    public FakeStorage(Gondola gondola, String hostId) throws GondolaException {
         logger.info("Initialize FakeStorage");
         this.config = gondola.getConfig();
         config.registerForUpdates(config1 -> {
@@ -71,7 +73,11 @@ public class FakeStorage implements Storage {
                 logger.warn("Ignoring error", e);
             }
         } else {
-            raFile = new RandomAccessFile(file, "rws");
+            try {
+                raFile = new RandomAccessFile(file, "rws");
+            } catch (FileNotFoundException e) {
+                throw new GondolaException(e);
+            }
         }
         new Writer().start();
     }
@@ -83,61 +89,61 @@ public class FakeStorage implements Storage {
     }
 
     @Override
-    public String getAddress(int memberId) throws Exception {
+    public String getAddress(int memberId) throws GondolaException {
         return getMember(memberId).address;
     }
 
     @Override
-    public void setAddress(int memberId, String address) throws Exception {
+    public void setAddress(int memberId, String address) throws GondolaException {
         Member member = getMember(memberId);
         member.address = address;
     }
 
     @Override
-    public void saveVote(int memberId, int currentTerm, int votedFor) throws Exception {
+    public void saveVote(int memberId, int currentTerm, int votedFor) throws GondolaException {
         Member member = getMember(memberId);
         member.currentTerm = currentTerm;
         member.votedFor = votedFor;
     }
 
     @Override
-    public int getCurrentTerm(int memberId) throws Exception {
+    public int getCurrentTerm(int memberId) throws GondolaException {
         return getMember(memberId).currentTerm;
     }
 
     @Override
-    public int getVotedFor(int memberId) throws Exception {
+    public int getVotedFor(int memberId) throws GondolaException {
         return getMember(memberId).votedFor;
     }
 
     @Override
-    public int getMaxGap(int memberId) throws Exception {
+    public int getMaxGap(int memberId) throws GondolaException {
         return getMember(memberId).maxGap;
     }
 
     @Override
-    public void setMaxGap(int memberId, int maxGap) throws Exception {
+    public void setMaxGap(int memberId, int maxGap) throws GondolaException {
         getMember(memberId).maxGap = maxGap;
     }
 
     @Override
-    public String getPid(int memberId) throws Exception {
+    public String getPid(int memberId) throws GondolaException {
         return getMember(memberId).pid;
     }
 
     @Override
-    public void setPid(int memberId, String pid) throws Exception {
+    public void setPid(int memberId, String pid) throws GondolaException {
         getMember(memberId).pid = pid;
     }
 
     @Override
-    public int count(int memberId) throws Exception {
+    public int count(int memberId) throws GondolaException {
         return getMember(memberId).lastIndex;
     }
 
     @Override
     public void appendLogEntry(int memberId, int term, int index,
-                               byte[] buffer, int bufferOffset, int bufferLen) throws Exception {
+                               byte[] buffer, int bufferOffset, int bufferLen) throws GondolaException {
         if (avgCommandSize == 0) {
             avgCommandSize = bufferLen;
         } else {
@@ -149,19 +155,19 @@ public class FakeStorage implements Storage {
     }
 
     @Override
-    public void delete(int memberId, int index) throws Exception {
+    public void delete(int memberId, int index) throws GondolaException {
         Member m = getMember(memberId);
         m.lastIndex = Math.min(m.lastIndex, index - 1);
     }
 
     @Override
-    public boolean hasLogEntry(int memberId, int term, int index) throws Exception {
+    public boolean hasLogEntry(int memberId, int term, int index) throws GondolaException {
         Member member = getMember(memberId);
         return index <= member.lastIndex;
     }
 
     @Override
-    public LogEntry getLogEntry(int memberId, int index) throws Exception {
+    public LogEntry getLogEntry(int memberId, int index) throws GondolaException {
         Member m = getMember(memberId);
         if (index > m.lastIndex) {
             return null;
@@ -174,7 +180,7 @@ public class FakeStorage implements Storage {
     }
 
     @Override
-    public LogEntry getLastLogEntry(int memberId) throws Exception {
+    public LogEntry getLastLogEntry(int memberId) throws GondolaException {
         Member m = getMember(memberId);
         LogEntry le = checkout();
         le.term = 1;
@@ -234,7 +240,7 @@ public class FakeStorage implements Storage {
         }
     }
 
-    Member getMember(int memberId) throws Exception {
+    Member getMember(int memberId) throws GondolaException {
         Member member = members.get(memberId);
         if (member == null) {
             member = new Member(memberId);

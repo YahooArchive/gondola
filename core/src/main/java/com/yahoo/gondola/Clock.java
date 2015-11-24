@@ -15,7 +15,7 @@ import java.util.concurrent.locks.Lock;
  */
 public interface Clock extends Stoppable {
 
-    public void start() throws Exception;
+    public void start() throws GondolaException;
 
     /**
      * See Stoppable.stop().

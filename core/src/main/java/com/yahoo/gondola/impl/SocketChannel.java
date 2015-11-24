@@ -10,6 +10,7 @@ import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 
+import com.yahoo.gondola.GondolaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,7 +93,7 @@ public class SocketChannel implements Channel {
      * See Stoppable.start().
      */
     @Override
-    public void start() throws Exception {
+    public void start() throws GondolaException {
     }
 
     /**
@@ -366,8 +367,6 @@ public class SocketChannel implements Channel {
                     // No exceptions means success
                     threads.remove(this);
                     return;
-                } catch (InterruptedException e) {
-                    break here;
                 } catch (Throwable e) {
                     close();
 

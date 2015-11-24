@@ -6,11 +6,8 @@
 
 package com.yahoo.gondola.rc;
 
-import com.yahoo.gondola.Channel;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.*;
 import com.yahoo.gondola.core.Message;
-import com.yahoo.gondola.Network;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +37,7 @@ public class RcNetwork implements Network {
     }
 
     @Override
-    public void start() throws Exception {
+    public void start() throws GondolaException {
     }
 
     @Override

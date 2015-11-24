@@ -6,11 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Command;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.LogEntry;
-import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.*;
 
 import com.yahoo.gondola.impl.Utils;
 
@@ -23,6 +19,7 @@ import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
@@ -63,17 +60,17 @@ public class CommitQueue {
 
     // Holds all commands that have been assigned an index and are waiting to be committed.
     Queue<CoreCmd> waitQueue = new PriorityBlockingQueue<>(100,
-                                                           (o1, o2) -> o1.index - o2.index);
+            (o1, o2) -> o1.index - o2.index);
 
     // Holds all request for commands at an index that hasn't been committed yet.
     Queue<CoreCmd> getQueue = new PriorityBlockingQueue<>(100,
-                                                          (o1, o2) -> o1.index - o2.index);
+            (o1, o2) -> o1.index - o2.index);
 
     // Config variables
     boolean commandTracing;
     boolean storageTracing;
 
-    CommitQueue(Gondola gondola, CoreMember cmember) throws Exception {
+    CommitQueue(Gondola gondola, CoreMember cmember) throws GondolaException {
         this.gondola = gondola;
         this.cmember = cmember;
         this.storage = gondola.getStorage();
@@ -92,7 +89,7 @@ public class CommitQueue {
         storageTracing = config.getBoolean("gondola.tracing.storage");
     };
 
-    public void start() throws Exception {
+    public void start() throws GondolaException {
         //reset();
 
         // Start local threads
@@ -124,9 +121,10 @@ public class CommitQueue {
      *
      * @param ccmd non-null object containing the index to be fetched.
      */
-    public void get(CoreCmd ccmd, int index, int timeout) throws Exception {
+    public void get(CoreCmd ccmd, int index, int timeout)
+            throws InterruptedException, TimeoutException, GondolaException {
         // Get latest saved index
-        cmember.saveQueue.getLatest(cmember.savedRid, true);
+        cmember.saveQueue.getLatestWait(cmember.savedRid);
 
         if (index > cmember.commitIndex || index > cmember.savedRid.index) {
             getQueue.add(ccmd);
@@ -140,11 +138,11 @@ public class CommitQueue {
         LogEntry le = storage.getLogEntry(cmember.memberId, index);
         if (le == null) {
             throw new IllegalStateException(String.format("index=%d should be saved but is not. si=%d ci=%d",
-                                                          index, cmember.savedRid.index, cmember.commitIndex));
+                    index, cmember.savedRid.index, cmember.commitIndex));
         }
         if (storageTracing) {
             logger.info("[{}-{}] select(index={}) -> term={} size={}",
-                        gondola.getHostId(), cmember.memberId, index, le.term, le.size);
+                    gondola.getHostId(), cmember.memberId, index, le.term, le.size);
         }
 
         le.copyTo(ccmd.buffer, 0);
@@ -155,7 +153,7 @@ public class CommitQueue {
         le.release();
         if (commandTracing) {
             logger.info("[{}-{}] got(index={}): term={} size={} status={}",
-                        gondola.getHostId(), cmember.memberId, ccmd.index, ccmd.term, ccmd.size, ccmd.status);
+                    gondola.getHostId(), cmember.memberId, ccmd.index, ccmd.term, ccmd.size, ccmd.status);
         }
     }
 
@@ -201,7 +199,7 @@ public class CommitQueue {
                     // TODO: need to properly handle case where storage fails
                     // Prepare an append entry request for the command
                     message.appendEntryRequest(cmember.memberId, cmember.currentTerm, latestRid, commitIndex,
-                                               cmember.currentTerm, ccmd.buffer, 0, ccmd.size);
+                            cmember.currentTerm, ccmd.buffer, 0, ccmd.size);
                     lock.lock();
                     try {
                         ccmd.term = cmember.currentTerm;
@@ -284,9 +282,8 @@ public class CommitQueue {
 
                     // The first index is assumed to be the locally saved index.
                     // Ensure the new commit index is not greater than the saved index.
-                    int
-                        newCommitIndex =
-                        (int) Math.min(savedIndex.get(), matchIndices[matchIndices.length - cmember.majority].get());
+                    int newCommitIndex = (int) Math.min(savedIndex.get(),
+                            matchIndices[matchIndices.length - cmember.majority].get());
 
                     // Don't update with smaller commit index. This can happen if an up-to-date peer dies
                     // at the same time an out-of-date peer comes up. In this case, new writes will block until the

@@ -9,6 +9,7 @@ package com.yahoo.gondola.impl;
 import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Gondola;
 
+import com.yahoo.gondola.GondolaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,7 +73,7 @@ public class MemoryChannel implements Channel {
     }
 
     @Override
-    public void start() throws Exception {
+    public void start() throws GondolaException {
     }
 
     @Override

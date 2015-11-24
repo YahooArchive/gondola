@@ -8,9 +8,11 @@ package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.Config;
 
+import com.yahoo.gondola.GondolaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -336,7 +338,7 @@ public class Message {
      * Delivers this message to the handler.
      * The caller is responsible for releasing this message after calling this method.
      */
-    public void handle(MessageHandler handler) throws Exception {
+    public void handle(MessageHandler handler) throws GondolaException, InterruptedException {
         switch (type) {
             case TYPE_APPEND_ENTRY_REQ:
                 // Handle first command
@@ -390,7 +392,7 @@ public class Message {
      * Parses the binary message into variables that will be used when handlers are called.
      * The message should be never be mutated after parse() is called.
      */
-    void parse() throws Exception {
+    void parse()  {
         ByteBuffer bb = byteBuffer;
         bb.clear();
         size = bb.getShort();
@@ -479,7 +481,7 @@ public class Message {
      * @param overflow a possibly-null message
      * @return -1 if the input stream returns -1
      */
-    public int read(InputStream in, int offset, Message overflow) throws Exception {
+    public int read(InputStream in, int offset, Message overflow) throws IOException {
         // Safety check to prevent message overwriting
         if (refCount.get() == 0) {
             throw new IllegalStateException("Modifying a message while in the pool");
@@ -513,7 +515,7 @@ public class Message {
         return overflowSize;
     }
 
-    public void read(byte[] buf, int offset, int len) throws Exception {
+    public void read(byte[] buf, int offset, int len)  {
         System.arraycopy(buf, offset, buffer, 0, len);
         parse();
     }

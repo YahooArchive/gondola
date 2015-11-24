@@ -6,12 +6,7 @@
 
 package com.yahoo.gondola;
 
-import com.yahoo.gondola.core.CoreCmd;
-import com.yahoo.gondola.core.CoreMember;
-import com.yahoo.gondola.core.Message;
-import com.yahoo.gondola.core.MessagePool;
-import com.yahoo.gondola.core.Peer;
-import com.yahoo.gondola.core.Stats;
+import com.yahoo.gondola.core.*;
 
 import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
@@ -90,7 +85,7 @@ public class Gondola implements Stoppable {
     /**
      * @param hostId the non-null id of the current host on which to start Gondola.
      */
-    public Gondola(Config config, String hostId) throws Exception {
+    public Gondola(Config config, String hostId) {
         this.config = config;
         this.hostId = hostId;
     }
@@ -98,53 +93,57 @@ public class Gondola implements Stoppable {
     /**
      * Starts all threads and enables the Gondola instance.
      */
-    public void start() throws Exception {
-        logger.info("------- Gondola start: {}, {}, pid={} -------",
+    public void start() throws GondolaException {
+        try {
+            logger.info("------- Gondola start: {}, {}, pid={} -------",
                     hostId, config.getAddressForHost(hostId), processId);
 
-        // Initialize static config values
-        CoreCmd.initConfig(config);
-        Message.initConfig(config);
-        Peer.initConfig(config);
+            // Initialize static config values
+            CoreCmd.initConfig(config);
+            Message.initConfig(config);
+            Peer.initConfig(config);
 
-        messagePool = new MessagePool(config, stats);
+            messagePool = new MessagePool(config, stats);
 
-        // Create implementations
-        String clockClassName = config.get(config.get("clock.impl") + ".class");
-        clock = (Clock) Class.forName(clockClassName).getConstructor(Gondola.class, String.class)
-                .newInstance(this, hostId);
+            // Create implementations
+            String clockClassName = config.get(config.get("clock.impl") + ".class");
+            clock = (Clock) Class.forName(clockClassName).getConstructor(Gondola.class, String.class)
+                    .newInstance(this, hostId);
 
-        String networkClassName = config.get(config.get("network.impl") + ".class");
-        network = (Network) Class.forName(networkClassName).getConstructor(Gondola.class, String.class)
-                .newInstance(this, hostId);
+            String networkClassName = config.get(config.get("network.impl") + ".class");
+            network = (Network) Class.forName(networkClassName).getConstructor(Gondola.class, String.class)
+                    .newInstance(this, hostId);
 
-        String storageClassName = config.get(config.get("storage.impl") + ".class");
-        storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
-                .newInstance(this, hostId);
+            String storageClassName = config.get(config.get("storage.impl") + ".class");
+            storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
+                    .newInstance(this, hostId);
 
-        // Create the shards running on a host
-        shards = new ArrayList<Shard>();
-        List<String> shardIds = config.getShardIds(hostId);
-        for (String shardId : shardIds) {
-            Shard shard = new Shard(this, shardId);
+            // Create the shards running on a host
+            shards = new ArrayList<Shard>();
+            List<String> shardIds = config.getShardIds(hostId);
+            for (String shardId : shardIds) {
+                Shard shard = new Shard(this, shardId);
 
-            shards.add(shard);
-            shardMap.put(shardId, shard);
+                shards.add(shard);
+                shardMap.put(shardId, shard);
+            }
+
+            // Start all objects
+            clock.start();
+            network.start();
+            storage.start();
+            for (Shard s : shards) {
+                s.start();
+            }
+
+            // Start local threads
+            threads.add(new RoleChangeNotifier());
+            threads.forEach(t -> t.start());
+            objectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
+            mbs.registerMBean(stats, objectName);
+        } catch (Exception e) {
+            throw new GondolaException(e);
         }
-
-        // Start all objects
-        clock.start();
-        network.start();
-        storage.start();
-        for (Shard s : shards) {
-            s.start();
-        }
-
-        // Start local threads
-        threads.add(new RoleChangeNotifier());
-        threads.forEach(t -> t.start());
-        objectName = new ObjectName("com.yahoo.gondola." + hostId + ":type=Stats");
-        mbs.registerMBean(stats, objectName);
     }
 
     /**
@@ -171,7 +170,7 @@ public class Gondola implements Stoppable {
         try {
             mbs.unregisterMBean(objectName);
         } catch (InstanceNotFoundException | MBeanRegistrationException e) {
-            logger.info("Unregister MBean failed -- {}", e.getMessage());
+            logger.error("Unregister MBean failed", e);
         }
         shards = null;
         return status;
@@ -224,7 +223,6 @@ public class Gondola implements Stoppable {
 
     /**
      * The message pool is created after start() has been called.
-     *
      */
     public MessagePool getMessagePool() {
         return messagePool;

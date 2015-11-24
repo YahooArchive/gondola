@@ -28,7 +28,7 @@ public class Member {
      * If this member is the local member, peer should be null.
      * If this member represents a remote member, peer should not be null.
      */
-    Member(Gondola gondola, CoreMember cmember, Peer peer) throws Exception {
+    Member(Gondola gondola, CoreMember cmember, Peer peer) throws GondolaException {
         this.gondola = gondola;
         this.cmember = cmember;
         this.peer = peer;
@@ -64,7 +64,7 @@ public class Member {
     /**
      * The results are valid only if the local member is the leader.
      */
-    public boolean isLogUpToDate() throws Exception {
+    public boolean isLogUpToDate() throws InterruptedException {
         if (peer == null) {
             // Local member
             return cmember.sentRid.index > 0 && cmember.sentRid.index == cmember.getSavedIndex();
@@ -143,7 +143,7 @@ public class Member {
      *
      * @param masterId the member id of the leader to sync with. Set to -1 to leave slave mode.
      */
-    public void setSlave(int masterId) throws Exception {
+    public void setSlave(int masterId) throws GondolaException {
         cmember.setSlave(masterId);
     }
 
@@ -152,7 +152,7 @@ public class Member {
      *
      * @return null if the member is no in slave mode.
      */
-    public SlaveStatus getSlaveStatus() throws Exception {
+    public SlaveStatus getSlaveStatus() throws InterruptedException {
         return cmember.getSlaveStatus();
     }
 }

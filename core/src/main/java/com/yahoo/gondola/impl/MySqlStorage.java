@@ -9,6 +9,7 @@ package com.yahoo.gondola.impl;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.GondolaException;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -37,7 +38,7 @@ public class MySqlStorage implements Storage {
     // Config variables
     int maxCommandSize;
 
-    public MySqlStorage(Gondola gondola, String hostId) throws Exception {
+    public MySqlStorage(Gondola gondola, String hostId) throws GondolaException {
         // Get configs
         maxCommandSize = gondola.getConfig().getInt("raft.command_max_size");
         String user = gondola.getConfig().get("storage_mysql.user");
@@ -82,6 +83,8 @@ public class MySqlStorage implements Storage {
                     + "updated_ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,"
                     + "PRIMARY KEY (member_id)"
                     + ")");
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
@@ -105,7 +108,7 @@ public class MySqlStorage implements Storage {
     }
 
     @Override
-    public String getAddress(int memberId) throws Exception {
+    public String getAddress(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT address FROM member_info WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -115,11 +118,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getString("address");
             }
             return null;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public void setAddress(int memberId, String address) throws Exception {
+    public void setAddress(int memberId, String address) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "INSERT INTO member_info(member_id,address) VALUES(?,?)"
                     + "ON DUPLICATE KEY UPDATE address=VALUES(address)";
@@ -130,11 +135,13 @@ public class MySqlStorage implements Storage {
             if (i < 1) {
                 throw new SQLException("setAddress() failed. Return=" + i);
             }
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public void saveVote(int memberId, int currentTerm, int votedFor) throws Exception {
+    public void saveVote(int memberId, int currentTerm, int votedFor) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "INSERT INTO member_info(member_id,term,voted_for) VALUES(?,?,?) "
                     + "ON DUPLICATE KEY UPDATE term=VALUES(term), voted_for=VALUES(voted_for)";
@@ -147,11 +154,13 @@ public class MySqlStorage implements Storage {
                 throw new SQLException(String.format("save(member_id=%d, term=%d, voted_for=%d) failed",
                         memberId, currentTerm, votedFor));
             }
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public boolean hasLogEntry(int memberId, int term, int index) throws Exception {
+    public boolean hasLogEntry(int memberId, int term, int index) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT 1 FROM logs WHERE member_id=? AND term=? AND indx=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -160,11 +169,13 @@ public class MySqlStorage implements Storage {
             preparedStatement.setInt(3, index);
             ResultSet resultSet = preparedStatement.executeQuery();
             return resultSet.next();
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public int getCurrentTerm(int memberId) throws Exception {
+    public int getCurrentTerm(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT term FROM member_info WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -174,11 +185,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getInt("term");
             }
             return 1;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public int getVotedFor(int memberId) throws Exception {
+    public int getVotedFor(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT voted_for FROM member_info WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -188,11 +201,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getInt("voted_for");
             }
             return -1;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public int getMaxGap(int memberId) throws Exception {
+    public int getMaxGap(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT max_gap FROM member_info WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -202,11 +217,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getInt("max_gap");
             }
             return 0;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public void setMaxGap(int memberId, int maxGap) throws Exception {
+    public void setMaxGap(int memberId, int maxGap) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "INSERT INTO member_info(member_id,max_gap) VALUES(?,?)"
                     + "ON DUPLICATE KEY UPDATE max_gap=VALUES(max_gap)";
@@ -217,11 +234,13 @@ public class MySqlStorage implements Storage {
             if (i < 1) {
                 throw new SQLException("setMaxGap() failed. Return=" + i);
             }
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public String getPid(int memberId) throws Exception {
+    public String getPid(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT pid FROM member_info WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -231,11 +250,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getString("pid");
             }
             return null;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public void setPid(int memberId, String pid) throws Exception {
+    public void setPid(int memberId, String pid) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "INSERT INTO member_info(member_id,pid) VALUES(?,?)"
                     + "ON DUPLICATE KEY UPDATE pid=VALUES(pid)";
@@ -246,11 +267,13 @@ public class MySqlStorage implements Storage {
             if (i < 1) {
                 throw new SQLException("setPid() failed. Return=" + i);
             }
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public int count(int memberId) throws Exception {
+    public int count(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT count(*) FROM logs WHERE member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -260,11 +283,13 @@ public class MySqlStorage implements Storage {
                 return resultSet.getInt(1);
             }
             return 0;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public LogEntry getLogEntry(int memberId, int index) throws Exception {
+    public LogEntry getLogEntry(int memberId, int index) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             LogEntry logEntry = checkout();
             ResultSet resultSet = getLogEntryResult(c, memberId, index);
@@ -280,6 +305,8 @@ public class MySqlStorage implements Storage {
                 return logEntry;
             }
             return null;
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
@@ -292,7 +319,7 @@ public class MySqlStorage implements Storage {
     }
 
     @Override
-    public LogEntry getLastLogEntry(int memberId) throws Exception {
+    public LogEntry getLastLogEntry(int memberId) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "SELECT max(indx) FROM logs where member_id=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
@@ -304,12 +331,14 @@ public class MySqlStorage implements Storage {
                 lastIndex = resultSet.getInt(1);
             }
             return getLogEntry(memberId, lastIndex);
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
     public void appendLogEntry(int memberId, int term, int index, byte[] buffer, int bufferOffset, int bufferLen)
-            throws Exception {
+            throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "INSERT INTO logs(member_id, term, indx, command) VALUES(?, ?, ?, ?)";
 
@@ -323,17 +352,21 @@ public class MySqlStorage implements Storage {
                 throw new SQLException(String.format("Failed to insert member_id=%d, index=%d, size=%d. Return=%d",
                         memberId, index, bufferLen, i));
             }
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 
     @Override
-    public void delete(int memberId, int index) throws Exception {
+    public void delete(int memberId, int index) throws GondolaException {
         try (Connection c = ds.getConnection()) {
             String sql = "DELETE FROM logs WHERE member_id=? AND indx=?";
             PreparedStatement preparedStatement = c.prepareStatement(sql);
             preparedStatement.setInt(1, memberId);
             preparedStatement.setInt(2, index);
             preparedStatement.execute();
+        } catch (SQLException e) {
+            throw new GondolaException(e);
         }
     }
 

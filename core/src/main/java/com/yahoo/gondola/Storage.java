@@ -36,31 +36,35 @@ public interface Storage extends Stoppable {
      *
      * @return A possibly-null location string.
      */
-    public String getAddress(int memberId) throws Exception;
+    public String getAddress(int memberId) throws GondolaException;
 
     /**
      * See Network.getAddress(). Saves an address. When a process no longer needs to use the storage, it can
      * set the address to null.
+     *
      * @param address A possibly-null address string.
      */
-    public void setAddress(int memberId, String address) throws Exception;
+    public void setAddress(int memberId, String address) throws GondolaException;
 
     /**
      * If save() was never called, returns 1.
      */
-    public int getCurrentTerm(int memberId) throws Exception;
+    public int getCurrentTerm(int memberId) throws GondolaException;
 
     /**
      * If save() was never called, returns -1.
      */
-    public int getVotedFor(int memberId) throws Exception;
+    public int getVotedFor(int memberId) throws GondolaException;
 
     /**
      * When a member votes for another member, it should call this method to record the vote.
      *
-     * @param pid The process id of the current process.
+     * @param memberId    The identity of the member callling this method.
+     * @param currentTerm The current term.
+     * @param votedFor    The member id that's being voted for in the current term.
+     *                    -1 indicates that no one was voted for.
      */
-    public void saveVote(int memberId, int currentTerm, int votedFor) throws Exception;
+    public void saveVote(int memberId, int currentTerm, int votedFor) throws GondolaException;
 
     /**
      * Since appendLogEntry() can save entries out of order, it's possible to end up with gaps near the end of the log.
@@ -68,40 +72,38 @@ public interface Storage extends Stoppable {
      * Returns the largest allowed gap from the last written entry. A value of 0 means that there are no
      * gaps from the last written entry.
      *
-     * @return If save() was never called, returns 0.
+     * @return If setMaxGap() was never called, returns 0.
      */
-    public int getMaxGap(int memberId) throws Exception;
+    public int getMaxGap(int memberId) throws GondolaException;
 
     /**
      * Sets the largest allowed gap from the last written entry. This value should never be lower than the last
      * saved value, unless it's being set to 0.
      *
-     * @param memberId
+     * @param memberId The identity of the member callling this method.
      * @param maxGap
-     * @param pid The process id of the current process.
      */
-    public void setMaxGap(int memberId, int maxGap) throws Exception;
+    public void setMaxGap(int memberId, int maxGap) throws GondolaException;
 
     /**
      * Returns the currently saved pid. Used to detect if another instance is running.
      *
      * @return The current saved pid or null if there is none.
      */
-    public String getPid(int memberId) throws Exception;
+    public String getPid(int memberId) throws GondolaException;
 
     /**
-     *
-     * @param memberId
-     * @param pid The process id of the current process.
+     * @param memberId The identity of the member callling this method.
+     * @param pid      The process id of the current process.
      */
-    public void setPid(int memberId, String pid) throws Exception;
+    public void setPid(int memberId, String pid) throws GondolaException;
 
     /**
      * Returns the number of all log entries for the specified member.
      *
-     * @param index The index of the log entry to delete.
+     * @param memberId The identity of the member callling this method.
      */
-    public int count(int memberId) throws Exception;
+    public int count(int memberId) throws GondolaException;
 
     /**
      * Returns the log entry at the specified index.
@@ -110,24 +112,24 @@ public interface Storage extends Stoppable {
      * @param index must be >= 1
      * @return null if index does not exist.
      */
-    public LogEntry getLogEntry(int memberId, int index) throws Exception;
+    public LogEntry getLogEntry(int memberId, int index) throws GondolaException;
 
     /**
      * Returns true if a log entry with the specified term and index exist for the specified member.
      *
-     * @param memberId The id of the member.
-     * @param index must be >= 1
+     * @param memberId The identity of the member callling this method.
+     * @param index    must be >= 1
      */
-    public boolean hasLogEntry(int memberId, int term, int index) throws Exception;
+    public boolean hasLogEntry(int memberId, int term, int index) throws GondolaException;
 
     /**
      * Returns the saved log entry with the highest index for the specified member.
      *
-     * @param memberId The id of the member.
+     * @param memberId The identity of the member callling this method.
      * @return null if no entries have been written to the log.
      * @throws Exception
      */
-    public LogEntry getLastLogEntry(int memberId) throws Exception;
+    public LogEntry getLastLogEntry(int memberId) throws GondolaException;
 
     /**
      * The bufferLen bytes will be written from the buffer starting at bufferOffset.
@@ -144,16 +146,17 @@ public interface Storage extends Stoppable {
      * @param index must be >= 1
      */
     public void appendLogEntry(int memberId, int term, int index,
-                               byte[] buffer, int bufferOffset, int bufferLen) throws Exception;
+                               byte[] buffer, int bufferOffset, int bufferLen)
+            throws GondolaException, InterruptedException;
 
     /**
      * Deletes the entry at the specified index.
      * An exception should be thrown if the index does not exist.
      *
-     * @param index The index of the log entry to delete.
-     * @param memberId The id of the member.
+     * @param memberId The identity of the member callling this method.
+     * @param index    The index of the log entry to delete.
      */
-    public void delete(int memberId, int index) throws Exception;
+    public void delete(int memberId, int index) throws GondolaException;
 
     /**
      * Reclaims the entry object for reuse.

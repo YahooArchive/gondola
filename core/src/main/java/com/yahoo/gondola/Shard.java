@@ -9,7 +9,6 @@ package com.yahoo.gondola;
 import com.yahoo.gondola.core.CoreMember;
 import com.yahoo.gondola.core.Peer;
 import com.yahoo.gondola.core.Stats;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -35,7 +35,7 @@ public class Shard implements Stoppable {
     Member localMember;
     CoreMember cmember;
 
-    Shard(Gondola gondola, String shardId) throws Exception {
+    public Shard(Gondola gondola, String shardId) throws GondolaException {
         this.gondola = gondola;
         this.shardId = shardId;
 
@@ -44,8 +44,8 @@ public class Shard implements Stoppable {
         List<Config.ConfigMember> configMembers = config.getMembersInShard(shardId);
 
         List<Integer> peerIds = configMembers.stream()
-            .filter(cm -> !cm.hostId.equals(gondola.getHostId()))
-            .map(cm -> cm.memberId).collect(Collectors.toList());
+                .filter(cm -> !cm.hostId.equals(gondola.getHostId()))
+                .map(cm -> cm.memberId).collect(Collectors.toList());
 
         // First create the local member, because it's needed when creating the remote members.
         for (int i = 0; i < configMembers.size(); i++) {
@@ -69,7 +69,7 @@ public class Shard implements Stoppable {
         }
     }
 
-    public void start() throws Exception {
+    public void start() throws GondolaException {
         cmember.start();
     }
 
@@ -162,9 +162,9 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Returns the last saved index for this cluster.
+     * Returns the last saved index for this cluster. Waits until the storage is settled if necessary.
      */
-    public int getLastSavedIndex() throws Exception {
+    public int getLastSavedIndex() throws InterruptedException {
         return cmember.getSavedIndex();
     }
 
@@ -203,13 +203,13 @@ public class Shard implements Stoppable {
      * @param index must be > 0.
      * @return the non-null Command at index.
      */
-    public Command getCommittedCommand(int index) throws Exception {
+    public Command getCommittedCommand(int index) throws InterruptedException, GondolaException, TimeoutException {
         return getCommittedCommand(index, -1);
     }
 
     /**
      * Returns the command at the specified index. This method blocks until index has been committed. An empty command
-     * can be returned. This is an artifact of the raft protocol to avoid deadlock when used with a finite thread pool.
+     * can be returned. This is an artifact of the Raft protocol to avoid deadlock when used with a finite thread pool.
      * Empty commands will be inserted right after a leader election when the new leader discovers that it has
      * uncommitted commands. The leader inserts an empty command to commit these immediately.
      *
@@ -218,17 +218,19 @@ public class Shard implements Stoppable {
      *                timeout.
      * @return non-null Command
      */
-    public Command getCommittedCommand(int index, int timeout) throws Exception {
+    public Command getCommittedCommand(int index, int timeout)
+            throws GondolaException, InterruptedException, TimeoutException {
         if (index <= 0) {
             throw new IllegalStateException(String.format("Index %d must be > 0", index));
         }
         Command command = checkoutCommand();
+        cmember.getCommittedLogEntry(command.ccmd, index, timeout);
         try {
             cmember.getCommittedLogEntry(command.ccmd, index, timeout);
             return command;
-        } catch (Exception e) {
+        } catch (GondolaException e) {
             command.release();
-            throw e;
+            throw new GondolaException(e);
         }
     }
 
