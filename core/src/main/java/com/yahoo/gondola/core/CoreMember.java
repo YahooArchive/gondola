@@ -7,10 +7,7 @@
 package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.*;
-import com.yahoo.gondola.Shard;
-
 import com.yahoo.gondola.impl.Utils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,12 +17,7 @@ import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;

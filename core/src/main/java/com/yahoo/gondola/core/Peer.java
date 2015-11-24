@@ -6,8 +6,13 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.*;
-
+import com.yahoo.gondola.Channel;
+import com.yahoo.gondola.Clock;
+import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.GondolaException;
+import com.yahoo.gondola.LogEntry;
+import com.yahoo.gondola.Storage;
 import com.yahoo.gondola.impl.Utils;
 
 import org.slf4j.Logger;
