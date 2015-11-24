@@ -22,9 +22,15 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.net.URL;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
@@ -115,9 +121,21 @@ public class ShardManagerTest {
     }
 
     @Test
-    public void testAssignBucket() throws Exception {
+    public void testAssignBucket_success() throws Exception {
         Range<Integer> r = Range.closed(1, 2);
         shardManager.migrateBuckets(r, FROM_SHARD, TARGET_SHARD, TIMEOUT_MS);
+        verify(filter, times(1)).updateBucketRange(any(), any(), any(), anyBoolean());
+        verify(shardManagerClient, times(1)).setBuckets(any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    public void testAssignBucket_failed() throws Exception {
+        Range<Integer> r = Range.closed(1, 2);
+        doThrow(ExecutionException.class).when(filter).waitNoRequestsOnBuckets(any(), anyLong());
+        shardManager.migrateBuckets(r, FROM_SHARD, TARGET_SHARD, TIMEOUT_MS);
+        verify(shardManagerClient, times(1)).startObserving(any(), any(), anyLong());
+        verify(filter, times(0)).updateBucketRange(any(), any(), any(), anyBoolean());
+        verify(shardManagerClient, times(0)).setBuckets(any(), any(), any(), anyBoolean());
     }
 
     @SuppressWarnings("unchecked")

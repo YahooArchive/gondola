@@ -62,7 +62,7 @@ public class ShardManager implements ShardManagerProtocol {
         throws ShardManagerException, InterruptedException {
         boolean success = false;
         trace("[{}] shardId={} follows shardId={} as slave", gondola.getHostId(), shardId, observedShardId);
-        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
+        for (Config.ConfigMember m : config.getMembersInShard(observedShardId)) {
             if (success = setSlave(shardId, m.getMemberId(), timeoutMs)) {
                 break;
             }
@@ -168,15 +168,19 @@ public class ShardManager implements ShardManagerProtocol {
             filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
-            setBuckets(splitRange, fromShardId, toShardId, false);
+            filter.updateBucketRange(splitRange, fromShardId, toShardId, true);
+            trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+            shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
         } catch (InterruptedException | ExecutionException e) {
-            // TODO: rollback
             logger.warn("Error occurred, rollback!", e);
+            try {
+                shardManagerClient.startObserving(toShardId, fromShardId, timeoutMs);
+            } catch (InterruptedException e1) {
+                logger.warn("Cannot start observing while performing rollback operation. msg={}", e1.getMessage());
+            }
         } finally {
             filter.unblockRequestOnBuckets(splitRange);
         }
-        trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
-        shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
     }
 
     @Override
