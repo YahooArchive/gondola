@@ -924,6 +924,10 @@ public class GondolaTest {
      * slave mode
      ***********************/
 
+    /**
+     * Shard1 has a 100 entries. When attaching a slave to the leader of shard1, the slave should pick up the same
+     * 100 entries.
+     */
     @Test
     public void slaveMode() throws Exception {
         // Init state
@@ -962,6 +966,9 @@ public class GondolaTest {
         g.stop();
     }
 
+    /**
+     * When the master of the slave is not a leader, the running state should be false.
+     */
     @Test
     public void slaveModeNonLeader() throws Exception {
         // Init state

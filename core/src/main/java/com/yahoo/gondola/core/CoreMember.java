@@ -942,7 +942,7 @@ public class CoreMember implements Stoppable {
     /**
      * Sent after follower has advanced the savedIndex.
      */
-    public void sendAppendEntryReply()  {
+    public void sendAppendEntryReply() {
         Peer leader = peerMap.get(leaderId);
         if (leader != null) {
             Message message = pool.checkout();
@@ -1304,6 +1304,12 @@ public class CoreMember implements Stoppable {
 
                 // Prepare to talk to new master
                 if (masterId >= 0) {
+                    // Make sure this member and the master are not in the same shard
+                    String shardId = gondola.getConfig().getMember(masterId).getShardId();
+                    if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
+                        throw new GondolaException(GondolaException.Code.SAME_SHARD, memberId, masterId, shardId);
+                    }
+
                     // todo: Delete the entire log
 
                     currentTerm = 1;
@@ -1338,6 +1344,7 @@ public class CoreMember implements Stoppable {
      *
      * @return null if the member is not in slave mode.
      */
+
     public Member.SlaveStatus getSlaveStatus() throws InterruptedException {
         Member.SlaveStatus ss = new Member.SlaveStatus();
         ss.memberId = memberId;
