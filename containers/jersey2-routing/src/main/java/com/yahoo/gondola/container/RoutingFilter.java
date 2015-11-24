@@ -37,14 +37,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
+import javax.servlet.annotation.WebListener;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.Response;
 
-import static javax.ws.rs.core.Response.Status.*;
+import static javax.ws.rs.core.Response.Status.BAD_GATEWAY;
+import static javax.ws.rs.core.Response.Status.BAD_REQUEST;
+import static javax.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 
 
 /**
@@ -82,6 +87,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private String myAppUri;
     private BucketManager bucketManager;
 
+    private static RoutingFilter instance;
+
     /**
      * Disallow default constructor.
      */
@@ -111,6 +118,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         loadConfig();
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
+        instance = this;
     }
 
     private void loadConfig() {
@@ -549,6 +557,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
+    private void stop() {
+        gondola.stop();
+    }
+
     /**
      * Builder class.
      */
@@ -590,6 +602,23 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         public RoutingFilter build() throws ServletException {
             return new RoutingFilter(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+        }
+    }
+
+    public static RoutingFilter getInstance() {
+        return instance;
+    }
+
+    @WebListener
+    public static class RegisterServlets implements ServletContextListener {
+        @Override
+        public void contextInitialized(ServletContextEvent sce) {
+
+        }
+
+        @Override
+        public void contextDestroyed(ServletContextEvent sce) {
+            RoutingFilter.getInstance().stop();
         }
     }
 }
