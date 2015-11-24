@@ -168,10 +168,14 @@ public class ShardManager implements ShardManagerProtocol {
             filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
-            setBuckets(splitRange, fromShardId, toShardId, false);
+            filter.updateBucketRange(splitRange, fromShardId, toShardId, true);
         } catch (InterruptedException | ExecutionException e) {
-            // TODO: rollback
             logger.warn("Error occurred, rollback!", e);
+            try {
+                shardManagerClient.startObserving(toShardId, fromShardId, timeoutMs);
+            } catch (InterruptedException e1) {
+                logger.warn("Cannot start observing while performing rollback operation. msg={}", e1.getMessage());
+            }
         } finally {
             filter.unblockRequestOnBuckets(splitRange);
         }
