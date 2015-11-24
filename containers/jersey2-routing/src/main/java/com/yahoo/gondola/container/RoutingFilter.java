@@ -14,11 +14,12 @@ import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
-import org.glassfish.jersey.server.ContainerRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
+import javax.servlet.ServletContext;
 import javax.servlet.ServletContextEvent;
 import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
@@ -118,7 +120,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         loadConfig();
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
-        instance = this;
+        System.out.println("Initializing");
     }
 
     private void loadConfig() {
@@ -295,10 +297,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     /**
      * Waits until there is no request to the target buckets.
      *
-     * @param splitRange
-     * @param timeoutMs
      * @return true if no requests on buckets, false if timeout.
-     * @throws InterruptedException
      */
     protected boolean waitNoRequestsOnBuckets(Range<Integer> splitRange, long timeoutMs)
         throws InterruptedException, ExecutionException {
@@ -414,7 +413,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         for (String appUri : appUris) {
             try {
                 trace("Proxy request to remote server, method={}, URI={}",
-                      request.getMethod(), appUri + ((ContainerRequest) request).getRequestUri().getPath());
+                      request.getMethod(), appUri + request.getUriInfo().getRequestUri());
                 List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
                 if (forwardedBy == null) {
                     forwardedBy = new ArrayList<>();
@@ -609,11 +608,29 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return instance;
     }
 
+    /**
+     * WebApp context listener.
+     */
     @WebListener
-    public static class RegisterServlets implements ServletContextListener {
+    public static class ContextListener implements ServletContextListener {
+
         @Override
         public void contextInitialized(ServletContextEvent sce) {
+        }
 
+        private int jersey9PortExtractor(ServletContextEvent sce) {
+            try {
+                ServletContext servletContext = sce.getServletContext();
+                Field webAppContextField = servletContext.getClass().getDeclaredField("this$0");
+                webAppContextField.setAccessible(true);
+                Object webAppContext = webAppContextField.get(servletContext);
+                Object server = webAppContext.getClass().getMethod("getServer").invoke(webAppContext);
+                Object connector =
+                    ((Object[]) server.getClass().getMethod("getConnectors").invoke(server))[0];
+                return (int) connector.getClass().getDeclaredMethod("getPort").invoke(connector);
+            } catch (NoSuchFieldException | NoSuchMethodException | InvocationTargetException | IllegalAccessException e) {
+                throw new IllegalStateException("Extract information from Jetty9 failed...");
+            }
         }
 
         @Override
