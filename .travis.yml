@@ -12,6 +12,7 @@ script: mvn verify
 after_success:
 - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
   --settings settings/maven/settings.xml
+- git checkout -b upstream/gh-pages && rsync -r --delete -v target/site/apidocs/ apidocs/ && git add apidocs && git commit -m "Update javadoc" && git push origin gh-pages
 after_failure:
   - cat core/target/surefire-reports/TEST-TestSuite.xml
   - cat core/logs/gondola-rc.log
