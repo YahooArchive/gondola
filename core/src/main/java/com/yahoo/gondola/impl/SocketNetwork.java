@@ -323,7 +323,7 @@ public class SocketNetwork implements Network {
         /**
          * Gets the calling member ids.
          */
-        void incoming() throws Exception {
+        void incoming() throws IOException {
             // Greeting
             writeLine(String.format("hello from %s", hostId));
 
@@ -354,7 +354,7 @@ public class SocketNetwork implements Network {
         /**
          * Sends ok to the remote member. Sent after a call to incoming.
          */
-        void ok() throws Exception {
+        void ok() throws IOException {
             // Success
             writeLine("ok");
         }
@@ -362,7 +362,7 @@ public class SocketNetwork implements Network {
         /**
          * Initiates a call to the remote member.
          */
-        void makeCall(int fromMemberId, int toMemberId) throws Exception {
+        void makeCall(int fromMemberId, int toMemberId) throws IOException {
             assert fromMemberId > toMemberId;
 
             outgoing(true, fromMemberId, toMemberId);
@@ -371,13 +371,13 @@ public class SocketNetwork implements Network {
         /**
          * Sends a message to the remote member to call back.
          */
-        void requestCallBack(int fromMemberId, int toMemberId) throws Exception {
+        void requestCallBack(int fromMemberId, int toMemberId) throws IOException {
             assert fromMemberId < toMemberId;
 
             outgoing(false, fromMemberId, toMemberId);
         }
 
-        void outgoing(boolean makeCall, int fromMemberId, int toMemberId) throws Exception {
+        void outgoing(boolean makeCall, int fromMemberId, int toMemberId) throws IOException {
             // Get greeting from remote
             String line = readLine();
             if (networkTracing) {
@@ -407,7 +407,7 @@ public class SocketNetwork implements Network {
         /**
          * Does not return the \n
          */
-        String readLine() throws Exception {
+        String readLine() throws IOException {
             StringBuilder sb = new StringBuilder();
             int c;
             while ((c = in.read()) != '\n') {
@@ -422,7 +422,7 @@ public class SocketNetwork implements Network {
         /**
          * Appends a \n
          */
-        void writeLine(String line) throws Exception {
+        void writeLine(String line) throws IOException {
             for (int i = 0; i < line.length(); i++) {
                 out.write(line.charAt(i));
             }

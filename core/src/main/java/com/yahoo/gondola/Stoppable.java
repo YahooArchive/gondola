@@ -19,7 +19,7 @@ public interface Stoppable {
      * @throw Exception Is thrown when some thread cannot be properly started. In this case, the state
      * of the instance is not known. To reuse the instance, call stop() to reset the state of the instance.
      */
-    public void start() throws Exception;
+    public void start() throws GondolaException;
 
     /**
      * Stops all threads in the object and release all resources. After this call, the object should be discarded.

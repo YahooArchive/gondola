@@ -60,7 +60,8 @@ public class RcStorageMember {
         return entries.get(maxIndex);
     }
 
-    public void appendLogEntry(int term, int index, byte[] buffer, int bufferOffset, int bufferLen) throws Exception {
+    public void appendLogEntry(int term, int index, byte[] buffer, int bufferOffset, int bufferLen)
+            throws InterruptedException {
         LogEntry entry = new LogEntry(storage, bufferLen) {
             @Override
             public void release() {

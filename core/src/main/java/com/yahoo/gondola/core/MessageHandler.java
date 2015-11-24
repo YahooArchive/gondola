@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.core;
 
+import com.yahoo.gondola.GondolaException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,18 +18,10 @@ public abstract class MessageHandler {
 
     final static Logger logger = LoggerFactory.getLogger(MessageHandler.class);
 
-    private void notImplemented(Message message, int fromMemberId) throws Exception {
+    private void notImplemented(Message message, int fromMemberId)  {
         logger.error("Handler not implemented: type={} size={} from={}",
                      message.getType(), message.size(), fromMemberId);
         throw new IllegalStateException("not implemented");
-    }
-
-    public void pingRequest(Message message, int fromMemberId, long timestamp) throws Exception {
-        notImplemented(message, fromMemberId);
-    }
-
-    public void pingReply(Message message, int fromMemberId, long timestamp) throws Exception {
-        notImplemented(message, fromMemberId);
     }
 
     /**
@@ -42,7 +35,7 @@ public abstract class MessageHandler {
                                       int prevLogTerm, int prevLogIndex, int commitIndex,
                                       boolean isHeartbeat, int entryTerm, byte[] buffer, int bufferOffset,
                                       int bufferLen,
-                                      boolean lastCommand) throws Exception {
+                                      boolean lastCommand) throws InterruptedException, GondolaException {
         notImplemented(message, fromMemberId);
         return false;
     }
@@ -52,17 +45,17 @@ public abstract class MessageHandler {
      * mnIndex.
      */
     public void appendEntryReply(Message message, int fromMemberId, int term,
-                                 int mnIndex, boolean success) throws Exception {
+                                 int mnIndex, boolean success) throws InterruptedException, GondolaException {
         notImplemented(message, fromMemberId);
     }
 
     public void requestVoteRequest(Message message, int fromMemberId, int term,
-                                   boolean isPrevote, Rid lastLogRid) throws Exception {
+                                   boolean isPrevote, Rid lastLogRid) throws InterruptedException, GondolaException {
         notImplemented(message, fromMemberId);
     }
 
     public void requestVoteReply(Message message, int fromMemberId, int term,
-                                 boolean isPrevote, boolean voteGranted) throws Exception {
+                                 boolean isPrevote, boolean voteGranted) throws InterruptedException, GondolaException {
         notImplemented(message, fromMemberId);
     }
 }

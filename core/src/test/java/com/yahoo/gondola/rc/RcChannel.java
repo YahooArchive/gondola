@@ -8,6 +8,7 @@ package com.yahoo.gondola.rc;
 
 import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.core.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,7 +67,7 @@ public class RcChannel implements Channel {
     }
 
     @Override
-    public void start() throws Exception {
+    public void start() throws GondolaException {
     }
 
     @Override
@@ -79,7 +80,7 @@ public class RcChannel implements Channel {
         return true;
     }
 
-    static void createPipes(String key) throws Exception {
+    static void createPipes(String key) throws IOException {
         if (inputStreams.containsKey(key)) {
             return;
         }

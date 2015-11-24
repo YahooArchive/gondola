@@ -33,7 +33,7 @@ public interface Channel extends Stoppable {
     /**
      * See Stoppable.start().
      */
-    void start() throws Exception;
+    void start() throws GondolaException;
 
     /**
      * See Stoppable.stop().

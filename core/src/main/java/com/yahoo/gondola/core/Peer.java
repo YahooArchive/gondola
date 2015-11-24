@@ -6,12 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Channel;
-import com.yahoo.gondola.Clock;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.LogEntry;
-import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.*;
 
 import com.yahoo.gondola.impl.Utils;
 
@@ -275,7 +270,7 @@ public class Peer {
          * message filled with batched commands. 3. Send the message
          * and update state.
          */
-        public void backfill() throws Exception {
+        public void backfill() throws InterruptedException, GondolaException {
             MessagePool pool = gondola.getMessagePool();
             Rid rid = new Rid();
             Rid savedRid = new Rid();
@@ -288,7 +283,7 @@ public class Peer {
                 int startIndex = -1;
 
                 // Get latest savedIndex. Done outside the lock to avoid deadlock.
-                cmember.saveQueue.getLatest(savedRid, true);
+                cmember.saveQueue.getLatestWait(savedRid);
 
                 // Determine where to start backfilling
                 lock.lock();
@@ -398,7 +393,7 @@ public class Peer {
         }
     }
 
-    LogEntry getLogEntry(int index) throws Exception {
+    LogEntry getLogEntry(int index) throws GondolaException {
         if (index == 0) {
             return entry0;
         }
@@ -479,7 +474,7 @@ public class Peer {
                         nextMessage.release();
                         return;
                     }
-                    String eMsg = e.getMessage() == null ? "NPE" : e.getMessage();
+                    String eMsg = e.getMessage() == null ? "null" : e.getMessage();
                     String m = String.format("[%s-%d] Failed to receive from %d: %s",
                                              gondola.getHostId(), cmember.memberId, peerId, eMsg);
                     if ("Socket closed".equals(eMsg)
@@ -505,14 +500,14 @@ public class Peer {
                                           int prevLogTerm, int prevLogIndex, int commitIndex, boolean isHeartbeat,
                                           int entryTerm,
                                           byte[] buffer, int bufferOffset, int bufferLen, boolean lastCommand)
-                throws Exception {
+                throws InterruptedException {
             cmember.addIncoming(message);
             return false;
         }
 
         @Override
         public void appendEntryReply(Message message, int fromMemberId, int term, int mnIndex,
-                                     boolean success) throws Exception {
+                                     boolean success) throws GondolaException {
             if (message.tracingInfo != null) {
                 logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), cmember.memberId, fromMemberId,
                         message.tracingInfo);
@@ -560,7 +555,7 @@ public class Peer {
 
         @Override
         public void requestVoteRequest(Message message, int fromMemberId, int term,
-                                       boolean isPrevote, Rid lastRid) throws Exception {
+                                       boolean isPrevote, Rid lastRid) throws InterruptedException {
             if (!slaveMode) {
                 cmember.addIncoming(message);
             }
@@ -568,8 +563,7 @@ public class Peer {
 
         @Override
         public void requestVoteReply(Message message, int fromMemberId, int term,
-                                     boolean isPrevote, boolean voteGranted)
-                throws Exception {
+                                     boolean isPrevote, boolean voteGranted) throws InterruptedException {
             if (!slaveMode) {
                 cmember.addIncoming(message);
             }

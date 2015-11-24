@@ -6,10 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.LogEntry;
-import com.yahoo.gondola.Storage;
+import com.yahoo.gondola.*;
 
 import com.yahoo.gondola.impl.Utils;
 
@@ -88,7 +85,7 @@ public class SaveQueue {
     boolean storageTracing;
     int numWorkers;
 
-    SaveQueue(Gondola gondola, CoreMember cmember) throws Exception {
+    SaveQueue(Gondola gondola, CoreMember cmember) throws GondolaException {
         this.gondola = gondola;
         this.cmember = cmember;
         gondola.getConfig().registerForUpdates(configListener);
@@ -98,10 +95,10 @@ public class SaveQueue {
 
         String address = storage.getAddress(cmember.memberId);
         if (address != null && !address.equals(gondola.getNetwork().getAddress())
-            && gondola.getNetwork().isActive(address)) {
+                && gondola.getNetwork().isActive(address)) {
             throw new IllegalStateException(String.format("[%s-%s] Process %s at address %s is currently using storage",
-                                                          gondola.getHostId(), cmember.memberId, gondola.getProcessId(),
-                                                          address));
+                    gondola.getHostId(), cmember.memberId, gondola.getProcessId(),
+                    address));
         }
         storage.setAddress(cmember.memberId, gondola.getNetwork().getAddress());
         storage.setPid(cmember.memberId, gondola.getProcessId());
@@ -119,7 +116,7 @@ public class SaveQueue {
     public void start() {
         // Create worker threads
         assert threads.size() == 0
-            : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
+                : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
         for (int i = 0; i < numWorkers; i++) {
             threads.add(new Worker(i));
         }
@@ -145,19 +142,25 @@ public class SaveQueue {
     /**
      * Atomically copies the latest saved term and index into ti.
      */
-    public void getLatest(Rid rid, boolean wait) throws Exception {
+    public void getLatestWait(Rid rid) throws InterruptedException {
+        lock.lock();
+        try {
+            while (!initialized) {
+                indexInitialized.await();
+            }
+            rid.term = lastTerm;
+            rid.index = savedIndex;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    public void getLatest(Rid rid) {
         lock.lock();
         try {
             if (!initialized) {
-                //cmember.indexUpdated(true, false);
-                if (wait) {
-                    while (!initialized) {
-                        indexInitialized.await();
-                    }
-                } else {
-                    // The settle() method call must first succeed before this method can be used.
-                    throw new IllegalStateException("The saved index has not been initialized yet");
-                }
+                // The settle() method call must first succeed before this method can be used.
+                throw new IllegalStateException("The saved index has not been initialized yet");
             }
             rid.term = lastTerm;
             rid.index = savedIndex;
@@ -179,9 +182,9 @@ public class SaveQueue {
      *
      * @param rid is updated with the latest stored term and index
      */
-    public void settle(Rid rid) throws Exception {
+    public void settle(Rid rid) throws GondolaException {
         logger.info("[{}-{}] Settling storage. workQ={} busy={} maxGap={}",
-                    gondola.getHostId(), cmember.memberId, workQueue.size(), busyWorkers.get(), maxGap);
+                gondola.getHostId(), cmember.memberId, workQueue.size(), busyWorkers.get(), maxGap);
 
         // Wait until the worker threads are finished. TODO: handle case where a worker is hung
         workQueue.clear();
@@ -194,13 +197,13 @@ public class SaveQueue {
         }
 
         initSavedIndex();
-        getLatest(rid, false);
+        getLatest(rid);
     }
 
     /**
      * Reinitializes the savedIndex based on the entries currently in the log.
      */
-    void initSavedIndex() throws Exception {
+    void initSavedIndex() throws GondolaException {
         lock.lock();
         try {
             // Don't update the saved rid in case of errors
@@ -220,14 +223,14 @@ public class SaveQueue {
             String pid = storage.getPid(cmember.memberId);
             if (pid != null && !gondola.getProcessId().equals(pid)) {
                 logger.warn("[{}-{}] SaveQueue: another process pid={} may be updating the same tables. Current pid={}",
-                            gondola.getHostId(), cmember.memberId, pid, gondola.getProcessId());
+                        gondola.getHostId(), cmember.memberId, pid, gondola.getProcessId());
             }
 
             // Get the max gap. The maxGap variable is deliberately not initialized to zero in order to
             // TODO: comment is not complete.
             maxGap = storage.getMaxGap(cmember.memberId);
             logger.info("[{}-{}] Initializing save index with latest=({},{}) maxGap={}",
-                        gondola.getHostId(), cmember.memberId, newLastTerm, lastIndex, maxGap);
+                    gondola.getHostId(), cmember.memberId, newLastTerm, lastIndex, maxGap);
 
             // Find latest contiguous index from index 1, by starting from last - maxGap
             // Move back one earlier in case the entry at last - maxGap is missing; we need to get the lastTerm
@@ -237,9 +240,9 @@ public class SaveQueue {
                 if (entry == null) {
                     // Found a missing entry so previous one becomes the latest
                     logger.info(
-                        "[{}-{}] SaveQueue: index={} is missing (last={}). "
-                        + "Setting savedIndex={} and deleting subsequent entries",
-                        gondola.getHostId(), cmember.memberId, i, lastIndex, savedIndex);
+                            "[{}-{}] SaveQueue: index={} is missing (last={}). "
+                                    + "Setting savedIndex={} and deleting subsequent entries",
+                            gondola.getHostId(), cmember.memberId, i, lastIndex, savedIndex);
                     deleteFrom(i + 1, lastIndex);
                     assert i > start;
                     break;
@@ -254,7 +257,7 @@ public class SaveQueue {
             int count = storage.count(cmember.memberId);
             if (count != newSavedIndex) {
                 throw new IllegalStateException(String.format("The last index is %d but found %d entries in the log",
-                                                              newSavedIndex, count));
+                        newSavedIndex, count));
             }
 
             // Finally update the saved rid
@@ -276,12 +279,12 @@ public class SaveQueue {
     }
 
     // Temp for debugging
-    public void verifySavedIndex() throws Exception {
+    public void verifySavedIndex() throws GondolaException {
         int si = savedIndex; // Capture since it might change while the last entry is being fetched
         LogEntry entry = storage.getLastLogEntry(cmember.memberId);
         if (entry != null && entry.index < si) {
             throw new IllegalStateException(String.format(
-                "Save index is not in-sync with storage: last index (%d) < save index(%d)", entry.index, si));
+                    "Save index is not in-sync with storage: last index (%d) < save index(%d)", entry.index, si));
         }
     }
 
@@ -330,7 +333,7 @@ public class SaveQueue {
                                           int prevLogTerm, int prevLogIndex, int commitIndex,
                                           boolean isHeartbeat, int entryTerm, byte[] buffer, int bufferOffset,
                                           int bufferLen,
-                                          boolean lastCommand) throws Exception {
+                                          boolean lastCommand) throws InterruptedException, GondolaException {
             // Determine if the any entries need to be deleted
             int deletedCount = 0;
             int index = prevLogIndex + 1;
@@ -339,7 +342,7 @@ public class SaveQueue {
                 if (saving.contains(index)) {
                     if (storageTracing) {
                         logger.info("[{}-{}] SaveQueue: index={} is currently being saved. Ignoring this request.",
-                                    gondola.getHostId(), cmember.memberId, index);
+                                gondola.getHostId(), cmember.memberId, index);
                     }
                     return true;
                 }
@@ -349,21 +352,21 @@ public class SaveQueue {
                     LogEntry le = storage.getLogEntry(cmember.memberId, index);
                     if (le == null) {
                         throw new IllegalStateException(String.format("[%s] Could not retrieve index=%d. savedIndex=%d",
-                                                                      gondola.getHostId(), index, savedIndex));
+                                gondola.getHostId(), index, savedIndex));
                     }
                     boolean isContentsEqual = le.equals(buffer, bufferOffset, bufferLen);
                     logger.info(
-                        "[{}-{}] SaveQueue: overwriting index={} which is older than the savedIndex={}. "
-                        + "Contents are {}.",
-                        gondola.getHostId(), cmember.memberId, index, savedIndex,
-                        isContentsEqual ? "identical" : "different");
+                            "[{}-{}] SaveQueue: overwriting index={} which is older than the savedIndex={}. "
+                                    + "Contents are {}.",
+                            gondola.getHostId(), cmember.memberId, index, savedIndex,
+                            isContentsEqual ? "identical" : "different");
                     if (isContentsEqual) {
                         // The contents haven't changed so ignore this message
                         return true;
                     } else {
                         savedIndex = index - 1;
                         logger.info("[{}-{}] SaveQueue: Setting savedIndex={} and deleting subsequent entries",
-                                    gondola.getHostId(), cmember.memberId, savedIndex);
+                                gondola.getHostId(), cmember.memberId, savedIndex);
 
                         // Determine the last entry to delete
                         int lastIndex = -1;
@@ -380,7 +383,7 @@ public class SaveQueue {
                     // Check if the entry has already been written
                     if (storageTracing) {
                         logger.info("[{}-{}] SaveQueue: index={} has already been saved. Ignoring this request.",
-                                    gondola.getHostId(), cmember.memberId, index);
+                                gondola.getHostId(), cmember.memberId, index);
                     }
                     return true;
                 } else {
@@ -390,7 +393,7 @@ public class SaveQueue {
                         g = ((g - 1) / 10 + 1) * 10; // Round to the next higher 10
                         if (storageTracing || g % 100 == 0) {
                             logger.info("[{}-{}] SaveQueue: increasing maxGap from {} to {}",
-                                        gondola.getHostId(), cmember.memberId, maxGap, g);
+                                    gondola.getHostId(), cmember.memberId, maxGap, g);
                         }
                         storage.setMaxGap(cmember.memberId, g);
                         maxGap = g;
@@ -405,8 +408,8 @@ public class SaveQueue {
             storage.appendLogEntry(cmember.memberId, entryTerm, index, buffer, bufferOffset, bufferLen);
             if (storageTracing) {
                 logger.info("[{}-{}] insert(term={} index={} size={}) busy={} saved={} contents={}",
-                            gondola.getHostId(), cmember.memberId, entryTerm, index,
-                            bufferLen, busyWorkers.get(), saved.size(), new String(buffer, bufferOffset, bufferLen));
+                        gondola.getHostId(), cmember.memberId, entryTerm, index,
+                        bufferLen, busyWorkers.get(), saved.size(), new String(buffer, bufferOffset, bufferLen));
             }
             stats.savedCommand(bufferLen);
 
@@ -416,7 +419,7 @@ public class SaveQueue {
             try {
                 if (!saving.remove(index)) {
                     logger.warn("[{}-{}] SaveQueue: index={} has already been removed",
-                                gondola.getHostId(), cmember.memberId, index);
+                            gondola.getHostId(), cmember.memberId, index);
                 }
                 if (index == savedIndex + 1) {
                     // The savedIndex can be advanced immediately
@@ -434,13 +437,13 @@ public class SaveQueue {
                     }
                     if (index > start && storageTracing) {
                         logger.info("[{}-{}] SaveQueue: pulled index={} to {} from saved. Remaining={}",
-                                    gondola.getHostId(), cmember.memberId, start, index - 1, saved.size());
+                                gondola.getHostId(), cmember.memberId, start, index - 1, saved.size());
                     }
                 } else if (index > savedIndex) {
                     saved.put(index, entryTerm);
                 } else {
                     logger.warn("[{}-{}] SaveQueue: savedIndex={} is > index={}",
-                                gondola.getHostId(), cmember.memberId, savedIndex, index);
+                            gondola.getHostId(), cmember.memberId, savedIndex, index);
                 }
             } finally {
                 lock.unlock();
@@ -457,7 +460,7 @@ public class SaveQueue {
     /**
      * Deletes entries from [index, lastIndex]. The entries are deleted backwards to avoid having to increase maxGap.
      */
-    int deleteFrom(int index, int lastIndex) throws Exception {
+    int deleteFrom(int index, int lastIndex) throws GondolaException {
         int deleted = 0;
         if (lastIndex < 0) {
             lastIndex = savedIndex;

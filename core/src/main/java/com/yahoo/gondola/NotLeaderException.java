@@ -11,10 +11,11 @@ import java.net.InetSocketAddress;
 /**
  * The type Not leader exception.
  */
-public class NotLeaderException extends Exception {
+public class NotLeaderException extends GondolaException {
     InetSocketAddress leaderAddr;
 
     public NotLeaderException(InetSocketAddress leaderAddr) {
+        super(Code.NOT_LEADER, String.format(Code.NOT_LEADER.messageTemplate(), leaderAddr));
         this.leaderAddr = leaderAddr;
     }
 
