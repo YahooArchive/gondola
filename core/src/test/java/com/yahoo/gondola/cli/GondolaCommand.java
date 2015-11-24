@@ -206,9 +206,6 @@ public class GondolaCommand {
                     System.arraycopy(command.getBuffer(), 0, buffer, 0, command.getSize());
                     command.release();
                     index++;
-                } catch (IndexNotFoundException e) {
-                    index = e.getEarliestIndex();
-                    e.printStackTrace();
                 } catch (TimeoutException e) {
                     logger.info(e.getMessage());
                 } catch (Exception e) {
