@@ -125,7 +125,7 @@ public class ShardManagerTest {
         Range<Integer> r = Range.closed(1, 2);
         shardManager.migrateBuckets(r, FROM_SHARD, TARGET_SHARD, TIMEOUT_MS);
         verify(filter, times(1)).updateBucketRange(any(), any(), any(), anyBoolean());
-        verify(shardManager, times(1)).setBuckets(any(), any(), any(), anyBoolean());
+        verify(shardManagerClient, times(1)).setBuckets(any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -135,7 +135,7 @@ public class ShardManagerTest {
         shardManager.migrateBuckets(r, FROM_SHARD, TARGET_SHARD, TIMEOUT_MS);
         verify(shardManagerClient, times(1)).startObserving(any(), any(), anyLong());
         verify(filter, times(0)).updateBucketRange(any(), any(), any(), anyBoolean());
-        verify(shardManager, times(0)).setBuckets(any(), any(), any(), anyBoolean());
+        verify(shardManagerClient, times(0)).setBuckets(any(), any(), any(), anyBoolean());
     }
 
     @SuppressWarnings("unchecked")

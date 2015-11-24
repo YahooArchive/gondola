@@ -169,6 +169,8 @@ public class ShardManager implements ShardManagerProtocol {
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             filter.updateBucketRange(splitRange, fromShardId, toShardId, true);
+            trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
+            shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
         } catch (InterruptedException | ExecutionException e) {
             logger.warn("Error occurred, rollback!", e);
             try {
@@ -179,8 +181,6 @@ public class ShardManager implements ShardManagerProtocol {
         } finally {
             filter.unblockRequestOnBuckets(splitRange);
         }
-        trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
-        shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
     }
 
     @Override
