@@ -17,6 +17,7 @@ import org.apache.curator.test.TestingServer;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -43,7 +44,7 @@ import static org.testng.Assert.assertTrue;
 
 public class ZookeeperRegistryClientTest {
 
-    TestingServer testingServer;
+    TestingServer testingServer = null;
     CuratorFramework client;
     ObjectMapper objectMapper = new ObjectMapper();
     RegistryClient registryClient;
@@ -62,12 +63,24 @@ public class ZookeeperRegistryClientTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        testingServer = new TestingServer();
+        if (testingServer == null) {
+            testingServer = new TestingServer();
+            testingServer.start();
+            client = getCuratorFramework();
+        }
         readConfig();
 
-        client = getCuratorFramework();
         registryClient = new ZookeeperRegistryClient(client, objectMapper, config);
         registryClient.addListener(listener);
+    }
+
+    @AfterMethod
+    public void tearDown() throws Exception {
+        for (String path : client.getChildren().forPath("/")) {
+            if (!path.equals("zookeeper")) {
+                client.delete().deletingChildrenIfNeeded().forPath("/" + path);
+            }
+        }
     }
 
     private void readConfig() {

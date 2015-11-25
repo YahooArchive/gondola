@@ -12,6 +12,9 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.container.ShardManager;
 import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
 
+import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 import org.mockito.MockitoAnnotations;
 import org.testng.annotations.AfterMethod;
@@ -40,6 +43,7 @@ public class ZookeeperShardManagerClientTest {
     ZookeeperShardManagerClient client;
     Map<String, ZookeeperShardManagerServer> servers;
     Map<String, ShardManager> shardManagers;
+    CuratorFramework curatorFramework = null;
 
     URL configUrl = ZookeeperShardManagerClientTest.class.getClassLoader().getResource("gondola.conf");
     Config config = new Config(new File(configUrl.getFile()));
@@ -48,8 +52,12 @@ public class ZookeeperShardManagerClientTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        testingServer = new TestingServer();
-        testingServer.start();
+        if (testingServer == null) {
+            testingServer = new TestingServer();
+            testingServer.start();
+            curatorFramework = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), new RetryOneTime(1000));
+            curatorFramework.start();
+        }
         servers = new HashMap<>();
         shardManagers = new HashMap<>();
         gondolas = new ArrayList<>();
@@ -72,8 +80,12 @@ public class ZookeeperShardManagerClientTest {
     @AfterMethod
     public void tearDown() throws Exception {
         servers.forEach((s, server) -> server.stop());
-        testingServer.stop();
         gondolas.parallelStream().forEach(Gondola::stop);
+        for (String path : curatorFramework.getChildren().forPath("/")) {
+            if (!path.equals("zookeeper")) {
+                curatorFramework.delete().deletingChildrenIfNeeded().forPath("/" + path);
+            }
+        }
     }
 
     @Test
