@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/yahoo/gondola.svg?branch=master)](https://travis-ci.org/yahoo/gondola)
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/)
+
 
 # High-performance Raft-based Java Web Container
 
