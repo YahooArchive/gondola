@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/yahoo/gondola.svg?branch=master)](https://travis-ci.org/yahoo/gondola)
+[![Coverage Status](https://coveralls.io/repos/yahoo/gondola/badge.svg?branch=master&service=github)](https://coveralls.io/github/yahoo/gondola?branch=master)
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/)
 
 
