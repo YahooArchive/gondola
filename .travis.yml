@@ -8,15 +8,17 @@ branches:
   only:
   - master
   - "/^[0-9]+\\.[0-9]+\\.[0-9]+/"
-script: mvn verify
+script: mvn verify jacoco:report coveralls:report
 after_success:
 - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
   --settings settings/maven/settings.xml
-- git checkout -b upstream/gh-pages && rsync -r --delete -v target/site/apidocs/ apidocs/ && git add apidocs && git commit -m "Update javadoc" && git push origin gh-pages
+- git checkout -b upstream/gh-pages && rsync -r --delete -v target/site/apidocs/ apidocs/
+  && git add apidocs && git commit -m "Update javadoc" && git push origin gh-pages
 after_failure:
-  - cat core/target/surefire-reports/TEST-TestSuite.xml
-  - cat core/logs/gondola-rc.log
+- cat core/target/surefire-reports/TEST-TestSuite.xml
+- cat core/logs/gondola-rc.log
 env:
   global:
   - secure: irRhDhllxRHIDHT7wNxodkW0LkXjRW3eVVYS11nE48Pn+xPn9+5u7swNKOyEoXbod4E7ddC00PuLtyxQhOfxbm22ZxF0Hm6SgFlpr5rwrRukqO1RTRm35mu424ZxCPyXlQ1RVPzKHUAP+FUMlwgSpGMF5XATx+Wtg2N5ci8Gh5c7UJo6DJXM2nAN4cqUgO9x4fFAT0FU9uzYae9Ea6stK58+J9lbE3NDjuH8TJrGCBS3mnya6hFnrK6ky1KpzdBalEAlLyrhVNnJmOJCBq6p6lTCBIWJ5sHlD8LboAfT0Ru9h5QiB8teOtfpBCr+rMDN6+wpg49k5MQfjZWKZ7j4uNrVMopyN6kEnUIqboXhNaOrjCeH7a/QpjMoK5R2tXPXbjHu+5uc1A8+uo9w2kbd4jQZPlXZtmXtPRX4ZtTCsG7WbQ2L69mhI0WFisaNGAOfcIVe6WKrsd2tCKhqAppYgzHWzqP9WtaBwTMxHprHXUbFb28L3uieEZ45CycPLT3E2UlJTeOiR8Yr5NDP+J0c7adliVrPra1vOfbjKtIDa8Wp0jTqCpsiCV8XGpPtTwF8zNlPFo73VtTflbVzy0GGasfKx4X9jXMYKYBjvdNbgiKzSZ+bKxCYQAnY5r4bkJblIUbGpPEJFTDS8+q+WkEFUuWDz68xZVGsl+fqg3I8Myw=
   - secure: hyOZECyKsB/5z4oxAXd6JFNIku6hnOiUtdalZKpQJIAT10DE3sSjKVA51H+p6XipoW6tPbhenaGtSVUX6+6HVnKoF+oo5ZrguxybMxASKcoSaWcTcgzwjy7oEY3Nf9aJOE0PJLU4EIKFiTJGtN2TA2kFaT55FZqHg/sqW+gtOKjpYEubqEfcCOnJ3w19XbtfJHW6vcUHBd+VCSvcgGxdEVz+xnh6lFwH9VdEXOLgNzcHpM48uK6vih+aGlIT1BBRhdFZV01ODw43FuB5snbJLQGyg1CEhJG8RJHohtb/P4hrNfkx4pHbDBQWdRW/v5KUJcOZcjdcVEHZHPZ8HOkhFzun8BWz1nXXQFDTHGz0jUMNuJyvbhUncdmHr+QFZCbbNY4eezH1UcLW/LHA3Yp3P3lGOwTLRlOCbqHp3yfnNYRFasaKVAZyRMbN9qm5yvKkOEiFNfCshPm0yJ3dFusHpLjQldOnOig0aRp8Ut/M7VhnIH9+MzqdA8WLRkewZskgFBz+UJ5OQMaxW8jLm0eDtB7DpYfPAVxUxEj8qLD/F9EHoP3d7ku1HL3Ok2OcKmJx+hsEBQSYMZ5lMWFNeJqqIuuF1BRJ4XvTlkcwU4cTQPejhkpZ++9XzXunzod0bz/qEQoL6ycIfFVlWnHWoWzJRX2P/BsZ6simmcgN5yxKX/c=
+  - secure: LLsmpAIc+3JYEIfIhvC8T6hCN2wHtIOB7/stvSb1yOP6YdaZYlpzSAHZ0EggBNHGyxXC2lKITmRM99M2h9TZtme1GxcW51aGjD+x+ORyOR7VXWvMR91rXt9TwLhk1Btz3QMo8EOKuNdhUFbDYPNflzoQzF3d0z1DgqdZyNHd45Vf63L/lHVuhPpYSnhH688WaC0FAVHOADF9IW+ItnpghYtEe0twM9YVGgqg9otVLsrdUXCVkuJKHtCSpVLVm41E9ZaMWaY8r6787c4XM+n98gWRyy/Uf3NYgU0hryQnoBwuiPeWn/mPfLto0kxU2M0jRRk/HzLuofXY1YyQ1ZGO7V1GsI/IEUMb/Ab6511wyAueAp8wWP+HxafQ8Us/6ZuskFBtMKAMpU0YLN9q8DCt+Gq1WGu4My8BN1cgtHtHbeCcI1UI+KqkWg4jE2e074cmB2BeXNkqE09vkMFKp6VmJpfi7AFqKqZk0wcwswg02q6ArncYFJ6dWArNbeVRBPENpAwUhAT4jJZyd8yUswyVWeYRg8VbzTPTOhUv1Hf+KFvmU6jULNzB7p4qo7ZJDRXwu9Dv1vl4TXdc0SWNPvyiR0ZFSSvnG2urHlPp0XmLd5Pc/byxUIE01XlzolMyjNv3UFwdA/bg5yiOuXW6fFDCj96zvx2Y71aZfwZ+6js9710=
