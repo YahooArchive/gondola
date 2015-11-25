@@ -4,7 +4,7 @@ This demo application implements a fault-tolerant hash table using a
 Raft cluster of three nodes.  The demo starts up three servers, each
 implementing a RESTful API for setting and getting values.  The demo
 uses H2DB as the backing storage for the Raft log so that the updates
-are persistant.
+are persistent.
 
 ## API
 
@@ -84,7 +84,7 @@ port: 8082 :
 ```
 
 ## Failover Test
-The folloing commands will demo the scenario:
+The following commands will demo the scenario:
   - host1 server down
   - host2 or host3 take over the leader
   - send write command to the new leader
