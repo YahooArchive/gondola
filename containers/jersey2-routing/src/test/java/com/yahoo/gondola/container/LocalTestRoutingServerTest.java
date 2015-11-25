@@ -53,10 +53,10 @@ public class LocalTestRoutingServerTest {
     ProxyClientProvider proxyClientProvider;
 
     @Mock
-    CommandListenerProvider commandListenerProvider;
+    ShardManagerProvider shardManagerProvider;
 
     @Mock
-    CommandListener commandListener;
+    ShardManagerServer shardManagerServer;
 
     @Mock
     Shard shard;
@@ -79,7 +79,7 @@ public class LocalTestRoutingServerTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
+        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
         when(gondola.getConfig()).thenReturn(config);
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
@@ -87,7 +87,7 @@ public class LocalTestRoutingServerTest {
         when(routingHelper.getBucketId(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
-        when(commandListenerProvider.getCommandListner(any())).thenReturn(commandListener);
+        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
@@ -95,7 +95,7 @@ public class LocalTestRoutingServerTest {
 
     @Test
     public void testRoutingServer() throws Exception {
-        server = new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider, commandListenerProvider);
+        server = new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider, shardManagerProvider);
 
         CloseableHttpClient client = HttpClients.createDefault();
         CloseableHttpResponse response = client.execute(new HttpGet(server.getHostUri()));

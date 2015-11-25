@@ -22,25 +22,18 @@ import java.net.URL;
 import java.util.function.Consumer;
 
 import javax.servlet.ServletContext;
-import javax.servlet.ServletContextEvent;
-import javax.servlet.ServletContextListener;
-import javax.servlet.annotation.WebListener;
 import javax.ws.rs.core.Context;
 
 /**
- * Jersey2 JAX-RS application class,
- * it initialize the essential class before serving.
+ * Jersey2 JAX-RS application class, it initialize the essential class before serving.
  *
- * 1. Initialize Gondola instance
- * 2. Initialize business logic object - DemoService
- * 3. Initialize routing filter callback and register RoutingFilter as Jersey filter
- * 4. Register the resources
+ * 1. Initialize Gondola instance 2. Initialize business logic object - DemoService 3. Initialize routing filter
+ * callback and register RoutingFilter as Jersey filter 4. Register the resources
  */
 public class DemoApplication extends ResourceConfig {
 
     static Logger logger = LoggerFactory.getLogger(DemoApplication.class);
     Gondola gondola;
-    static DemoApplication instance;
 
     static String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
 
@@ -49,7 +42,6 @@ public class DemoApplication extends ResourceConfig {
 
         // Dependency injection to DemoResource
         DemoService demoService = new DemoService(gondola);
-
         register(new AbstractBinder() {
             @Override
             protected void configure() {
@@ -58,32 +50,14 @@ public class DemoApplication extends ResourceConfig {
         });
 
         // Register routing filter
-        RoutingFilter routingFilter = RoutingFilter.Builder.createRoutingFilter()
-            .setRoutingHelper(new DemoRoutingHelper(gondola, demoService))
-            .setGondola(gondola)
-            .build();
-        register(routingFilter);
+        register(RoutingFilter.Builder.createRoutingFilter()
+                     .setApplication(this)
+                     .setRoutingHelper(new DemoRoutingHelper(gondola, demoService))
+                     .setGondola(gondola)
+                     .build());
 
-        // register resources in the package
-        packages(true, "com.yahoo.gondola.demo");
-        instance = this;
-
-        /*
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            public void run() {
-                try {
-                    Thread.sleep(2000);
-                    Runtime.getRuntime().halt(0);
-                } catch (InterruptedException e) {
-                    e.printStackTrace(); // ignore
-                }
-            }
-        });
-        */
-    }
-
-    public static DemoApplication getInstance() {
-        return instance;
+        // register resource
+        register(DemoResources.class);
     }
 
     private Gondola initializeGondola() throws Exception {
@@ -116,26 +90,5 @@ public class DemoApplication extends ResourceConfig {
         gondola.registerForRoleChanges(listener);
         gondola.start();
         return gondola;
-    }
-
-    /**
-     * Servlet 3.0 context listener, used to manage the lifecycle of the app.
-     */
-    @WebListener
-    public static class ContextListener implements ServletContextListener {
-        @Override
-        public void contextInitialized(ServletContextEvent sce) {
-            if (DemoApplication.getInstance() != null) {
-                logger.info("[{}] kv-server hostId={} initialized", hostId);
-            }
-        }
-
-        @Override
-        public void contextDestroyed(ServletContextEvent sce) {
-            if (DemoApplication.getInstance() != null) {
-                DemoApplication.getInstance().gondola.stop();
-            }
-            logger.info("[{}] kv-server destroyed", hostId);
-        }
     }
 }

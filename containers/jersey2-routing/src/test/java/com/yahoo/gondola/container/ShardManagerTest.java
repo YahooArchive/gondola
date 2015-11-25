@@ -84,9 +84,9 @@ public class ShardManagerTest {
         status.running = true;
         when(member.getSlaveStatus()).thenReturn(status);
         assertFalse(getObservedShards().contains(TARGET_SHARD));
-        shardManager.startObserving(TARGET_SHARD, FROM_SHARD, 300);
+        shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
-        shardManager.startObserving(TARGET_SHARD, FROM_SHARD, 300);
+        shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
     }
 
@@ -96,7 +96,7 @@ public class ShardManagerTest {
         status.running = false;
         when(member.getSlaveStatus()).thenReturn(status);
         assertFalse(getObservedShards().contains(TARGET_SHARD));
-        shardManager.startObserving(TARGET_SHARD, FROM_SHARD, 300);
+        shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
     }
 
 
@@ -106,7 +106,7 @@ public class ShardManagerTest {
         status.running = true;
         when(member.getSlaveStatus()).thenReturn(status);
         // Start observing
-        shardManager.startObserving(TARGET_SHARD, FROM_SHARD, 300);
+        shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
 
         // Stop observing successfully

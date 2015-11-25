@@ -19,7 +19,7 @@ public class Utils {
      *
      * @param supplier
      * @param waitTimeMs
-     * @param timeoutMs
+     * @param timeoutMs -1 means no limitation, 0 means no wait.
      * @return true if success, false if timeout reached.
      * @throws InterruptedException
      * @throws ExecutionException
@@ -38,6 +38,9 @@ public class Utils {
                     return true;
                 }
                 long remain = timeoutMs - (System.currentTimeMillis() - start);
+                if (timeoutMs == 0) {
+                    break;
+                }
                 Thread.sleep(timeoutMs == -1 || waitTimeMs < remain || remain <= 0 ? waitTimeMs : remain);
             }
             return false;

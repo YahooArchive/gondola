@@ -16,11 +16,11 @@ public interface ShardManagerProtocol {
     /**
      * Start observing.
      *
-     * @param observedShardId the observed shard id
      * @param shardId         the shard id
+     * @param observedShardId the observed shard id
      * @throws ShardManagerException the shard manager exception
      */
-    void startObserving(String observedShardId, String shardId, long timeoutMs)
+    void startObserving(String shardId, String observedShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException;
 
     /**
@@ -47,7 +47,7 @@ public interface ShardManagerProtocol {
     /**
      * Wait slave until slave synced.
      *
-     * @param shardId   the shard id
+     * @param shardId   the slave shard id
      * @param timeoutMs the timeout ms
      * @return the boolean
      * @throws ShardManagerException the shard manager exception
@@ -83,7 +83,7 @@ public interface ShardManagerProtocol {
      * @param fromShardId
      * @param toShardId
      * @param timeoutMs
-     * @return
+     * @return success if current bucket range is equal to expected range.
      * @throws InterruptedException
      */
     boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
