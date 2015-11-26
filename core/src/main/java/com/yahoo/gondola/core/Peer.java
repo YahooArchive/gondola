@@ -13,7 +13,6 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
-import com.yahoo.gondola.impl.Utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +42,8 @@ public class Peer {
     final Storage storage;
     final CoreMember cmember;
     final int peerId;
+
+    // If true, this peer is being used by a leader to communicate to a slave
     boolean slaveMode;
 
     Channel channel;
@@ -113,6 +114,9 @@ public class Peer {
     static int heartbeatPeriod;
     static int socketInactivityTimeout;
 
+    /**
+     * This contructor is called in response to an incoming request from a slave.
+     */
     public Peer(Gondola gondola, CoreMember cmember, Channel slaveChannel) {
         this(gondola, cmember, slaveChannel.getRemoteMemberId());
         this.channel = slaveChannel;
@@ -138,7 +142,7 @@ public class Peer {
     }
 
     /**
-     * Must be called before peer objects can be created.
+     * Must be called before peer objects are created.
      */
     public static void initConfig(Config config) {
         config.registerForUpdates(config1 -> {
@@ -171,7 +175,7 @@ public class Peer {
         }
     }
 
-    public void start() {
+    public void start() throws GondolaException {
         if (threads.size() > 0) {
             throw new IllegalStateException("start() can only be called once");
         }
@@ -179,6 +183,7 @@ public class Peer {
             // Peer is not a slave so create a channel to remote member
             channel = gondola.getNetwork().createChannel(cmember.memberId, peerId);
         }
+        channel.start();
         reset();
 
         // Start local threads
@@ -196,11 +201,25 @@ public class Peer {
 
     /******************** methods *********************/
 
+
+    public void setChannel(Channel channel) throws GondolaException {
+        Channel old = this.channel;
+        this.channel = channel;
+        channel.start();
+        if (this.channel != null) {
+            this.channel.stop();
+        }
+    }
+
     /**
      * Returns the channel's operational state.
      */
     public boolean isOperational() {
         return channel.isOperational();
+    }
+
+    public long getLastReceivedTs() {
+        return lastReceivedTs;
     }
 
     /**
@@ -636,7 +655,7 @@ public class Peer {
                     if (now - lastSentTs > socketInactivityTimeout) {
                         // Start the timer
                         lastReceivedTs = now;
-                    } else if (now - lastReceivedTs > socketInactivityTimeout) {
+                    } else if (!slaveMode && now - lastReceivedTs > socketInactivityTimeout) {
                         // The inactive socket may not be valid so reconnect
                         logger.info("[{}-{}] socket to {} has been inactive for {} ms, so reconnecting",
                                 gondola.getHostId(), cmember.memberId, peerId, socketInactivityTimeout);

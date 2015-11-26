@@ -87,11 +87,10 @@ public class GondolaTest {
         gondolaRc.start();
 
         // These member rc objects are not available until after gondola instance is started start
-        member1 = gondolaRc.getMember(1);
-        member2 = gondolaRc.getMember(2);
-        member3 = gondolaRc.getMember(3);
-        members = Stream.of(gondolaRc.getMember(1), gondolaRc.getMember(2), gondolaRc.getMember(3))
-                .collect(Collectors.toList());
+        member1 = gondolaRc.getMember(4);
+        member2 = gondolaRc.getMember(5);
+        member3 = gondolaRc.getMember(6);
+        members = Stream.of(member1, member2, member3).collect(Collectors.toList());
         startTimer = System.currentTimeMillis();
     }
 
@@ -623,7 +622,7 @@ public class GondolaTest {
                 assertEquals(crevt.oldRole, Role.FOLLOWER);
             }
             if (crevt.newRole == Role.LEADER) {
-                assertEquals(crevt.leader.getMemberId(), 1);
+                assertEquals(crevt.leader.getMemberId(), 4);
                 assertEquals(crevt.oldRole, Role.CANDIDATE);
             }
             assertEquals(crevt.member.getMemberId(), member1.getMemberId());
@@ -947,10 +946,10 @@ public class GondolaTest {
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g);
         g.start();
-        Member slave1 = g.getShard("shard2").getMember(4);
+        Member slave1 = g.getShard("shard2").getMember(1);
 
         // Enable the slave
-        slave1.setSlave(1);
+        slave1.setSlave(4);
         while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
             assertTrue(status.running, "slave should be running");
@@ -988,10 +987,10 @@ public class GondolaTest {
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g);
         g.start();
-        Member slave1 = g.getShard("shard2").getMember(4);
+        Member slave1 = g.getShard("shard2").getMember(1);
 
         // Enable the slave
-        slave1.setSlave(2);
+        slave1.setSlave(5);
 
         // Wait until it fails
         for (int i=0; i<5 && slave1.getSlaveStatus().running; i++) {
@@ -1023,7 +1022,7 @@ public class GondolaTest {
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g);
         g.start();
-        Member slave1 = g.getShard("shard2").getMember(4);
+        Member slave1 = g.getShard("shard2").getMember(1);
 
         // Enable the slave
         slave1.setSlave(1);

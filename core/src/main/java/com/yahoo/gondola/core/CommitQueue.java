@@ -8,8 +8,6 @@ package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.*;
 
-import com.yahoo.gondola.impl.Utils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

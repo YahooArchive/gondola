@@ -8,7 +8,7 @@ package com.yahoo.gondola;
 
 import com.yahoo.gondola.core.*;
 
-import com.yahoo.gondola.impl.Utils;
+import com.yahoo.gondola.core.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,6 +102,7 @@ public class Gondola implements Stoppable {
             CoreCmd.initConfig(config);
             Message.initConfig(config);
             Peer.initConfig(config);
+            ExceptionLogger.initConfig(config);
 
             messagePool = new MessagePool(config, stats);
 

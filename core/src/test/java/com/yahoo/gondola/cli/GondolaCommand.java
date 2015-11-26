@@ -10,18 +10,11 @@ import com.yahoo.gondola.*;
 import com.yahoo.gondola.core.CoreMember;
 import com.yahoo.gondola.impl.NastyNetwork;
 import com.yahoo.gondola.impl.NastyStorage;
-
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -35,12 +28,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * The type Gondola command. TODO: will eventually be command line tool for users to quickly bring up a gondola shard in
- * their environment and do some quick performance tests. They would 1. create a config file and 2. start this command
- * on the different hosts. Right now this is just a quick and dirty test command to test the prototype.
+ * TODO: will eventually be command line tool for users to quickly bring up a gondola shard in their
+ * environment and do some quick performance tests. They would
+ * <li>1. create a config file and
+ * <li>2. start this command on the different hosts.
+ * Right now, this is just a quick and dirty test command to test the prototype.
  */
 public class GondolaCommand {
-
     final static Logger logger = LoggerFactory.getLogger(GondolaCommand.class);
 
     Shard shard;
@@ -55,8 +49,10 @@ public class GondolaCommand {
     int port = 1099;
     String hostId;
     String shardId;
+    int memberId = -1;
     int delay = 1000;
-    File configFile = new File("conf/gondola-sample.conf");
+    File configFile = new File("conf/gondola-command.conf");
+    int masterId = -1;
 
     int maxWorkers = 1024;
     int numWorkers = 0;
@@ -76,8 +72,8 @@ public class GondolaCommand {
 
     public void printUsage() {
         // Stop is implemented in the shell script
-        System.out.println(
-            "Usage: gondola.sh -hostid <host-id> -shardid <shard-id> [-port <port>] [-workers <num>] [start|stop]");
+        System.out.println("Usage: gondola.sh [-host <host-id> -shard <shard-id>|-member <member-id>]"
+                           + " [-port <port>] [-master <master-id>] [-workers <num>] [start|stop]");
         if (config != null) {
             System.out.println("    Available host ids: " + config.getHostIds());
         }
@@ -99,17 +95,29 @@ public class GondolaCommand {
                 }
                 port = Integer.parseInt(args[++i]);
             }
-            if (args[i].equals("-hostid")) {
+            if (args[i].equals("-host") || args[i].equals("-h")) {
                 if (args.length == i - 1) {
                     printUsage();
                 }
                 hostId = args[++i];
             }
-            if (args[i].equals("-shardid")) {
+            if (args[i].equals("-shard") || args[i].equals("-s")) {
                 if (args.length == i - 1) {
                     printUsage();
                 }
                 shardId = args[++i];
+            }
+            if (args[i].equals("-member") || args[i].equals("-m")) {
+                if (args.length == i - 1) {
+                    printUsage();
+                }
+                memberId = Integer.parseInt(args[++i]);
+            }
+            if (args[i].equals("-master")) {
+                if (args.length == i - 1) {
+                    printUsage();
+                }
+                masterId = Integer.parseInt(args[++i]);
             }
             if (args[i].equals("-workers")) {
                 if (args.length == i - 1) {
@@ -131,6 +139,11 @@ public class GondolaCommand {
             }
         }
         config = new Config(configFile);
+        if (memberId >= 0) {
+            Config.ConfigMember m = config.getMember(memberId);
+            hostId = m.getHostId();
+            shardId = m.getShardId();
+        }
         if (hostId == null || shardId == null) {
             printUsage();
         }
@@ -148,7 +161,10 @@ public class GondolaCommand {
             System.exit(1);
         }
 
-        if (serverMode) {
+        if (masterId > 0) {
+            shard.getLocalMember().setSlave(masterId);
+            Thread.currentThread().join();
+        } else if (serverMode) {
             System.out.println("Server-mode");
             new Acceptor().start();
         } else {
@@ -175,12 +191,10 @@ public class GondolaCommand {
                 requests.set(0);
             }
         }
-
     }
 
     // Background thread to get committed commands from gondola
     class Reader extends Thread {
-
         public Reader() {
             setName("CommandReader-");
         }
@@ -223,9 +237,7 @@ public class GondolaCommand {
     }
 
     static AtomicInteger ccounter = new AtomicInteger();
-
     class Writer extends Thread {
-
         int id;
 
         Writer(String hostId, int id) {
@@ -276,7 +288,6 @@ public class GondolaCommand {
      */
 
     class Acceptor extends Thread {
-
         public Acceptor() {
             setName("RemoteInterfaceAcceptor-" + gondola.getHostId());
             new RemoteInterface().start();
@@ -291,15 +302,15 @@ public class GondolaCommand {
                         socket.setTcpNoDelay(true);
                         if (tracing) {
                             logger.info("[{}] GondolaCommand socket accept from {} ({})", hostId,
-                                        socket.getInetAddress());
+                                    socket.getInetAddress());
                         }
 
                         // Create more remote interface threads if needed
                         if (availableWorkers.get() <= socketQueue.size() && numWorkers < maxWorkers) {
                             if (tracing) {
-                                logger.info(
-                                    "[{}] Creating remote interface worker: avail workers={} socketQ={} numWorkers={}",
-                                    hostId, availableWorkers.get(), socketQueue, numWorkers);
+                                logger.info("[{}] Creating remote interface worker: avail workers={}"
+                                            + " socketQ={} numWorkers={}",
+                                            hostId, availableWorkers.get(), socketQueue, numWorkers);
                             }
                             new RemoteInterface().start();
                             numWorkers++;
@@ -324,7 +335,6 @@ public class GondolaCommand {
     }
 
     class RemoteInterface extends Thread {
-
         Socket socket;
 
         public RemoteInterface() {
@@ -341,10 +351,10 @@ public class GondolaCommand {
                     logger.error(e.getMessage(), e);
                 }
                 try (
-                    InputStream in = socket.getInputStream();
-                    OutputStream out = socket.getOutputStream();
-                    BufferedReader rd = new BufferedReader(new InputStreamReader(in));
-                    BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
+                        InputStream in = socket.getInputStream();
+                        OutputStream out = socket.getOutputStream();
+                        BufferedReader rd = new BufferedReader(new InputStreamReader(in));
+                        BufferedWriter wr = new BufferedWriter(new OutputStreamWriter(out));
                 ) {
                     try {
                         String line;
@@ -376,6 +386,7 @@ public class GondolaCommand {
             if (args.length == 0) {
                 return "ERROR: No command";
             }
+
             switch (args[0]) {
                 case "c":
                     // commit a command
@@ -387,7 +398,7 @@ public class GondolaCommand {
                         byte[] buffer = line.substring(2).getBytes("UTF-8");
                         if (buffer.length > command.getCapacity()) {
                             String msg = String.format("ERROR command too long. size=%d, max=%d",
-                                                       buffer.length, command.getCapacity());
+                                    buffer.length, command.getCapacity());
                             logger.error(msg);
                             return msg;
                         }
@@ -434,7 +445,7 @@ public class GondolaCommand {
                         le.release();
                     }
                     return String.format("SUCCESS: Mode=%s, commitIndex=%d, savedIndex=%d",
-                                         shard.getLocalRole(), shard.getLastSavedIndex(), savedIndex);
+                            shard.getLocalRole(), shard.getLastSavedIndex(), savedIndex);
                 case "n":
                     if (args.length < 2) {
                         return "ERROR: n <on|off>";
