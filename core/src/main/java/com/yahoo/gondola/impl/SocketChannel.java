@@ -11,6 +11,8 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 
 import com.yahoo.gondola.GondolaException;
+import com.yahoo.gondola.core.ExceptionLogger;
+import com.yahoo.gondola.core.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +45,7 @@ public class SocketChannel implements Channel {
     Gondola gondola;
     int memberId;
     int peerId;
+    boolean retry = true;
 
     // Used to protect the socket and the streams. Ensures that only one reconnect occurs at a time.
     final ReentrantLock lock = new ReentrantLock();
@@ -72,10 +75,17 @@ public class SocketChannel implements Channel {
     // This boolean is used to stop new reconnect threads from being created as the channel is being shut down
     boolean stopped;
 
+    /**
+     *
+     * @param gondola
+     * @param memberId
+     * @param toMemberId
+     */
     public SocketChannel(Gondola gondola, int memberId, int toMemberId) {
         this.gondola = gondola;
         this.memberId = memberId;
         this.peerId = toMemberId;
+
         gondola.getConfig().registerForUpdates(config -> {
             networkTracing = config.getBoolean("gondola.tracing.network");
             createSocketRetryPeriod = config.getInt("network.socket.create_socket_retry_period");
@@ -83,9 +93,10 @@ public class SocketChannel implements Channel {
             connTimeout = config.getInt("network.socket.connect_timeout");
         });
 
-        logger.info("[{}-{}] Creating connection to {}", gondola.getHostId(), memberId, toMemberId);
+        if (networkTracing) {
+            logger.info("[{}-{}] Creating connection to {}", gondola.getHostId(), memberId, toMemberId);
+        }
         inetSocketAddress = gondola.getConfig().getAddressForMember(peerId);
-        reconnect();
     }
 
 
@@ -94,6 +105,7 @@ public class SocketChannel implements Channel {
      */
     @Override
     public void start() throws GondolaException {
+        reconnect();
     }
 
     /**
@@ -113,6 +125,9 @@ public class SocketChannel implements Channel {
         return status;
     }
 
+    void disableRetry() {
+        retry = false;
+    }
     /**
      * See Channel.getMemberId().
      */
@@ -205,7 +220,6 @@ public class SocketChannel implements Channel {
     void awaitOperationalUnlocked() throws InterruptedException {
         // If the socket was valid, create a thread to reconnect
         if (socketValid) {
-            logger.info("[{}-{}] Reconnecting socket {} to {}", gondola.getHostId(), memberId, socket, peerId);
             socketValid = false;
 
             // Close the current socket
@@ -270,9 +284,6 @@ public class SocketChannel implements Channel {
     }
 
     void close(Socket socket, InputStream in, OutputStream out) {
-        if (networkTracing) {
-            logger.info("Closing old socket {} from {} to {}", socket, memberId, peerId);
-        }
         try {
             if (in != null) {
                 in.close();
@@ -301,15 +312,19 @@ public class SocketChannel implements Channel {
      * will eventually get called when a socket connection is established to peerId.
      */
     void reconnect() {
-        Config config = gondola.getConfig();
+        if (retry) {
+            logger.info("[{}-{}] Reconnecting socket {} to {}", gondola.getHostId(), memberId, socket, peerId);
 
-        // If the remote member is not part of this member's shard, this member is assumed to be a slave
-        boolean isSlave = config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
+            // If the remote member is not part of this member's shard, this member is assumed to be a slave
+            Config config = gondola.getConfig();
+            boolean isSlave = config.getMember(memberId).getShardId() != config.getMember(peerId).getShardId();
 
-        // Initiate the connection only if this member id is larger than the remote member or if this member is a slave.
-        // Otherwise, it's assumed that the remote member will initiate the connectin.
-        boolean initiateCall = memberId > peerId || isSlave;
-        new SocketCreator(initiateCall).start();
+            // Initiate the connection only if this member id is
+            // larger than the remote member or if this member is a
+            // slave.  Otherwise, it's assumed that the remote member will initiate the connectin.
+            boolean initiateCall = memberId > peerId || isSlave;
+            new SocketCreator(initiateCall).start();
+        }
     }
 
     /**
@@ -321,14 +336,27 @@ public class SocketChannel implements Channel {
         InputStream in = null;
         OutputStream out = null;
         boolean makeCall;
+        ExceptionLogger excLogger;
 
         /**
          * @param makeCall if true, this thread initiates a call to the remote member. Otherwise,
-         *                 a request is make to the remote member to call back.
+         *                 a request is sent to the remote member to call back.
          */
         SocketCreator(boolean makeCall) {
             setName(String.format("SocketCreator-%d-%d", memberId, peerId));
             this.makeCall = makeCall;
+            excLogger = new ExceptionLogger(gondola)
+                .setMessage(eMsg -> {
+                        return String.format("[%s-%d] Failed to create socket to %d (%s): %s",
+                                             gondola.getHostId(), memberId, peerId, inetSocketAddress,
+                                             eMsg);
+                    })
+                .setNoStackTracePattern("Connection reset|End-of-file")
+                .setNoStackTraceClasses(ConnectException.class, SocketTimeoutException.class)
+                .setAdditionalMessage(eMsg -> {
+                        return String.format("[%s-%d] Will retry creating the socket to %d (%s) every %dms",
+                                    gondola.getHostId(), memberId, peerId, inetSocketAddress, createSocketRetryPeriod);
+                    });
         }
 
         public void run() {
@@ -338,15 +366,12 @@ public class SocketChannel implements Channel {
                 return;
             }
 
-            String lastError = null;
             here:
             while (!stopped) {
                 try {
                     socket = new Socket();
                     socket.connect(inetSocketAddress, connTimeout);
                     socket.setTcpNoDelay(true);
-                    logger.info("[{}-{}] Socket created to {} ({})",
-                                gondola.getHostId(), memberId, peerId, inetSocketAddress);
 
                     // Send hello message
                     in = socket.getInputStream();
@@ -365,28 +390,13 @@ public class SocketChannel implements Channel {
                     }
 
                     // No exceptions means success
+                    logger.info("[{}-{}] Socket created to {} ({})",
+                                gondola.getHostId(), memberId, peerId, inetSocketAddress);
                     threads.remove(this);
                     return;
                 } catch (Throwable e) {
                     close();
-
-                    // Log each type of error once
-                    String eMsg = e.getMessage() == null ? "null" : e.getMessage();
-                    if (!eMsg.equals(lastError)) {
-                        lastError = eMsg;
-                        String m = String.format("[%s-%d] Failed to create socket to %d (%s): %s",
-                                                 gondola.getHostId(), memberId, peerId, inetSocketAddress,
-                                                 eMsg);
-                        if (e instanceof ConnectException
-                            || e instanceof SocketTimeoutException
-                            || lastError.equals("Connection reset")
-                            || lastError.equals("End-of-file")) {
-                            e = null; // Don't need stack trace for these errors
-                        }
-                        logger.warn(m, e);
-                        logger.info("[{}-{}] Will retry creating the socket to {} ({}) every {}ms",
-                                    gondola.getHostId(), memberId, peerId, inetSocketAddress, createSocketRetryPeriod);
-                    }
+                    excLogger.logWarn(e);
 
                     // Wait before retrying
                     lock.lock();

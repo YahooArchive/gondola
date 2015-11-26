@@ -7,7 +7,6 @@
 package com.yahoo.gondola.core;
 
 import com.yahoo.gondola.*;
-import com.yahoo.gondola.impl.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -140,6 +139,7 @@ public class CoreMember implements Stoppable {
     FileChannel fileLockChannel;
     FileLock fileLock;
     boolean writeEmptyCommandAfterElection;
+    int slaveInactivityTimeout;
 
     public CoreMember(Gondola gondola, Shard shard, int memberId, List<Integer> peerIds, boolean isPrimary)
             throws GondolaException {
@@ -194,6 +194,7 @@ public class CoreMember implements Stoppable {
         incomingQueueSize = config.getInt("gondola.incoming_queue_size");
         waitQueueThrottleSize = config.getInt("gondola.wait_queue_throttle_size");
         fileLockDir = new File(config.get("gondola.file_lock_dir"));
+        slaveInactivityTimeout = config.getInt("gondola.slave_inactivity_timeout");
 
         // Some validations
         if (heartbeatPeriod >= electionTimeout) {
@@ -464,10 +465,12 @@ public class CoreMember implements Stoppable {
 
                 // Show queue information
                 if (showSummary(waitMs, false)) {
+                    /*
                     logger.info(String.format("b1=%.1f, b2=%.1f, b3=%.1f, b4=%.1f b5=%.1f %.3fms/loop",
                             100.0 * b1 / bt, 100.0 * b2 / bt, 100.0 * b3 / bt, 100.0 * b4 / bt,
                             100.0 * b5 / bt,
                             .000001 * bt / bc));
+                    */
                     b1 = b2 = b3 = b4 = b5 = bt = bc = 0;
                 }
 
@@ -914,9 +917,20 @@ public class CoreMember implements Stoppable {
         Message message = pool.checkout();
         try {
             message.heartbeat(memberId, currentTerm, rid, commitIndex);
-
             peers.forEach(p -> p.send(message, rid.index - 1));
-            slaves.forEach(p -> p.send(message, rid.index - 1));
+
+            // Send to peers but also check if peer has been inactive
+            long now = clock.now();
+            for (Iterator<Peer> it = slaves.iterator(); it.hasNext(); ) {
+                Peer slave = it.next();
+                if (now - slave.getLastReceivedTs() > slaveInactivityTimeout) {
+                    // Slave is inactive so stop and remove it
+                    logger.info("[{}-{}] Removing slave {}", gondola.getHostId(), memberId, slave.peerId);
+                    slave.stop();
+                    it.remove();
+                }
+                slave.send(message, rid.index - 1);
+            }
         } finally {
             message.release();
         }
@@ -1305,6 +1319,8 @@ public class CoreMember implements Stoppable {
                 // Prepare to talk to new master
                 if (masterId >= 0) {
                     // Make sure this member and the master are not in the same shard
+                    logger.info("[{}-{}] Entering slave mode to master {}",
+                                gondola.getHostId(), memberId, masterId);
                     String shardId = gondola.getConfig().getMember(masterId).getShardId();
                     if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
                         throw new GondolaException(GondolaException.Code.SAME_SHARD, memberId, masterId, shardId);
@@ -1322,8 +1338,9 @@ public class CoreMember implements Stoppable {
                     peerMap.put(masterPeer.peerId, masterPeer);
                     masterPeer.start();
                 } else {
-                    // Leave slave mode
-                    // Restore peers
+                    // Leave slave mode and restore original peers
+                    logger.info("[{}-{}] Leaving slave mode from master {}",
+                                gondola.getHostId(), memberId, masterId);
                     for (int id : peerIds) {
                         Peer peer = new Peer(gondola, this, id);
                         peer.start();
@@ -1364,9 +1381,12 @@ public class CoreMember implements Stoppable {
     }
 
     /**
-     * Called by Network when there's a connection possibly from a slave.
+     * Called by the Network system when there's a connection request
+     * from a slave.  If this member accepts the channel, true is
+     * returned.  If the channel is not accepted, false should be
+     * returned and the caller will take care of closing the channel.
      *
-     * @param channel
+     * @param channel non-null channel to the slave.
      * @return true if the channel is accepted.
      */
     private boolean acceptSlaveConnection(Channel channel) {
@@ -1374,25 +1394,47 @@ public class CoreMember implements Stoppable {
         List<Config.ConfigMember> shardMembers = gondola.getConfig().getMembersInShard(shard.getShardId());
         for (Config.ConfigMember m : shardMembers) {
             if (m.getMemberId() == channel.getRemoteMemberId()) {
-                logger.info("[{}-{}] Slave request from {} rejected since in the same shard",
-                        gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                logger.info("[{}-{}] Slave request from {} rejected: in the same shard",
+                            gondola.getHostId(), memberId, channel.getRemoteMemberId());
                 return false;
+            }
+        }
+
+        // If this member is already a slave, accept the channel
+        for (Peer slave : slaves) {
+            if (slave.peerId == channel.getRemoteMemberId()) {
+                logger.info("[{}-{}] Slave request from {} accepted",
+                            gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                try {
+                    slave.setChannel(channel);
+                } catch (GondolaException e) {
+                    logger.error("Could not modify the slave's channel", e);
+                    return false;
+                }
+                return true;
             }
         }
 
         // If this member is not a leader, reject the request
         if (role != Role.LEADER) {
-            logger.info("[{}-{}] Slave request from {} rejected: not a leader ({})",
-                    gondola.getHostId(), memberId, channel.getRemoteMemberId(), role);
+            logger.info("[{}-{}] Slave request from {} rejected: not a leader",
+                        gondola.getHostId(), memberId, channel.getRemoteMemberId());
             return false;
         }
 
         logger.info("[{}-{}] Slave request from {} accepted",
-                gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                    gondola.getHostId(), memberId, channel.getRemoteMemberId());
 
         Peer slave = new Peer(gondola, this, channel);
         slaves.add(slave);
-        slave.start();
+        try {
+            slave.start();
+        } catch (GondolaException e) {
+            logger.error("Could not start slave", e);
+            slaves.remove(slave);
+            slave.stop();
+            return false;
+        }
         return true;
     }
 

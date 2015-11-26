@@ -10,6 +10,7 @@ import com.yahoo.gondola.Channel;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Network;
 
+import com.yahoo.gondola.core.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -258,8 +259,13 @@ public class SocketNetwork implements Network {
                 } else if (channel == null) {
                     // The channel is a slave
                     channel = new SocketChannel(gondola, hello.toMemberId, hello.fromMemberId);
-                    channel.setSocket(socket, hello.in, hello.out);
-                    if (!listener.apply(channel)) {
+                    channel.disableRetry();
+                    if (listener.apply(channel)) {
+                        // Request accepted
+                        hello.ok();
+                        channel.setSocket(socket, hello.in, hello.out);
+                    } else {
+                        // Request rejected
                         hello.close(socket);
                     }
                 } else {
@@ -337,9 +343,6 @@ public class SocketNetwork implements Network {
                 makeCall = true;
                 fromMemberId = Integer.parseInt(matcher.group(1));
                 toMemberId = Integer.parseInt(matcher.group(2));
-                if (fromMemberId <= toMemberId) {
-                    throw new IllegalStateException("From id must be > to id: " + line);
-                }
             } else {
                 matcher = requestCallBackPattern.matcher(line);
                 if (matcher.find()) {
