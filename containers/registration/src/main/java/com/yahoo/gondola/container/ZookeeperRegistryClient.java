@@ -7,6 +7,7 @@
 package com.yahoo.gondola.container;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Sets;
 import com.yahoo.gondola.Config;
 
 import org.apache.curator.framework.CuratorFramework;
@@ -27,7 +28,6 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,7 +49,7 @@ public class ZookeeperRegistryClient implements RegistryClient {
     ObjectMapper objectMapper;
     List<Consumer<Entry>> listeners = new ArrayList<>();
     Config config;
-    Set<String> myHostIds = new HashSet<>();
+    Set<String> myHostIds = Sets.newConcurrentHashSet();
 
     Logger logger = LoggerFactory.getLogger(ZooKeeperSaslClient.class);
 
