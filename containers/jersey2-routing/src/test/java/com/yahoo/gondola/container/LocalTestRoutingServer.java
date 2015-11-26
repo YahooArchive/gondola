@@ -33,8 +33,7 @@ public class LocalTestRoutingServer {
     HttpHost host;
     RoutingFilter routingFilter;
 
-    public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                                  ShardManagerProvider shardManagerProvider) throws Exception {
+    public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider) throws Exception {
         routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, null);
         localTestServer = new LocalTestServer((request, response, context) -> {
             try {

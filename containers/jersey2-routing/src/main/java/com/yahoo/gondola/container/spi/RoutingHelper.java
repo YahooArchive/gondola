@@ -21,7 +21,7 @@ import javax.ws.rs.container.ContainerRequestContext;
 public interface RoutingHelper {
 
     /**
-     * The callback method to get gondola cluster ID based on request.
+     * The callback method to get gondola shard ID based on request.
      *
      * @param request the request
      * @return Gondola bucket Id, -1 means try to find colo affinity in routing layer
@@ -31,10 +31,10 @@ public interface RoutingHelper {
     /**
      * Returns the applied index.
      *
-     * @param clusterId the cluster id
+     * @param shardId the shard id
      * @return the applied index
      */
-    int getAppliedIndex(String clusterId);
+    int getAppliedIndex(String shardId);
 
     /**
      * Returns the site ID that should handle the specified request.
@@ -45,9 +45,9 @@ public interface RoutingHelper {
     String getSiteId(ContainerRequestContext request);
 
     /**
-     * Callback to tell application that everyhing is set.
+     * Callback to tell application that everything is set.
      *
-     * @param clusterId the cluster id
+     * @param shardId the shard id
      */
-    void beforeServing(String clusterId);
+    void beforeServing(String shardId);
 }

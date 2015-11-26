@@ -42,7 +42,7 @@ public interface ShardManagerProtocol {
      * @throws ShardManagerException the shard manager exception
      */
     void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId,
-                        long timeoutMs) throws ShardManagerException;
+                        long timeoutMs) throws ShardManagerException, InterruptedException;
 
     /**
      * Wait slave until slave synced.
@@ -74,20 +74,8 @@ public interface ShardManagerProtocol {
      * @param toShardId         the to shard id
      * @param migrationComplete flag to indicate the migration is complete
      */
-    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete);
-
-    /**
-     * Wait for certain bucket condition.
-     *
-     * @param range
-     * @param fromShardId
-     * @param toShardId
-     * @param timeoutMs
-     * @return success if current bucket range is equal to expected range.
-     * @throws InterruptedException
-     */
-    boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
-        throws InterruptedException;
+    void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
+        throws ShardManagerException, InterruptedException;
 
     /**
      * The type Shard manager exception.
@@ -99,11 +87,11 @@ public interface ShardManagerProtocol {
         }
 
         public enum CODE {
-            NOT_LEADER,
             FAILED_START_SLAVE,
             FAILED_STOP_SLAVE,
-            SLAVE_NOT_SYNC
-
+            FAILED_MIGRATE_BUCKETS,
+            MASTER_IS_GONE,
+            SLAVE_NOT_SYNC,
         }
 
         public CODE errorCode;

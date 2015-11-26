@@ -28,11 +28,11 @@ public class Utils {
         throws InterruptedException, ExecutionException  {
         long start = System.currentTimeMillis();
         // TODO: default timeout MS should be provided by upper layer.
-        if (timeoutMs == -1) {
+        if (timeoutMs < 0) {
             waitTimeMs = 1000;
         }
         try {
-            while (timeoutMs == -1 || System.currentTimeMillis() - start < timeoutMs) {
+            while (timeoutMs <= 0 || System.currentTimeMillis() - start < timeoutMs) {
                 boolean success = supplier.getAsBoolean();
                 if (success) {
                     return true;

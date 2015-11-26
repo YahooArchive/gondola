@@ -8,6 +8,7 @@ package com.yahoo.gondola.container.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Range;
+import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
@@ -26,6 +27,7 @@ import org.apache.curator.retry.RetryOneTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -53,6 +55,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     private ShardManager delegate;
     private String serviceName;
     private Gondola gondola;
+    private Config config;
     ObjectMapper objectMapper = new ObjectMapper();
     Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerServer.class);
     List<NodeCache> nodes = new ArrayList<>();
@@ -70,7 +73,8 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         Watcher watcher = new Watcher();
         watcher.start();
         threads.add(watcher);
-        gondola.getConfig().registerForUpdates(config -> tracing = config.getBoolean("tracing.router"));
+        config = gondola.getConfig();
+        config.registerForUpdates(config -> tracing = config.getBoolean("tracing.router"));
     }
 
     private void initNode() {
@@ -138,25 +142,25 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
             throws InterruptedException {
             ZookeeperAction.Args args = action.parseArgs();
             ZookeeperStat.Status origStatus = stat.status;
-            switch (action.action) {
-                case NOOP:
-                case STOP_SLAVE:
-                case MIGRATE_1:
-                case MIGRATE_2:
-                case MIGRATE_3:
-                    return;
-                case START_SLAVE:
-                    try {
-                        if (delegate.waitSlavesSynced(args.fromShard, 0)) {
-                            stat.status = SYNCED;
-                        } else if (delegate.waitSlavesApproaching(args.fromShard, 0)) {
-                            stat.status = APPROACHED;
-                        } else {
-                            stat.status = RUNNING;
+            switch (stat.mode) {
+                case NORMAL:
+                case MIGRATING_1:
+                case MIGRATING_2:
+                    break;
+                case SLAVE:
+                    if (action.action.equals(ZookeeperAction.Action.START_SLAVE)) {
+                        try {
+                            if (delegate.waitSlavesSynced(args.fromShard, 0)) {
+                                stat.status = SYNCED;
+                            } else if (delegate.waitSlavesApproaching(args.fromShard, 0)) {
+                                stat.status = APPROACHED;
+                            } else {
+                                stat.status = RUNNING;
+                            }
+                        } catch (ShardManagerProtocol.ShardManagerException e) {
+                            stat.status = FAILED;
+                            stat.reason = e.getMessage();
                         }
-                    } catch (ShardManagerProtocol.ShardManagerException e) {
-                        stat.status = FAILED;
-                        stat.reason = e.getMessage();
                     }
                     break;
             }
@@ -167,7 +171,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     }
 
     private void writeStat(Integer memberId, ZookeeperStat zookeeperStat) {
-        trace("Write stat on memberId={}, stat={}", memberId, zookeeperStat);
+        trace("[{}] Update stat stat={}", config.getMember(memberId).getHostId(), zookeeperStat);
         try {
             client.setData().forPath(ZookeeperUtils.statPath(serviceName, memberId),
                                      objectMapper.writeValueAsBytes(zookeeperStat));
@@ -185,10 +189,12 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     private NodeCacheListener getListener(NodeCache node, ZookeeperStat stat) {
         return () -> {
             try {
-                ZookeeperAction action =
-                    objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
-                actions.put(action.memberId, action);
-                processAction(stat, action);
+                if (node.getCurrentData() != null) {
+                    ZookeeperAction action =
+                        objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
+                    actions.put(action.memberId, action);
+                    processAction(stat, action);
+                }
             } catch (Exception e) {
                 logger.warn("Process action error - {}", e.getMessage());
             }
@@ -247,6 +253,15 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
 
     @Override
     public void stop() {
+        for (NodeCache node : nodes) {
+            try {
+                node.close();
+            } catch (IOException e) {
+                // ignored.
+                logger.warn("Close ZK node cache failed", e.getMessage());
+            }
+        }
+
         for (Thread t : threads) {
             t.interrupt();
             try {

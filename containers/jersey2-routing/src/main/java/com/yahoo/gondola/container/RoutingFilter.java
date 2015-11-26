@@ -143,17 +143,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
                         String shardId = roleChangeEvent.shard.getShardId();
-                        trace("Become leader on shard {}, blocking all requests to the shard....", shardId);
+                        trace("[{}] memberId={} Become leader on \"{}\", blocking all requests to the shard....", gondola.getHostId(), roleChangeEvent.leader.getMemberId(), shardId);
                         lockManager.blockRequestOnShard(shardId);
-                        trace("Wait until raft logs applied to storage...");
+                        trace("[{}] Wait until raft logs applied to storage...", gondola.getHostId());
                         waitDrainRaftLogs(shardId);
-                        trace("Raft logs are up-to-date, notify application is ready to serve...");
+                        trace("[{}] Raft logs are up-to-date, notify application is ready to serve...", gondola.getHostId());
                         routingHelper.beforeServing(shardId);
-                        trace("Ready for serving, unblocking the requests...");
+                        trace("[{}] Ready for serving, unblocking the requests...", gondola.getHostId());
                         long count = lockManager.unblockRequestOnShard(shardId);
-                        trace("System is back to serving, unblocked {} requests ...", count);
+                        trace("[{}] System is back to serving, unblocked {} requests ...", gondola.getHostId(), count);
                     }, singleThreadExecutor).exceptionally(throwable -> {
-                        logger.info("Errors while executing leader change event", throwable);
+                        logger.info("[{}] Errors while executing leader change event. message={}", gondola.getHostId(), throwable.getMessage());
                         return null;
                     });
                 }

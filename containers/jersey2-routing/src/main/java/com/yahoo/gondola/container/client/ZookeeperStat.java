@@ -6,6 +6,8 @@
 
 package com.yahoo.gondola.container.client;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 /**
  * The type Zookeeper stat.
  */
@@ -35,5 +37,25 @@ public class ZookeeperStat {
     public String toString() {
         return "ZookeeperStat{" + "memberId=" + memberId + ", shardId='" + shardId + '\'' + ", mode=" + mode
                + ", status=" + status + ", reason='" + reason + '\'' + '}';
+    }
+
+    @JsonIgnore
+    public boolean isSlaveOperational() {
+        return mode == Mode.SLAVE && status != Status.FAILED;
+    }
+
+    @JsonIgnore
+    public boolean isNormalOperational() {
+        return mode == Mode.NORMAL && status == Status.RUNNING;
+    }
+
+    @JsonIgnore
+    public boolean isMigrating1Operational() {
+        return mode == Mode.MIGRATING_1 && status == Status.RUNNING;
+    }
+
+    @JsonIgnore
+    public boolean isMigrating2Operational() {
+        return mode == Mode.MIGRATING_2 && status == Status.RUNNING;
     }
 }

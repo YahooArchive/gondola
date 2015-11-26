@@ -20,8 +20,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.NOT_LEADER;
-
 /**
  * The Direct shard manager client. Will be only used in test.
  */
@@ -91,17 +89,6 @@ public class DirectShardManagerClient implements ShardManagerClient {
         }
     }
 
-    @Override
-    public boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
-        throws InterruptedException {
-        for (Config.ConfigMember m : config.getMembers()) {
-            if (!getShardManager(m.getMemberId()).waitBucketsCondition(range, fromShardId, toShardId, 3000)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
         return memberId -> {
             try {
@@ -139,13 +126,10 @@ public class DirectShardManagerClient implements ShardManagerClient {
                                String toShardId, long timeoutMs)
         throws ShardManagerException {
         for (Config.ConfigMember m : config.getMembersInShard(fromShardId)) {
-            try {
-                getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
-            } catch (ShardManagerException e) {
-                if (e.errorCode != NOT_LEADER) {
-                    throw e;
-                }
-            }
+            getShardManager(m.getMemberId()).migrateBuckets(splitRange, fromShardId, toShardId, timeoutMs);
+        }
+        for (Config.ConfigMember m : config.getMembers()) {
+            getShardManager(m.getMemberId()).setBuckets(splitRange, fromShardId, toShardId, true);
         }
     }
 
