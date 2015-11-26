@@ -856,12 +856,12 @@ public class CoreMember implements Stoppable {
         if (force || now > showSummaryTs) {
             Stats stats = gondola.getStats();
             logger.info(
-                    String.format("[%s-%d] %s pid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
+                    String.format("[%s-%d] %s%s pid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
                                     + "|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
-                            gondola.getHostId(), memberId, role == Role.FOLLOWER && masterId >= 0 ? "SLAVE" : role,
-                            gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
-                            incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
-                            CoreCmd.commitLatency.get(), latency.get()));
+                                  gondola.getHostId(), memberId, role, masterId >= 0 ? "-SLAVE" : "",
+                                  gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
+                                  incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
+                                  CoreCmd.commitLatency.get(), latency.get()));
             logger.info(String.format("[%s-%d] - leader=%d cterm=%d ci=%d latest=(%d,%d) votedFor=%d msgPool=%d/%d",
                     gondola.getHostId(), memberId, leaderId, currentTerm, commitIndex,
                     sentRid.term, sentRid.index, votedFor,
@@ -1326,8 +1326,10 @@ public class CoreMember implements Stoppable {
                         throw new GondolaException(GondolaException.Code.SAME_SHARD, memberId, masterId, shardId);
                     }
 
-                    // todo: Delete the entire log
+                    // Delete the entire log
+                    saveQueue.truncate();
 
+                    // Update the persistant Raft state
                     currentTerm = 1;
                     save(1, -1);
                     becomeFollower(masterId);

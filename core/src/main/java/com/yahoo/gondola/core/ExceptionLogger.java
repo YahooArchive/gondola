@@ -81,15 +81,15 @@ public class ExceptionLogger {
         INFO
     }
 
-    public void logError(Throwable e) {
+    public void error(Throwable e) {
         log(Level.ERROR, e);
     }
 
-    public void logWarn(Throwable e) {
+    public void warn(Throwable e) {
         log(Level.WARN, e);
     }
 
-    public void logInfo(Throwable e) {
+    public void info(Throwable e) {
         log(Level.INFO, e);
     }
 

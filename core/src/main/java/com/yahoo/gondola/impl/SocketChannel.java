@@ -396,7 +396,7 @@ public class SocketChannel implements Channel {
                     return;
                 } catch (Throwable e) {
                     close();
-                    excLogger.logWarn(e);
+                    excLogger.warn(e);
 
                     // Wait before retrying
                     lock.lock();

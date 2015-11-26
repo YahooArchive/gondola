@@ -114,8 +114,9 @@ public class SaveQueue {
 
     public void start() {
         // Create worker threads
-        assert threads.size() == 0
-                : String.format("The threads have not been properly shutdown. %d threads remaining", threads.size());
+        if (threads.size() > 0) {
+            throw new IllegalStateException("start() can only be called once");
+        }
         for (int i = 0; i < numWorkers; i++) {
             threads.add(new Worker(i));
         }
@@ -197,6 +198,24 @@ public class SaveQueue {
 
         initSavedIndex();
         getLatest(rid);
+    }
+
+    /**
+     * Deletes all the entries in the log. Used by a member when entering slave mode.
+     */
+    public void truncate() throws GondolaException {
+        logger.info("[{}-{}] Deleting all records in the log", gondola.getHostId(), cmember.memberId);
+        LogEntry entry = storage.getLastLogEntry(cmember.memberId);
+        if (entry != null) {
+            deleteFrom(1, entry.index);
+        }
+
+        // Pick up the fresh new log state
+        Rid rid = new Rid();
+        lastTerm = 0;
+        savedIndex = 0;
+        settle(rid);
+        assert rid.index == 0 && rid.term == 0 : "Slave mode did not successfully clear the log";
     }
 
     /**

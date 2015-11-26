@@ -17,6 +17,7 @@ import com.yahoo.gondola.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.EOFException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -443,9 +444,17 @@ public class Peer {
      * messages and then puts them on the receive queue.
      */
     class Receiver extends Thread {
+        ExceptionLogger excLogger;
+
         Receiver() {
             setName("PeerReceiver-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
+            excLogger = new ExceptionLogger(gondola)
+                .setMessage(eMsg -> {
+                        return String.format("[%s-%d] Failed to receive from %d: %s",
+                                             gondola.getHostId(), cmember.memberId, peerId, eMsg);
+                    })
+                .setNoStackTracePattern("Socket closed|Read timed out|Connection reset|.*Write end dead.*");
         }
 
         public void run() {
@@ -498,16 +507,7 @@ public class Peer {
                         nextMessage.release();
                         return;
                     }
-                    String eMsg = e.getMessage() == null ? "null" : e.getMessage();
-                    String m = String.format("[%s-%d] Failed to receive from %d: %s",
-                                             gondola.getHostId(), cmember.memberId, peerId, eMsg);
-                    if ("Socket closed".equals(eMsg)
-                            || "Read timed out".equals(eMsg)
-                            || eMsg.matches(".*Write end dead.*")
-                            || "Connection reset".equals(eMsg)) {
-                        e = null; // Don't need stack trace
-                    }
-                    logger.warn(m, e);
+                    excLogger.warn(e);
                     errorOccurred = true;
                     excess = 0;
                 }
@@ -638,9 +638,17 @@ public class Peer {
      * This thread retrieves messages from the send queue and delivers them to the remote member.
      */
     class Sender extends Thread {
+        ExceptionLogger excLogger;
+
         Sender() {
             setName("PeerSender-" + cmember.memberId + "-" + peerId);
             setDaemon(true);
+            excLogger = new ExceptionLogger(gondola)
+                .setMessage(eMsg -> {
+                        return String.format("[%s-%d] Failed to send to %d: %s",
+                                             gondola.getHostId(), cmember.memberId, peerId, eMsg);
+                    })
+                .setNoStackTracePattern("Socket closed|.*Read end dead.*|Broken pipe");
         }
 
         public void run() {
@@ -678,19 +686,10 @@ public class Peer {
                     message.release();
                     gondola.getStats().sentMessage(message.size);
                     lastSentTs = clock.now();
-                } catch (InterruptedException e) {
+                } catch (InterruptedException | EOFException e) {
                     return;
                 } catch (Exception e) {
-                    String m = String.format("[%s-%d] Failed to send to %d: %s",
-                            gondola.getHostId(), cmember.memberId, peerId,
-                            e.getMessage());
-
-                    if ("Socket closed".equals(e.getMessage())
-                            || matchesMessage(e, ".*Read end dead.*")
-                            || "Broken pipe".equals(e.getMessage())) {
-                        e = null; // Don't need stack trace
-                    }
-                    logger.warn(m, e);
+                    excLogger.warn(e);
                     errorOccurred = true;
                 }
             }
