@@ -41,9 +41,9 @@ public class MySqlStorage implements Storage {
     public MySqlStorage(Gondola gondola, String hostId) throws GondolaException {
         // Get configs
         maxCommandSize = gondola.getConfig().getInt("raft.command_max_size");
-        String user = gondola.getConfig().get("storage_mysql.user");
-        String password = gondola.getConfig().get("storage_mysql.password");
-        String url = gondola.getConfig().get("storage_mysql.url");
+        String user = gondola.getConfig().get("storage.mysql.user");
+        String password = gondola.getConfig().get("storage.mysql.password");
+        String url = gondola.getConfig().get("storage.mysql.url");
         url = url.replace("$hostId", hostId);
 
         logger.info("Initializing MySql storage. maxCommandSize={} url={}", maxCommandSize, url);

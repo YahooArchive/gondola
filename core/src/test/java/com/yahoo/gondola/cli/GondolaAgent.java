@@ -41,7 +41,7 @@ public class GondolaAgent {
 
     static Logger logger = LoggerFactory.getLogger(GondolaAgent.class);
 
-    static String configFile;
+    static String configFile = "conf/gondola-command.conf";
     static int port;
     static Config config;
     AtomicInteger jdwpPort = new AtomicInteger(5005);
@@ -73,8 +73,6 @@ public class GondolaAgent {
         }
         if (commandLine.hasOption("config")) {
             configFile = commandLine.getOptionValue("config");
-        } else {
-            configFile = "conf/gondola-sample.conf";
         }
 
         config = new Config(new File(configFile));
@@ -124,7 +122,7 @@ public class GondolaAgent {
                     String[] split = line.split(" ");
                     logger.info("Received command: {}", line);
                     switch (split[0]) {
-                        // create <param1> <param2> ... -> gondola.sh <param1> <param2> ....
+                        // create <param1> <param2> ... -> gondola <param1> <param2> ....
                         case "create":
                             if (split.length >= 2) {
                                 execGondola(split[1], line.substring(line.indexOf(split[1]) + split[1].length()));
@@ -221,7 +219,7 @@ public class GondolaAgent {
         }
 
         private void execGondola(String hostId, String args) throws IOException {
-            args = "./bin/gondola.sh " + args;
+            args = "./bin/gondola " + args;
             logger.info("Launching gondola: {}", args);
 
             ProcessBuilder pb = new ProcessBuilder(args.split("\\s"));
@@ -232,7 +230,7 @@ public class GondolaAgent {
                                   getJdwpPort(hostId)));
 
             // Redirect output to a log file
-            File outFile = new File(String.format("logs/gondola-%s.log", hostId));
+            File outFile = new File(String.format("logs/tsunami-%s.log", hostId));
             pb.redirectOutput(outFile);
             pb.redirectError(outFile);
 

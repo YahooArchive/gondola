@@ -2,10 +2,10 @@
 
 function start {
   rm -rf /tmp/gondola*
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" nohup bin/gondola.sh -hostid host1 -clusterid cluster1 -port 1099 -conf conf/gondola-sample.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" nohup bin/gondola -hostid host1 -clusterid cluster1 -port 1099 -conf conf/gondola-sample.conf start 2>&1
   sleep 1
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006" nohup bin/gondola.sh -hostid host2 -clusterid cluster1 -port 1100 -conf conf/gondola-sample.conf start 2>&1
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5007" nohup bin/gondola.sh -hostid host3 -clusterid cluster1 -port 1101 -conf conf/gondola-sample.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006" nohup bin/gondola -hostid host2 -clusterid cluster1 -port 1100 -conf conf/gondola-sample.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5007" nohup bin/gondola -hostid host3 -clusterid cluster1 -port 1101 -conf conf/gondola-sample.conf start 2>&1
   echo "Wait for server up and send force leader signal.."
   sleep 1
   echo "F" | nc localhost 1099

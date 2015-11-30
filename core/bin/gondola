@@ -15,10 +15,10 @@ if [ -z "$JAVA_OPTS" ]; then
   export xJAVA_OPTS="-ea -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 fi
 
-# Error if hostid is not specified
+# Error if host is not specified
 function check_hostid {
   if [ -z "$HOSTID" ]; then
-    echo "-hostid is missing"
+    echo "-host is missing"
     sh $GONDOLA_CMD $PARAMS
     exit 1
   fi
@@ -27,7 +27,7 @@ function check_hostid {
 # Find the hostid. To be used for the pid file.
 while test $# -gt 0; do
   case "$1" in
-    -hostid)
+    -host)
       shift
       if test $# -gt 0; then
         export HOSTID=$1

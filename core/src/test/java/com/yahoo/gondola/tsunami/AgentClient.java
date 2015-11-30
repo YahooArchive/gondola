@@ -36,7 +36,7 @@ class AgentClient {
 
     public void createInstance() {
         try {
-            channel.send(String.format("create %s -hostid %s -clusterid cluster1 -port %d -config %s start",
+            channel.send(String.format("create %s -host %s -shard shard1 -port %d -config %s start",
                                        hostId, hostId, gondolaCc.getPort(), "conf/gondola-tsunami.conf"));
             up = true;
         } catch (Exception e) {
