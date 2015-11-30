@@ -3,9 +3,9 @@ PATH=/usr/bin:/usr/local/bin:/home/y/bin:/home/y/sbin:/home/y/bin64:/home/y/sbin
 
 function start {
   rm -rf /tmp/gondola*
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" nohup bin/gondola.sh -hostid host1 -clusterid cluster1 -port 1099 -config conf/gondola-remote.conf start 2>&1
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006" nohup bin/gondola.sh -hostid host2 -clusterid cluster1 -port 1100 -config conf/gondola-remote.conf start 2>&1
-  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5007" nohup bin/gondola.sh -hostid host3 -clusterid cluster1 -port 1101 -config conf/gondola-remote.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005" nohup bin/gondola -hostid host1 -clusterid cluster1 -port 1099 -config conf/gondola-remote.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5006" nohup bin/gondola -hostid host2 -clusterid cluster1 -port 1100 -config conf/gondola-remote.conf start 2>&1
+  env JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5007" nohup bin/gondola -hostid host3 -clusterid cluster1 -port 1101 -config conf/gondola-remote.conf start 2>&1
 }
 
 function stop {

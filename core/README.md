@@ -40,7 +40,7 @@ The test will automatically create the necessary tables if it doesn't find them.
 
 In one console, run the gondola agent command. This process listens for commands to start and stop a gondola instance.
 ```
-> ./bin/gondola-agent.sh
+> ./bin/gondola-agent
 2015-09-27 10:07:58,638 INFO Initialize system, kill all gondola processes
 2015-09-27 10:07:59,973 INFO Listening on port 1200
 ...
@@ -48,7 +48,7 @@ In one console, run the gondola agent command. This process listens for commands
 
 In another console, run the tsunami test:
 ```
-> ./bin/tsunami.sh
+> ./bin/tsunami
 Dropping all tables
 2015-09-27 10:20:00,879 INFO Connecting to gondola agent at localhost:1200
 2015-09-27 10:20:00,881 INFO Connecting to gondola agent at localhost:1200

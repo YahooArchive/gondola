@@ -27,14 +27,14 @@ public class NastyStorage implements Storage {
     boolean enabled;
 
     public NastyStorage(Gondola gondola, String hostId) throws GondolaException {
-        String storageClassName = gondola.getConfig().get(gondola.getConfig().get("storage_nasty.impl") + ".class");
+        String storageClassName = gondola.getConfig().get(gondola.getConfig().get("storage.nasty.impl") + ".class");
         try {
             storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
                     .newInstance(gondola, hostId);
         } catch (Exception e) {
             throw new GondolaException(e);
         }
-        tracing = gondola.getConfig().getBoolean("storage_nasty.tracing");
+        tracing = gondola.getConfig().getBoolean("storage.nasty.tracing");
     }
 
     @Override
