@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
 
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -30,11 +31,15 @@ public class LockManagerTest {
     @Mock
     Config config;
 
+    @Mock
+    Gondola gondola;
+
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
+        when(gondola.getConfig()).thenReturn(config);
         when(config.getBoolean(eq("tracing.router"))).thenReturn(false);
-        lockManager = new LockManager(config);
+        lockManager = new LockManager(gondola);
     }
 
 

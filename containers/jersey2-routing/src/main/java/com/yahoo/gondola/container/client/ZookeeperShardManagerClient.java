@@ -39,19 +39,21 @@ import static com.yahoo.gondola.container.client.ZookeeperUtils.ensurePath;
 public class ZookeeperShardManagerClient implements ShardManagerClient {
 
     private String serviceName;
-    CuratorFramework client;
-    Config config;
+    private CuratorFramework client;
+    private Config config;
 
-    ObjectMapper objectMapper = new ObjectMapper();
-    Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerClient.class);
-    PathChildrenCache stats;
-    boolean tracing = false;
+    private ObjectMapper objectMapper = new ObjectMapper();
+    private Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerClient.class);
+    private PathChildrenCache stats;
+    private boolean tracing = false;
+    private String clientName;
 
-    public ZookeeperShardManagerClient(String serviceName, String connectString, Config config) {
+    public ZookeeperShardManagerClient(String serviceName, String clientName, String connectString, Config config) {
         client = CuratorFrameworkFactory.newClient(connectString, new RetryOneTime(1000));
         client.start();
         this.serviceName = serviceName;
         this.config = config;
+        this.clientName = clientName;
         ensurePath(serviceName, client.getZookeeperClient());
         watchZookeeperStats();
         config.registerForUpdates(config1 -> tracing = config.getBoolean("tracing.router"));
@@ -112,7 +114,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
 
     private void sendAction(int memberId, Action action, Object... args) {
         try {
-            trace("Write action {} to memberId={}", action, memberId);
+            trace("[{}] Write action {} to memberId={}", clientName, action, memberId);
             ZookeeperAction zookeeperAction = new ZookeeperAction();
             zookeeperAction.memberId = memberId;
             zookeeperAction.action = action;
@@ -120,7 +122,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
             client.setData().forPath(ZookeeperUtils.actionPath(serviceName, memberId),
                                      objectMapper.writeValueAsBytes(zookeeperAction));
         } catch (Exception e) {
-            logger.warn("Cannot write action {} to memberId={}", action, memberId);
+            logger.warn("[{}] Cannot write action {} to memberId={}", clientName, action, memberId);
         }
     }
 

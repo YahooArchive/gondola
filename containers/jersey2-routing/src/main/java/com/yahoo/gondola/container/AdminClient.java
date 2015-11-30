@@ -134,7 +134,7 @@ public class AdminClient {
                       toShardId, range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, 1000);
+                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
                 trace("[admin] Done!");
                 break;
             } catch (ShardManagerException e) {

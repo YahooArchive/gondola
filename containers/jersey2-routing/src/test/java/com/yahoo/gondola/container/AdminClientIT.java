@@ -43,6 +43,7 @@ import static org.testng.Assert.assertEquals;
 public class AdminClientIT {
 
     public static final String SERVICE_NAME = "foo";
+    public static final String CLIENT_NAME = "admin";
     URL configFileURL = AdminClientIT.class.getClassLoader().getResource("gondola.conf");
     Config config = new Config(new File(configFileURL.getFile()));
     ZookeeperServer zookeeperServer = new ZookeeperServer();
@@ -62,7 +63,7 @@ public class AdminClientIT {
 
     public void setUp(Type type) throws Exception {
         MockitoAnnotations.initMocks(this);
-        shardManagerClient = getShardManagerClient(type);
+        shardManagerClient = getShardManagerClient(type, CLIENT_NAME);
         config.getShardIds().forEach(shardId -> latches.put(shardId, new CountDownLatch(1)));
         gondolas = new ArrayList<>();
         shardManagerServers = new ArrayList<>();
@@ -72,7 +73,7 @@ public class AdminClientIT {
             gondola.start();
             gondolas.add(gondola);
             LocalTestRoutingServer testServer = getLocalTestRoutingServer(gondola);
-            ShardManager shardManager = new ShardManager(gondola, testServer.routingFilter, config, shardManagerClient);
+            ShardManager shardManager = new ShardManager(gondola, testServer.routingFilter, config, getShardManagerClient(type, hostId));
             getShardManagerServer(type, gondola, shardManager);
             addressTable.put(hostId, testServer);
         }
@@ -134,14 +135,16 @@ public class AdminClientIT {
         return null;
     }
 
-    private ShardManagerClient getShardManagerClient(Type type) {
+    private ShardManagerClient getShardManagerClient(Type type, String clientName) {
         ShardManagerClient shardManagerClient = null;
-        switch(type) {
+        switch (type) {
             case DIRECT:
                 shardManagerClient = new DirectShardManagerClient(config);
                 break;
             case ZOOKEEPER:
-                shardManagerClient = new ZookeeperShardManagerClient(SERVICE_NAME, zookeeperServer.getConnectString(), config);
+                shardManagerClient =
+                    new ZookeeperShardManagerClient(SERVICE_NAME, clientName, zookeeperServer.getConnectString(),
+                                                    config);
                 break;
         }
         return shardManagerClient;

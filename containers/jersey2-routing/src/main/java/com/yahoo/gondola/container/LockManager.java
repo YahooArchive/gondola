@@ -7,7 +7,7 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.collect.Range;
-import com.yahoo.gondola.Config;
+import com.yahoo.gondola.Gondola;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,14 +32,16 @@ class LockManager {
     private Map<Range<Integer>, CountDownLatch> buckets = new HashMap<>();
     private ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private boolean tracing = false;
+    private Gondola gondola;
 
     /**
      * Instantiates a new Lock manager.
      *
-     * @param config the config
+     * @param gondola The Gondola instance.
      */
-    public LockManager(Config config) {
-        config.registerForUpdates(config1 -> tracing = config1.getBoolean("tracing.router"));
+    public LockManager(Gondola gondola) {
+        gondola.getConfig().registerForUpdates(config1 -> tracing = config1.getBoolean("tracing.router"));
+        this.gondola = gondola;
     }
 
     /**
@@ -51,20 +53,20 @@ class LockManager {
      */
     public void filterRequest(int bucketId, String shardId) throws InterruptedException {
         if (globalLock != null) {
-            trace("Request blocked by global lock");
+            trace("[{}] Request blocked by global lock", gondola.getHostId());
             globalLock.await();
         }
 
         CountDownLatch shardLock = shards.get(shardId);
         if (shardLock != null) {
-            trace("Request blocked by shard lock - shardId={}", shardId);
+            trace("[{}] Request blocked by shard lock - shardId={}", gondola.getHostId(), shardId);
             shardLock.await();
         }
 
         List<CountDownLatch> bucketLocks = getBucketLocks(bucketId);
         if (bucketLocks.size() != 0) {
             for (CountDownLatch bucketLock : bucketLocks) {
-                trace("Request blocked by bucket lock - bucketId={}", bucketId);
+                trace("[{}] Request blocked by bucket lock - bucketId={}", gondola.getHostId(), bucketId);
                 bucketLock.await();
             }
         }
@@ -82,7 +84,7 @@ class LockManager {
             // TODO: this is not the expected blocking count.
             long count = lock.getCount();
             lock.countDown();
-            trace("Request unblocked on shardId={}", shardId);
+            trace("[{}] Request unblocked on shardId={}", gondola.getHostId(), shardId);
             return count;
         }
         return 0;
@@ -94,7 +96,7 @@ class LockManager {
      * @param shardId the shard id
      */
     public void blockRequestOnShard(String shardId) {
-        trace("Block requests on shard : {}", shardId);
+        trace("[{}] Block requests on shard : {}", gondola.getHostId(), shardId);
         shards.putIfAbsent(shardId, new CountDownLatch(1));
     }
 
@@ -102,7 +104,7 @@ class LockManager {
      * Unblock all requests.
      */
     public void unblockRequest() {
-        trace("Unblock all requests");
+        trace("[{}] Unblock all requests", gondola.getHostId());
         if (globalLock != null) {
             globalLock.countDown();
             globalLock = null;
@@ -113,7 +115,7 @@ class LockManager {
      * Block all requests.
      */
     public void blockRequest() {
-        trace("Block all requests");
+        trace("[{}] Block all requests", gondola.getHostId());
         globalLock = new CountDownLatch(1);
     }
 
@@ -123,7 +125,7 @@ class LockManager {
      * @param splitRange the split range
      */
     public void unblockRequestOnBuckets(Range<Integer> splitRange) {
-        trace("Unblock requests on buckets : {}", splitRange);
+        trace("[{}] Unblock requests on buckets : {}", gondola.getHostId(), splitRange);
         CountDownLatch lock = buckets.remove(splitRange);
         if (lock != null) {
             lock.countDown();
@@ -137,7 +139,7 @@ class LockManager {
      * @param splitRange the split range
      */
     public void blockRequestOnBuckets(Range<Integer> splitRange) {
-        trace("Block requests on buckets : {}", splitRange);
+        trace("[{}] Block requests on buckets : {}", gondola.getHostId(), splitRange);
         buckets.putIfAbsent(splitRange, new CountDownLatch(1));
     }
 

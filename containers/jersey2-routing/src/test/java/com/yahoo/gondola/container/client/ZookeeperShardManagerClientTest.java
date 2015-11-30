@@ -70,7 +70,7 @@ public class ZookeeperShardManagerClientTest {
             gondolas.add(gondola);
         }
 
-        client = new ZookeeperShardManagerClient("foo", zookeeperServer.getConnectString(), config);
+        client = new ZookeeperShardManagerClient("foo", "fooClientName", zookeeperServer.getConnectString(), config);
         stats = new PathChildrenCache(zookeeperServer.getClient(), ZookeeperUtils.statBasePath("foo"), true);
         stats.start();
     }

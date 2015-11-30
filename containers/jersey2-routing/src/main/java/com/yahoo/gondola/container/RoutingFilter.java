@@ -121,7 +121,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.gondola = gondola;
         this.routingHelper = routingHelper;
         this.application = application;
-        lockManager = new LockManager(gondola.getConfig());
+        lockManager = new LockManager(gondola);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
         loadConfig();
@@ -143,17 +143,23 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
                         String shardId = roleChangeEvent.shard.getShardId();
-                        trace("[{}] memberId={} Become leader on \"{}\", blocking all requests to the shard....", gondola.getHostId(), roleChangeEvent.leader.getMemberId(), shardId);
+                        trace("[{}-{}] Become leader on \"{}\", blocking all requests to the shard....",
+                              gondola.getHostId(), roleChangeEvent.leader.getMemberId(), shardId);
                         lockManager.blockRequestOnShard(shardId);
-                        trace("[{}] Wait until raft logs applied to storage...", gondola.getHostId());
+                        trace("[{}-{}] Wait until raft logs applied to storage...",
+                              gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                         waitDrainRaftLogs(shardId);
-                        trace("[{}] Raft logs are up-to-date, notify application is ready to serve...", gondola.getHostId());
+                        trace("[{}-{}] Raft logs are up-to-date, notify application is ready to serve...",
+                              gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                         routingHelper.beforeServing(shardId);
-                        trace("[{}] Ready for serving, unblocking the requests...", gondola.getHostId());
+                        trace("[{}-{}] Ready for serving, unblocking the requests...",
+                              gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                         long count = lockManager.unblockRequestOnShard(shardId);
-                        trace("[{}] System is back to serving, unblocked {} requests ...", gondola.getHostId(), count);
+                        trace("[{}-{}] System is back to serving, unblocked {} requests ...",
+                              gondola.getHostId(), roleChangeEvent.leader.getMemberId(), count);
                     }, singleThreadExecutor).exceptionally(throwable -> {
-                        logger.info("[{}] Errors while executing leader change event. message={}", gondola.getHostId(), throwable.getMessage());
+                        logger.info("[{}-{}] Errors while executing leader change event. message={}",
+                                    gondola.getHostId(), roleChangeEvent.leader.getMemberId(), throwable.getMessage());
                         return null;
                     });
                 }
@@ -433,7 +439,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return;
             } catch (IOException e) {
                 fail = true;
-                logger.error("Error while forwarding request to shard:{} {}", shardId, appUri, e);
+                logger.error("[{}] Error while forwarding request to shard:{} {}", gondola.getHostId(), shardId, appUri, e);
             }
         }
         abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
@@ -442,7 +448,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
         String appUri = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
         if (appUri != null) {
-            logger.info("New leader found, correct routing table with : shardId={}, appUrl={}", shardId, appUri);
+            logger.info("[{}] New leader found, correct routing table with : shardId={}, appUrl={}", gondola.getHostId(), shardId, appUri);
             updateShardRoutingEntries(shardId, appUri);
         }
     }
@@ -459,7 +465,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 newAppUris.add(appUrl);
             }
         }
-        logger.info("Update shard '{}' leader as {}", shardId, appUri);
+        trace("[{}] Update shard '{}' leader as {}", gondola.getHostId(), shardId, appUri);
         routingTable.put(shardId, newAppUris);
     }
 
@@ -524,11 +530,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 int diff = gondola.getShard(shardId).getCommitIndex() - routingHelper.getAppliedIndex(shardId);
                 if (now - checkTime > 10000) {
                     checkTime = now;
-                    logger.warn("Recovery running for {} seconds, {} logs left", (now - startTime) / 1000, diff);
+                    logger.warn("[{}] Recovery running for {} seconds, {} logs left", gondola.getHostId(), (now - startTime) / 1000, diff);
                 }
                 synced = diff <= 0;
             } catch (Exception e) {
-                logger.warn("Unknown error", e);
+                logger.warn("[{}] Unknown error. message={}", gondola.getHostId(), e);
             }
         }
     }

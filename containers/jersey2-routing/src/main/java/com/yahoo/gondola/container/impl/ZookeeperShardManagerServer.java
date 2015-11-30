@@ -12,6 +12,7 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
+import com.yahoo.gondola.container.AdminClient;
 import com.yahoo.gondola.container.ShardManager;
 import com.yahoo.gondola.container.ShardManagerProtocol;
 import com.yahoo.gondola.container.ShardManagerServer;
@@ -51,6 +52,7 @@ import static com.yahoo.gondola.container.client.ZookeeperUtils.statPath;
  */
 public class ZookeeperShardManagerServer implements ShardManagerServer {
 
+    private static final long RETRY_WAIT_TIME = AdminClient.TIMEOUT_MS / AdminClient.RETRY_COUNT;
     private CuratorFramework client;
     private ShardManager delegate;
     private String serviceName;
@@ -82,7 +84,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         for (Shard shard : gondola.getShardsOnHost()) {
             Member member = shard.getLocalMember();
             try {
-                trace("Init for memberId={}", member.getMemberId());
+                trace("[{}-{}] Initializing zookeeper node...", gondola.getHostId(), member.getMemberId());
                 String actionPath = actionPath(serviceName, member.getMemberId());
                 String statPath = statPath(serviceName, member.getMemberId());
                 ZookeeperStat stat;
@@ -111,8 +113,8 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 node.start();
                 nodes.add(node);
             } catch (Exception e) {
-                logger.warn("Unable to create member node, memberId={}, msg={}",
-                            member.getMemberId(), e.getMessage());
+                logger.warn("[{}-{}] Unable to create member node, msg={}",
+                            gondola.getHostId(), member.getMemberId(), e.getMessage());
             }
         }
     }
@@ -133,7 +135,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 } catch (InterruptedException e) {
                     return;
                 } catch (Exception e) {
-                    logger.error("Unexpected error - {}", e.getMessage());
+                    logger.error("[{}] Unexpected error - {}", gondola.getHostId(), e.getMessage());
                 }
             }
         }
@@ -171,14 +173,15 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     }
 
     private void writeStat(Integer memberId, ZookeeperStat zookeeperStat) {
-        trace("[{}] Update stat stat={}", config.getMember(memberId).getHostId(), zookeeperStat);
+        trace("[{}-{}] Update stat stat={}",
+              gondola.getHostId(), memberId, zookeeperStat);
         try {
-            client.setData().forPath(ZookeeperUtils.statPath(serviceName, memberId),
-                                     objectMapper.writeValueAsBytes(zookeeperStat));
+            client.setData().inBackground().forPath(ZookeeperUtils.statPath(serviceName, memberId),
+                                                    objectMapper.writeValueAsBytes(zookeeperStat));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            logger.warn("Write stat on memberId={} failed, reason={}", e.getMessage());
+            logger.warn("[{}-{}] Write stat failed, reason={}", gondola.getHostId(), memberId, e.getMessage());
         }
     }
 
@@ -196,7 +199,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                     processAction(stat, action);
                 }
             } catch (Exception e) {
-                logger.warn("Process action error - {}", e.getMessage());
+                logger.warn("[{}] Process action error - {}", gondola.getHostId(), e.getMessage());
             }
         };
     }
@@ -205,45 +208,51 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         if (action.action == ZookeeperAction.Action.NOOP) {
             return;
         }
-        trace("[{}] Processing action={} args={}", stat.memberId, action.action, action.args);
+        trace("[{}-{}] Processing action={} args={}", gondola.getHostId(), stat.memberId, action.action, action.args);
         ZookeeperAction.Args args = action.parseArgs();
-        try {
-            switch (action.action) {
-                case NOOP:
-                    return;
-                case START_SLAVE:
-                    delegate.startObserving(args.fromShard, args.toShard, args.timeoutMs);
-                    stat.mode = SLAVE;
-                    break;
-                case STOP_SLAVE:
-                    delegate.stopObserving(args.fromShard, args.toShard, args.timeoutMs);
-                    stat.mode = NORMAL;
-                    break;
-                case MIGRATE_1:
-                    delegate.migrateBuckets(Range.closed(args.rangeStart, args.rangeStop),
-                                            args.fromShard, args.toShard, args.timeoutMs);
-                    stat.mode = MIGRATING_1;
-                    break;
-                case MIGRATE_2:
-                    delegate.setBuckets(Range.closed(args.rangeStart, args.rangeStop),
-                                        args.fromShard, args.toShard, args.complete);
-                    stat.mode = MIGRATING_2;
-                    break;
-                case MIGRATE_3:
-                    delegate.setBuckets(Range.closed(args.rangeStart, args.rangeStop),
-                                        args.fromShard, args.toShard, args.complete);
-                    stat.mode = NORMAL;
-                    break;
+        while (true) {
+            try {
+                switch (action.action) {
+                    case NOOP:
+                        return;
+                    case START_SLAVE:
+                        delegate.startObserving(args.fromShard, args.toShard, args.timeoutMs);
+                        stat.mode = SLAVE;
+                        break;
+                    case STOP_SLAVE:
+                        delegate.stopObserving(args.fromShard, args.toShard, args.timeoutMs);
+                        stat.mode = NORMAL;
+                        break;
+                    case MIGRATE_1:
+                        delegate.migrateBuckets(Range.closed(args.rangeStart, args.rangeStop),
+                                                args.fromShard, args.toShard, args.timeoutMs);
+                        stat.mode = MIGRATING_1;
+                        break;
+                    case MIGRATE_2:
+                        delegate.setBuckets(Range.closed(args.rangeStart, args.rangeStop),
+                                            args.fromShard, args.toShard, args.complete);
+                        stat.mode = MIGRATING_2;
+                        break;
+                    case MIGRATE_3:
+                        delegate.setBuckets(Range.closed(args.rangeStart, args.rangeStop),
+                                            args.fromShard, args.toShard, args.complete);
+                        stat.mode = NORMAL;
+                        break;
+                }
+                stat.status = RUNNING;
+                stat.reason = null;
+            } catch (ShardManagerProtocol.ShardManagerException e) {
+                logger.warn("[{}-{}] Cannot execute action={} args={} reason={}",
+                            gondola.getHostId(), action.memberId, action, action.args, e.getMessage());
+                stat.status = FAILED;
+                stat.reason = e.getMessage();
             }
-            stat.status = RUNNING;
-            stat.reason = null;
-        } catch (ShardManagerProtocol.ShardManagerException e) {
-            logger.warn("[{}] Cannot execute action={} args={} reason={}",
-                        action.memberId, action, action.args, e.getMessage());
-            stat.status = FAILED;
-            stat.reason = e.getMessage();
+            writeStat(stat.memberId, stat);
+            if (stat.status == RUNNING) {
+                break;
+            }
+            Thread.sleep(RETRY_WAIT_TIME);
         }
-        writeStat(stat.memberId, stat);
     }
 
     @Override
@@ -258,7 +267,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 node.close();
             } catch (IOException e) {
                 // ignored.
-                logger.warn("Close ZK node cache failed", e.getMessage());
+                logger.warn("[{}] Close ZK node cache failed. message={}", gondola.getHostId(), e.getMessage());
             }
         }
 
@@ -267,7 +276,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
             try {
                 t.join();
             } catch (InterruptedException e) {
-                logger.error("Interrupted waiting {} terminate.", t.getName(), e.getMessage());
+                logger.error("[{}] Interrupted waiting {} terminate.", gondola.getHostId(), t.getName(), e.getMessage());
             }
         }
         client.close();
