@@ -805,9 +805,12 @@ public class GondolaTest {
         commit(member1, "command 1");
 
         // Retrieve the command from each member
-        assertCommand(member1, -1, 1, "command 1");
-        assertCommand(member2, -1, 1, "command 1");
-        assertCommand(member3, -1, 1, "command 1");
+        assertCommand(member1, -1, 1, "");
+        assertCommand(member1, -1, 2, "command 1");
+        assertCommand(member2, -1, 1, "");
+        assertCommand(member2, -1, 2, "command 1");
+        assertCommand(member3, -1, 1, "");
+        assertCommand(member3, -1, 2, "command 1");
     }
 
     /**
@@ -821,11 +824,13 @@ public class GondolaTest {
         commit(member1, "command 2");
 
         // Retrieve the 1st and 2nd command
-        assertCommand(member1, -1, 1, "command 1");
-        assertCommand(member1, -1, 2, "command 2");
+        assertCommand(member1, -1, 1, "");
+        assertCommand(member1, -1, 2, "command 1");
+        assertCommand(member1, -1, 3, "command 2");
 
         // Retrieve the 1st command again
-        assertCommand(member1, -1, 1, "command 1");
+        assertCommand(member1, -1, 1, "");
+        assertCommand(member1, -1, 2, "command 1");
     }
 
     /**
@@ -839,9 +844,12 @@ public class GondolaTest {
         commitAsync(member1, "command 1", 300);
 
         // Retrieve the command from each member
-        assertCommand(member1, -1, 1, "command 1");
-        assertCommand(member2, -1, 1, "command 1");
-        assertCommand(member3, -1, 1, "command 1");
+        assertCommand(member1, -1, 1, "");
+        assertCommand(member1, -1, 2, "command 1");
+        assertCommand(member2, -1, 1, "");
+        assertCommand(member2, -1, 2, "command 1");
+        assertCommand(member3, -1, 1, "");
+        assertCommand(member3, -1, 2, "command 1");
     }
 
     /**
@@ -952,7 +960,7 @@ public class GondolaTest {
         slave1.setSlave(4);
         while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
-            assertTrue(status.running, "slave should be running");
+            assertTrue(!status.running, "slave should not be running");
             logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
             Thread.sleep(100);
         }

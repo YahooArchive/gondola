@@ -335,13 +335,10 @@ public class SaveQueue {
                 Message message = null;
                 lock.lock();
                 try {
-                    while (message == null) {
-                        message = workQueue.poll();
-                        if (message == null) {
-                            numWaiters++;
-                            queueEmpty.await();
-                            numWaiters--;
-                        }
+                    while ((message = workQueue.poll()) == null) {
+                        numWaiters++;
+                        queueEmpty.await();
+                        numWaiters--;
                     }
                 } catch (InterruptedException e) {
                     break;
@@ -352,13 +349,13 @@ public class SaveQueue {
                 try {
                     // Save the message
                     message.handle(handler);
-                    message.release();
                 } catch (InterruptedException e) {
-                    message.release();
                     break;
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
                     cmember.indexUpdated(true, false);
+                } finally {
+                    message.release();
                 }
             }
         }
