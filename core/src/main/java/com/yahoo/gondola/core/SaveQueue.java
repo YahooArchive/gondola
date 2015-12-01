@@ -20,7 +20,7 @@ import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
@@ -48,6 +48,9 @@ public class SaveQueue {
     // Signaled when saved index has been initialized
     final Condition indexInitialized = lock.newCondition();
 
+    // Signaled when items are available in the queue
+    final Condition queueEmpty = lock.newCondition();
+
     // Set to true after initSavedIndex() is called successfully.
     boolean initialized = false;
 
@@ -68,8 +71,8 @@ public class SaveQueue {
     // List of threads running in this class
     List<Thread> threads = new ArrayList<>();
 
-    // The number of workers currently saving entries
-    AtomicInteger busyWorkers = new AtomicInteger();
+    // The number of workers waiting for a message from the queue
+    int numWaiters = 0;
 
     // Contains log entries that need to be saved
     BlockingQueue<Message> workQueue = new LinkedBlockingQueue<>();
@@ -136,7 +139,13 @@ public class SaveQueue {
      */
     public void add(Message message) {
         message.acquire();
-        workQueue.add(message);
+        lock.lock();
+        try {
+            workQueue.add(message);
+            queueEmpty.signal();
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**
@@ -183,17 +192,26 @@ public class SaveQueue {
      * @param rid is updated with the latest stored term and index
      */
     public void settle(Rid rid) throws GondolaException {
-        logger.info("[{}-{}] Settling storage. workQ={} busy={} maxGap={}",
-                gondola.getHostId(), cmember.memberId, workQueue.size(), busyWorkers.get(), maxGap);
+        logger.info("[{}-{}] Settling storage. workQ={} waiters={} maxGap={}",
+                gondola.getHostId(), cmember.memberId, workQueue.size(), numWaiters, maxGap);
 
-        // Wait until the worker threads are finished. TODO: handle case where a worker is hung
-        workQueue.clear();
-        while (busyWorkers.get() > 0) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                return;
+        // Wait until all worker threads are blocked on the queue. TODO: handle case where a worker is hung
+        lock.lock();
+        try {
+            // Clear the pending messages
+            Message message = null;
+            while ((message = workQueue.poll()) != null) {
+                message.release();
             }
+
+            // Now wait for all the threads to stop
+            while (threads.size() > 0 && numWaiters < numWorkers) {
+                queueEmpty.await(100, TimeUnit.MILLISECONDS); // Same as sleep except the lock is released
+            }
+        } catch (InterruptedException e) {
+            return;
+        } finally {
+            lock.unlock();
         }
 
         initSavedIndex();
@@ -307,31 +325,36 @@ public class SaveQueue {
     }
 
     class Worker extends Thread {
-
         Worker(int i) {
             setName("SaveQueueWorker-" + i);
             setDaemon(true);
-            busyWorkers.incrementAndGet();
         }
 
         public void run() {
-            Message message = null;
             while (true) {
-                busyWorkers.decrementAndGet();
+                Message message = null;
+                lock.lock();
                 try {
-                    // Get a message
-                    message = workQueue.take();
+                    while (message == null) {
+                        message = workQueue.poll();
+                        if (message == null) {
+                            numWaiters++;
+                            queueEmpty.await();
+                            numWaiters--;
+                        }
+                    }
                 } catch (InterruptedException e) {
                     break;
+                } finally {
+                    lock.unlock();
                 }
 
-                busyWorkers.incrementAndGet();
                 try {
                     // Save the message
                     message.handle(handler);
                     message.release();
                 } catch (InterruptedException e) {
-                    busyWorkers.decrementAndGet();
+                    message.release();
                     break;
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
@@ -425,9 +448,9 @@ public class SaveQueue {
             // Append entry outside the lock
             storage.appendLogEntry(cmember.memberId, entryTerm, index, buffer, bufferOffset, bufferLen);
             if (storageTracing) {
-                logger.info("[{}-{}] insert(term={} index={} size={}) busy={} saved={} contents={}",
+                logger.info("[{}-{}] insert(term={} index={} size={}) waiters={} saved={} contents={}",
                         gondola.getHostId(), cmember.memberId, entryTerm, index,
-                        bufferLen, busyWorkers.get(), saved.size(), new String(buffer, bufferOffset, bufferLen));
+                        bufferLen, numWaiters, saved.size(), new String(buffer, bufferOffset, bufferLen));
             }
             stats.savedCommand(bufferLen);
 
