@@ -90,8 +90,10 @@ public interface ShardManagerProtocol {
             FAILED_START_SLAVE,
             FAILED_STOP_SLAVE,
             FAILED_MIGRATE_BUCKETS,
+            FAILED_SET_BUCKETS,
             MASTER_IS_GONE,
             SLAVE_NOT_SYNC,
+
         }
 
         public CODE errorCode;

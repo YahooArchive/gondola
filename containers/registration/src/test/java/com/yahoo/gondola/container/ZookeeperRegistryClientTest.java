@@ -30,6 +30,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -155,10 +156,17 @@ public class ZookeeperRegistryClientTest {
         ArgumentCaptor<RegistryClient.Entry>
             args =
             ArgumentCaptor.forClass(RegistryClient.Entry.class);
-        String hostId = registryClient.register(SITE_1_HOST_1_CLUSTER, new InetSocketAddress(1234),
+
+        InetSocketAddress addr = new InetSocketAddress(1234);
+        CountDownLatch latch = new CountDownLatch(1);
+        registryClient.addListener(entry1 -> {
+            if (entry1.gondolaAddress.equals(addr)) {
+                latch.countDown();
+            }
+        });
+        String hostId = registryClient.register(SITE_1_HOST_1_CLUSTER, addr,
                                                 URI.create("https://api1.yahoo.com:4443"));
-        // wait for zookeeper events
-        Thread.sleep(100);
+        latch.await();
         verify(listener, times(1)).accept(args.capture());
         RegistryClient.Entry entry = args.getValue();
         assertEquals(entry.hostId, hostId);
@@ -167,13 +175,13 @@ public class ZookeeperRegistryClientTest {
 
     @Test
     public void testGetRegistries_local() throws Exception {
-        testGetEntries(registryClient, registryClient, 0);
+        testGetEntries(registryClient, registryClient, false);
     }
 
     @Test
     public void testGetRegistries_remote() throws Exception {
         ZookeeperRegistryClient reader = new ZookeeperRegistryClient(client, objectMapper, config);
-        testGetEntries(registryClient, reader, 100);
+        testGetEntries(registryClient, reader, true);
 
     }
 
@@ -201,11 +209,25 @@ public class ZookeeperRegistryClientTest {
         assertEquals(result.get(), Boolean.TRUE);
     }
 
-    private void testGetEntries(RegistryClient writer, RegistryClient reader, int sleep) throws Exception {
+    private void testGetEntries(RegistryClient writer, RegistryClient reader, boolean remote) throws Exception {
+        CountDownLatch latch = new CountDownLatch(1);
+        InetSocketAddress addr = new InetSocketAddress(1234);
+        if (remote) {
+            reader.addListener(entry -> {
+                if (entry.gondolaAddress.equals(addr)) {
+                    latch.countDown();
+                }
+            });
+        }
+
         String
             hostId =
-            writer.register(SITE_1_HOST_3_CLUSTERS, new InetSocketAddress(1234),
+            writer.register(SITE_1_HOST_3_CLUSTERS, addr,
                             URI.create("https://api1.yahoo.com:4443"));
+
+        if (remote) {
+            latch.await();
+        }
 
         List<RegistryClient.Entry> writerEntries = writer.getEntries().entrySet().stream()
             .map(Map.Entry::getValue)
@@ -214,9 +236,6 @@ public class ZookeeperRegistryClientTest {
 
         assertEquals(writerEntries.size(), 1);
 
-        if (sleep != 0) {
-            Thread.sleep(sleep);
-        }
 
         Map<String, RegistryClient.Entry> readerEntries = reader.getEntries();
         assertEquals(readerEntries.size(), 1);

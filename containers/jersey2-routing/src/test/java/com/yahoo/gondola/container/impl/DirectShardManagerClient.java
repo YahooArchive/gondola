@@ -151,4 +151,8 @@ public class DirectShardManagerClient implements ShardManagerClient {
         }
     }
 
+    @Override
+    public void stop() {
+
+    }
 }

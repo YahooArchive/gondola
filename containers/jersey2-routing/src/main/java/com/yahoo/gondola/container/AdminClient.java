@@ -123,7 +123,8 @@ public class AdminClient {
                 shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
-                    "[admin] All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
+                    "[admin] All nodes in {} are in slave mode, "
+                    + "waiting for slave logs approaching to leader's log position.",
                     toShardId);
 
                 if (!shardManagerClient.waitSlavesApproaching(toShardId, -1)) {

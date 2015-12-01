@@ -63,17 +63,20 @@ public class ShardManager implements ShardManagerProtocol {
     public void startObserving(String shardId, String observedShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
         boolean success = false;
-        trace("[{}] shardId={} follows shardId={} as slave", gondola.getHostId(), shardId, observedShardId);
+        trace("[{}-{}] Try to follow shardId={} as slave...",
+              gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), shardId, observedShardId);
         List<Config.ConfigMember> membersInShard = config.getMembersInShard(observedShardId);
-        for (Config.ConfigMember m : membersInShard){
+        for (Config.ConfigMember m : membersInShard) {
             if (success = setSlave(shardId, m.getMemberId(), timeoutMs / membersInShard.size())) {
-                trace("[{}] Successfully to follow masterId={}", gondola.getHostId(), m.getMemberId());
+                trace("[{}-{}] Successfully to follow masterId={}",
+                      gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), m.getMemberId());
                 break;
             }
-            trace("[{}] Failed to follow masterId={}", gondola.getHostId(), m.getMemberId());
         }
         if (!success) {
-            logger.error("[{}] Failed follow master={}", gondola.getHostId(), observedShardId);
+            logger.error("[{}-{}] Failed follow master={}",
+                         gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(),
+                         observedShardId);
             throw new ShardManagerException(FAILED_START_SLAVE);
         }
         observedShards.add(observedShardId);
@@ -98,7 +101,7 @@ public class ShardManager implements ShardManagerProtocol {
     }
 
     private boolean slaveOperational(Member.SlaveStatus status) {
-        return status != null && status.running && status.commitIndex != 0;
+        return status != null && status.running;
     }
 
 
@@ -117,10 +120,11 @@ public class ShardManager implements ShardManagerProtocol {
         String curMasterShardId = config.getMember(status.masterId).getShardId();
 
         if (!curMasterShardId.equals(masterShardId)) {
-                throw new ShardManagerException(FAILED_STOP_SLAVE,
-                                                String.format(
-                                                    "Cannot stop slave due to follow different shard. current=%s, target=%s",
-                                                    curMasterShardId, masterShardId));
+            throw
+                new ShardManagerException(FAILED_STOP_SLAVE,
+                                          String.format(
+                                              "Cannot stop slave due to follow different shard. current=%s, target=%s",
+                                              curMasterShardId, masterShardId));
         }
 
         try {
@@ -130,13 +134,15 @@ public class ShardManager implements ShardManagerProtocol {
         }
 
         try {
-            Utils.pollingWithTimeout(() -> {
+            if (!Utils.pollingWithTimeout(() -> {
                 if (gondola.getShard(shardId).getLocalMember().getSlaveStatus() == null) {
                     return true;
                 }
                 logger.warn("Failed stop observing {} on shard={}", masterShardId, shardId);
                 return false;
-            }, timeoutMs / POLLING_TIMES, timeoutMs);
+            }, timeoutMs / POLLING_TIMES, timeoutMs)) {
+                throw new ShardManagerException(FAILED_STOP_SLAVE, "timed out");
+            }
         } catch (ExecutionException e) {
             throw new ShardManagerException(e);
         }
@@ -165,8 +171,6 @@ public class ShardManager implements ShardManagerProtocol {
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             filter.updateBucketRange(splitRange, fromShardId, toShardId, false);
-            trace("Update global bucket table for buckets= from {} to {}", splitRange, fromShardId, toShardId);
-            shardManagerClient.setBuckets(splitRange, fromShardId, toShardId, false);
         } catch (InterruptedException | ExecutionException e) {
             logger.warn("Error occurred, rollback!", e);
             try {
@@ -199,7 +203,8 @@ public class ShardManager implements ShardManagerProtocol {
                 }
                 trace("[{}] {} Log status={}, currentDiff={}, targetDiff={}",
                       gondola.getHostId(), shardId, slaveOperational(slaveStatus) ? "RUNNING" : "DOWN",
-                      slaveOperational(slaveStatus) ? "N/A" : shard.getCommitIndex() - getSavedIndex(shard), logPosDiff);
+                      slaveOperational(slaveStatus) ? "N/A" : shard.getCommitIndex() - getSavedIndex(shard),
+                      logPosDiff);
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);
         } catch (ExecutionException e) {

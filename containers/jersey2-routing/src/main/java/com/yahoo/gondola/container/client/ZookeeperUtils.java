@@ -6,8 +6,7 @@
 
 package com.yahoo.gondola.container.client;
 
-import org.apache.curator.CuratorZookeeperClient;
-import org.apache.curator.utils.EnsurePath;
+import org.apache.curator.framework.CuratorFramework;
 
 /**
  * The type Zookeeper utils.
@@ -32,11 +31,11 @@ public class ZookeeperUtils {
         return basePath(serviceName) + "/stats";
     }
 
-    public static void ensurePath(String serviceName, CuratorZookeeperClient client) {
+    public static void ensurePath(String serviceName, CuratorFramework client) {
         try {
-            new EnsurePath(basePath(serviceName)).ensure(client);
-            new EnsurePath(actionBasePath(serviceName)).ensure(client);
-            new EnsurePath(statBasePath(serviceName)).ensure(client);
+            client.checkExists().creatingParentContainersIfNeeded().forPath(basePath(serviceName));
+            client.checkExists().creatingParentContainersIfNeeded().forPath(actionBasePath(serviceName));
+            client.checkExists().creatingParentContainersIfNeeded().forPath(statBasePath(serviceName));
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }

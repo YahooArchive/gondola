@@ -8,6 +8,11 @@ package com.yahoo.gondola.container.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import static com.yahoo.gondola.container.client.ZookeeperStat.Mode.NORMAL;
+import static com.yahoo.gondola.container.client.ZookeeperStat.Mode.SLAVE;
+import static com.yahoo.gondola.container.client.ZookeeperStat.Status.FAILED;
+import static com.yahoo.gondola.container.client.ZookeeperStat.Status.RUNNING;
+
 /**
  * The type Zookeeper stat.
  */
@@ -29,7 +34,7 @@ public class ZookeeperStat {
 
     public int memberId;
     public String shardId;
-    public Mode mode = Mode.NORMAL;
+    public Mode mode = NORMAL;
     public Status status = Status.STOP;
     public String reason = null;
 
@@ -41,21 +46,21 @@ public class ZookeeperStat {
 
     @JsonIgnore
     public boolean isSlaveOperational() {
-        return mode == Mode.SLAVE && status != Status.FAILED;
+        return mode == SLAVE && status != FAILED;
     }
 
     @JsonIgnore
     public boolean isNormalOperational() {
-        return mode == Mode.NORMAL && status == Status.RUNNING;
+        return mode == NORMAL && status == RUNNING;
     }
 
     @JsonIgnore
     public boolean isMigrating1Operational() {
-        return mode == Mode.MIGRATING_1 && status == Status.RUNNING;
+        return mode == Mode.MIGRATING_1 && status == RUNNING;
     }
 
     @JsonIgnore
     public boolean isMigrating2Operational() {
-        return mode == Mode.MIGRATING_2 && status == Status.RUNNING;
+        return mode == Mode.MIGRATING_2 && status == RUNNING;
     }
 }

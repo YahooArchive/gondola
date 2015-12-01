@@ -85,10 +85,10 @@ public class ZookeeperAction {
 
     @Override
     public String toString() {
-        return "ZookeeperAction{" +
-               "action=" + action +
-               ", memberId=" + memberId +
-               ", args=" + args +
-               '}';
+        return "ZookeeperAction{"
+               + "action=" + action
+               + ", memberId=" + memberId
+               + ", args=" + args
+               + '}';
     }
 }

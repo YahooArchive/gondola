@@ -293,6 +293,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      */
     protected void updateBucketRange(Range<Integer> range, String fromShard, String toShard,
                                      boolean migrationComplete) {
+        trace("[{}] Update bucket range={} from {} to {}",
+              gondola.getHostId(), range, fromShard, toShard);
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
 
@@ -439,7 +441,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 return;
             } catch (IOException e) {
                 fail = true;
-                logger.error("[{}] Error while forwarding request to shard:{} {}", gondola.getHostId(), shardId, appUri, e);
+                logger.error("[{}] Error while forwarding request to shard:{} {}", gondola.getHostId(), shardId, appUri,
+                             e);
             }
         }
         abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
@@ -448,7 +451,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
         String appUri = proxiedResponse.getHeaderString(X_GONDOLA_LEADER_ADDRESS);
         if (appUri != null) {
-            logger.info("[{}] New leader found, correct routing table with : shardId={}, appUrl={}", gondola.getHostId(), shardId, appUri);
+            logger.info("[{}] New leader found, correct routing table with : shardId={}, appUrl={}",
+                        gondola.getHostId(), shardId, appUri);
             updateShardRoutingEntries(shardId, appUri);
         }
     }
@@ -530,7 +534,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                 int diff = gondola.getShard(shardId).getCommitIndex() - routingHelper.getAppliedIndex(shardId);
                 if (now - checkTime > 10000) {
                     checkTime = now;
-                    logger.warn("[{}] Recovery running for {} seconds, {} logs left", gondola.getHostId(), (now - startTime) / 1000, diff);
+                    logger.warn("[{}] Recovery running for {} seconds, {} logs left", gondola.getHostId(),
+                                (now - startTime) / 1000, diff);
                 }
                 synced = diff <= 0;
             } catch (Exception e) {

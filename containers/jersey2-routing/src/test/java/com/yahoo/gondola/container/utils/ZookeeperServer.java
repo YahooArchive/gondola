@@ -12,17 +12,14 @@ import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.test.TestingServer;
 
 public class ZookeeperServer {
-    private TestingServer testingServer = null;
+    private TestingServer testingServer;
     private CuratorFramework client = null;
     public ZookeeperServer() {
         try {
-            if (testingServer == null) {
-                testingServer = new TestingServer();
-                testingServer.start();
-                client = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), new RetryOneTime(1000));
-                client.start();
-                System.out.println("Zookeeper address: " + testingServer.getConnectString());
-            }
+            testingServer = new TestingServer();
+            testingServer.start();
+            client = CuratorFrameworkFactory.newClient(testingServer.getConnectString(), new RetryOneTime(1000));
+            client.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -19,7 +19,6 @@ import com.yahoo.gondola.container.utils.ZookeeperServer;
 
 import org.mockito.MockitoAnnotations;
 import org.mockito.internal.util.reflection.Whitebox;
-import org.testng.annotations.AfterMethod;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
@@ -49,11 +48,11 @@ public class AdminClientIT {
     ZookeeperServer zookeeperServer = new ZookeeperServer();
 
     // shardId -> hostId
-    Map<String, String> routingTable = new ConcurrentHashMap<>();
+    Map<String, String> routingTable;
 
     // hostId -> LocalTestRoutingServer
-    Map<String, LocalTestRoutingServer> addressTable = new HashMap<>();
-    Map<String, CountDownLatch> latches = new HashMap<>();
+    Map<String, LocalTestRoutingServer> addressTable;
+    Map<String, CountDownLatch> latches;
     ShardManagerClient shardManagerClient;
     List<Gondola> gondolas;
     AdminClient adminClient;
@@ -63,6 +62,9 @@ public class AdminClientIT {
 
     public void setUp(Type type) throws Exception {
         MockitoAnnotations.initMocks(this);
+        routingTable = new ConcurrentHashMap<>();
+        addressTable = new HashMap<>();
+        latches = new HashMap<>();
         shardManagerClient = getShardManagerClient(type, CLIENT_NAME);
         config.getShardIds().forEach(shardId -> latches.put(shardId, new CountDownLatch(1)));
         gondolas = new ArrayList<>();
@@ -73,7 +75,9 @@ public class AdminClientIT {
             gondola.start();
             gondolas.add(gondola);
             LocalTestRoutingServer testServer = getLocalTestRoutingServer(gondola);
-            ShardManager shardManager = new ShardManager(gondola, testServer.routingFilter, config, getShardManagerClient(type, hostId));
+            ShardManager
+                shardManager =
+                new ShardManager(gondola, testServer.routingFilter, config, getShardManagerClient(type, hostId));
             getShardManagerServer(type, gondola, shardManager);
             addressTable.put(hostId, testServer);
         }
@@ -139,7 +143,10 @@ public class AdminClientIT {
         ShardManagerClient shardManagerClient = null;
         switch (type) {
             case DIRECT:
-                shardManagerClient = new DirectShardManagerClient(config);
+                if (this.shardManagerClient == null) {
+                    this.shardManagerClient = new DirectShardManagerClient(config);
+                }
+                shardManagerClient = this.shardManagerClient;
                 break;
             case ZOOKEEPER:
                 shardManagerClient =
@@ -158,25 +165,39 @@ public class AdminClientIT {
         };
     }
 
-    @AfterMethod
     public void tearDown() throws Exception {
         gondolas.parallelStream().forEach(Gondola::stop);
         zookeeperServer.reset();
+        shardManagerServers.forEach(ShardManagerServer::stop);
+        shardManagerClient = null;
     }
 
-    @Test(dataProvider = "typeProvider")
-    public void testAssignBuckets(Type type) throws Exception {
+    @Test(invocationCount = 1)
+    public void testAssignBuckets_direct() throws Exception {
+        testAssignBucketByType(DIRECT);
+    }
+
+    @Test(invocationCount = 1)
+    public void testAssignBuckets_zookeeper() throws Exception {
+        testAssignBucketByType(ZOOKEEPER);
+    }
+
+
+    private void testAssignBucketByType(Type type) throws Exception {
         setUp(type);
         for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
             assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
             assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
         }
 
-        adminClient.assignBuckets(Range.closed(0, 10), "shard1", "shard2");
-
-        for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
-            assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
-            assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
+        try {
+            adminClient.assignBuckets(Range.closed(0, 10), "shard1", "shard2");
+            for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
+                assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
+                assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
+            }
+        } finally {
+            tearDown();
         }
     }
 
