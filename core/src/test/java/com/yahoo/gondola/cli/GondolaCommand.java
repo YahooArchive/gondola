@@ -54,10 +54,10 @@ public class GondolaCommand {
     File configFile = new File("conf/gondola-command.conf");
     int masterId = -1;
 
-    int maxWorkers = 1024;
-    int numWorkers = 0;
-    BlockingQueue<Socket> socketQueue = new ArrayBlockingQueue<>(maxWorkers);
-    AtomicInteger availableWorkers = new AtomicInteger();
+    int maxWriters = 1024;
+    int numWriters = 0;
+    BlockingQueue<Socket> socketQueue = new ArrayBlockingQueue<>(maxWriters);
+    AtomicInteger availableWriters = new AtomicInteger();
 
     // Config variables
     int maxCommandSize;
@@ -73,7 +73,7 @@ public class GondolaCommand {
     public void printUsage() {
         // Stop is implemented in the shell script
         System.out.println("Usage: gondola.sh [-host <host-id> -shard <shard-id>|-member <member-id>]"
-                           + " [-port <port>] [-master <master-id>] [-workers <num>] [start|stop]");
+                           + " [-port <port>] [-master <master-id>] [-writers <num>] [start|stop]");
         if (config != null) {
             System.out.println("    Available host ids: " + config.getHostIds());
         }
@@ -119,11 +119,11 @@ public class GondolaCommand {
                 }
                 masterId = Integer.parseInt(args[++i]);
             }
-            if (args[i].equals("-workers")) {
+            if (args[i].equals("-writers")) {
                 if (args.length == i - 1) {
                     printUsage();
                 }
-                numWorkers = Integer.parseInt(args[++i]);
+                numWriters = Integer.parseInt(args[++i]);
             }
             if (args[i].equals("-delay")) {
                 if (args.length == i - 1) {
@@ -171,7 +171,7 @@ public class GondolaCommand {
             // Temporary test mode
             Map<Integer, Integer> values = new HashMap<>();
             // Create writer threads
-            for (int i = 0; i < numWorkers; i++) {
+            for (int i = 0; i < numWriters; i++) {
                 values.put(i, 0);
                 new Writer(hostId, i).start();
             }
@@ -179,7 +179,7 @@ public class GondolaCommand {
             // Create reader
             //new Reader().start();
             // Print out some RPS stats
-            while (true) {
+            while (numWriters > 0) {
                 long start = requests.get();
                 Thread.sleep(5000);
                 double avgLatency = 1.0 * waitTime.get() / requests.get();
@@ -241,7 +241,7 @@ public class GondolaCommand {
         int id;
 
         Writer(String hostId, int id) {
-            setName("worker-" + hostId + "-" + id);
+            setName("writer-" + hostId + "-" + id);
             this.id = id;
         }
 
@@ -306,14 +306,14 @@ public class GondolaCommand {
                         }
 
                         // Create more remote interface threads if needed
-                        if (availableWorkers.get() <= socketQueue.size() && numWorkers < maxWorkers) {
+                        if (availableWriters.get() <= socketQueue.size() && numWriters < maxWriters) {
                             if (tracing) {
-                                logger.info("[{}] Creating remote interface worker: avail workers={}"
-                                            + " socketQ={} numWorkers={}",
-                                            hostId, availableWorkers.get(), socketQueue, numWorkers);
+                                logger.info("[{}] Creating remote interface writer: avail writers={}"
+                                            + " socketQ={} numWriters={}",
+                                            hostId, availableWriters.get(), socketQueue, numWriters);
                             }
                             new RemoteInterface().start();
-                            numWorkers++;
+                            numWriters++;
                         }
                         socketQueue.put(socket);
                     }
@@ -338,15 +338,15 @@ public class GondolaCommand {
         Socket socket;
 
         public RemoteInterface() {
-            setName("RemoteInterfaceWorker-" + gondola.getHostId());
+            setName("RemoteInterfaceWriter-" + gondola.getHostId());
         }
 
         public void run() {
             while (true) {
                 try {
-                    availableWorkers.incrementAndGet();
+                    availableWriters.incrementAndGet();
                     socket = socketQueue.take();
-                    availableWorkers.decrementAndGet();
+                    availableWriters.decrementAndGet();
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
                 }

@@ -138,7 +138,6 @@ public class CoreMember implements Stoppable {
     File fileLockDir;
     FileChannel fileLockChannel;
     FileLock fileLock;
-    boolean writeEmptyCommandAfterElection;
     int slaveInactivityTimeout;
 
     public CoreMember(Gondola gondola, Shard shard, int memberId, List<Integer> peerIds, boolean isPrimary)
@@ -189,7 +188,6 @@ public class CoreMember implements Stoppable {
         summaryTracingPeriod = config.getInt("gondola.tracing.summary_period");
         electionTimeout = config.getInt("raft.election_timeout");
         leaderTimeout = config.getInt("raft.leader_timeout");
-        writeEmptyCommandAfterElection = config.getBoolean("raft.write_empty_command_after_election");
 
         incomingQueueSize = config.getInt("gondola.incoming_queue_size");
         waitQueueThrottleSize = config.getInt("gondola.wait_queue_throttle_size");
@@ -687,10 +685,7 @@ public class CoreMember implements Stoppable {
         }
 
         // If command queue is empty, add a no-op command to commit entries from the previous term
-        if (writeEmptyCommandAfterElection
-                && commandQueue.size() == 0
-                && sentRid.term > 0
-                && sentRid.term < currentTerm) {
+        if (commandQueue.size() == 0 && sentRid.term < currentTerm) {
             commandQueue.add(new CoreCmd(gondola, shard, this));
         }
     }
@@ -1332,7 +1327,7 @@ public class CoreMember implements Stoppable {
                     // Update the persistant Raft state
                     currentTerm = 1;
                     save(1, -1);
-                    becomeFollower(masterId);
+                    becomeCandidate();
 
                     // Create a new peer to the master
                     Peer masterPeer = new Peer(gondola, this, masterId);
