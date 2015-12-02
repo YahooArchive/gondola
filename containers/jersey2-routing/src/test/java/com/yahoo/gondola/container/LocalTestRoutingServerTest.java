@@ -95,7 +95,7 @@ public class LocalTestRoutingServerTest {
 
     @Test
     public void testRoutingServer() throws Exception {
-        server = new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider, shardManagerProvider);
+        server = new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider);
 
         CloseableHttpClient client = HttpClients.createDefault();
         CloseableHttpResponse response = client.execute(new HttpGet(server.getHostUri()));

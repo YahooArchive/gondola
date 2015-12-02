@@ -33,9 +33,9 @@ public class LocalTestRoutingServer {
     HttpHost host;
     RoutingFilter routingFilter;
 
-    public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                                  ShardManagerProvider shardManagerProvider) throws Exception {
-        routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, null);
+    public LocalTestRoutingServer(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider) throws Exception {
+        routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, null,
+                                          null);
         localTestServer = new LocalTestServer((request, response, context) -> {
             try {
                 URI requestUri = URI.create(request.getRequestLine().getUri());

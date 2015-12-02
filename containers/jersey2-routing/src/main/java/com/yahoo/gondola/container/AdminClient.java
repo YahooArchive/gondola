@@ -14,10 +14,11 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
-import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.*;
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.SLAVE_NOT_SYNC;
 
 /**
  * The type Admin client.
@@ -26,10 +27,11 @@ public class AdminClient {
 
     // TODO: move to config
     public static final int RETRY_COUNT = 3;
-    public static final int TIMEOUT_MS = 300;
+    public static final int TIMEOUT_MS = 3000;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
+    private ConfigWriter configWriter;
 
     private static Logger logger = LoggerFactory.getLogger(AdminClient.class);
     private boolean tracing = false;
@@ -41,10 +43,12 @@ public class AdminClient {
      * @param shardManagerClient the shard manager client
      * @param config             the config
      */
-    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config) {
+    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config,
+                       ConfigWriter configWriter) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
         this.config = config;
+        this.configWriter = configWriter;
         this.config.registerForUpdates(config1 -> {
             tracing = config1.getBoolean("tracing.adminCli");
         });
@@ -87,11 +91,10 @@ public class AdminClient {
     /**
      * Sets config.
      *
-     * @param config the config
+     * @param configFile the config file.
      * @throws AdminException the admin exception
      */
-    public void setConfig(Config config) throws AdminException {
-        this.config = config;
+    public void setConfig(File configFile) throws AdminException {
     }
 
 
@@ -116,33 +119,35 @@ public class AdminClient {
      */
     public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId)
         throws InterruptedException, AdminException {
-        trace("Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
+        trace("[admin] Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
-                trace("Initializing slaves on {} ...", toShardId);
+                trace("[admin] Initializing slaves on {} ...", toShardId);
                 shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
-                    "All nodes in {} are in slave mode, waiting for slave logs approaching to leader's log position.",
+                    "[admin] All nodes in {} are in slave mode, "
+                    + "waiting for slave logs approaching to leader's log position.",
                     toShardId);
 
                 if (!shardManagerClient.waitSlavesApproaching(toShardId, -1)) {
                     throw new ShardManagerException(SLAVE_NOT_SYNC);
                 }
 
-                trace("All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId,
-                      range);
+                trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...",
+                      toShardId, range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, 2000);
-
-                trace("Assign buckets complete, assigned buckets={} from {} to {}", range, fromShardId, toShardId);
+                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
+                trace("[admin] success!");
+                trace("[admin] Writing latest config to config storage!");
+                saveConfig(fromShardId, toShardId);
                 break;
             } catch (ShardManagerException e) {
                 try {
-                    shardManagerClient.stopObserving(fromShardId, toShardId, TIMEOUT_MS);
+                    shardManagerClient.stopObserving(toShardId, fromShardId, TIMEOUT_MS);
                 } catch (ShardManagerException e1) {
-                    logger.info("Rollback, Stop observing failed, ignoring the error.");
+                    logger.info("Rollback, Stop observing failed, ignoring the error. msg={}", e1.getMessage());
                 }
                 if (i != RETRY_COUNT) {
                     logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
@@ -155,22 +160,15 @@ public class AdminClient {
         }
     }
 
-    /**
-     * Close assign buckets.
-     *
-     * @param fromShardId the from shard id
-     * @param toShardId   the to shard id
-     * @param range       the range
-     */
-    public void closeAssignBuckets(Range<Integer> range, String fromShardId, String toShardId)
-        throws ShardManagerException, InterruptedException {
-        trace("Executing close the state of assign buckets");
+    private void saveConfig(String fromShardId, String toShardId) throws AdminException {
+        configWriter.setBucketMap(fromShardId, getBucketMapString(fromShardId));
+        configWriter.setBucketMap(fromShardId, getBucketMapString(toShardId));
+        setConfig(configWriter.save());
+    }
 
-        trace("Waiting all nodes bucket table updated...");
-        shardManagerClient.waitBucketsCondition(range, fromShardId, toShardId, 3000);
-        trace("closing the state of assign buckets...");
-        shardManagerClient.setBuckets(range, fromShardId, toShardId, true);
-        trace("Done!");
+    private String getBucketMapString(String fromShardId) {
+        // TODO: implement
+        return "";
     }
 
     private void trace(String format, Object... args) {
@@ -288,6 +286,7 @@ public class AdminClient {
     }
 
     class AdminException extends Exception {
+
         ErrorCode errorCode;
 
 
@@ -303,6 +302,7 @@ public class AdminClient {
     enum ErrorCode {
         CONFIG_NOT_FOUND(10000);
         private int code;
+
         ErrorCode(int code) {
             this.code = code;
         }

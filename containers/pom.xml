@@ -47,7 +47,6 @@
         <dependency>
             <groupId>com.yahoo.gondola</groupId>
             <artifactId>core</artifactId>
-            <version>${project.version}</version>
         </dependency>
     </dependencies>
 

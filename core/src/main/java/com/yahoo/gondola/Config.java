@@ -399,4 +399,27 @@ public class Config {
             }
         }
     }
+
+    /**
+     * Provider interface to get config file.
+     */
+    public interface ConfigProvider {
+        void saveConfigFile(File configFile);
+        File getConfigFile();
+        void stop();
+    }
+
+    /**
+     * Factory method to create config instance by a config provider.
+     *
+     * @param provider
+     * @return
+     */
+    public static Config getConfigInstance(ConfigProvider provider) {
+        return new Config(provider.getConfigFile());
+    }
+
+    public File getFile() {
+        return file;
+    }
 }

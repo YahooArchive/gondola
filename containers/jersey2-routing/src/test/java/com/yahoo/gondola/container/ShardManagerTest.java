@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -80,14 +81,21 @@ public class ShardManagerTest {
 
     @Test
     public void testStartObserving_success() throws Exception {
-        Member.SlaveStatus status = new Member.SlaveStatus();
-        status.running = true;
+        Member.SlaveStatus status = getSuccessSlaveStatus();
         when(member.getSlaveStatus()).thenReturn(status);
         assertFalse(getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
+    }
+
+    private Member.SlaveStatus getSuccessSlaveStatus() {
+        Member.SlaveStatus status = new Member.SlaveStatus();
+        status.running = true;
+        status.commitIndex = 100;
+        status.masterId = 86;
+        return status;
     }
 
     @Test(expectedExceptions = ShardManagerProtocol.ShardManagerException.class)
@@ -102,15 +110,14 @@ public class ShardManagerTest {
 
     @Test
     public void testStopObserving() throws Exception {
-        Member.SlaveStatus status = new Member.SlaveStatus();
-        status.running = true;
+        Member.SlaveStatus status = getSuccessSlaveStatus();
         when(member.getSlaveStatus()).thenReturn(status);
         // Start observing
         shardManager.startObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertTrue(getObservedShards().contains(TARGET_SHARD));
 
         // Stop observing successfully
-        when(member.getSlaveStatus()).thenReturn(null);
+        when(member.getSlaveStatus()).thenReturn(status).thenReturn(null);
         shardManager.stopObserving(FROM_SHARD, TARGET_SHARD, 300);
         assertFalse(getObservedShards().contains(TARGET_SHARD));
 
@@ -125,7 +132,8 @@ public class ShardManagerTest {
         Range<Integer> r = Range.closed(1, 2);
         shardManager.migrateBuckets(r, FROM_SHARD, TARGET_SHARD, TIMEOUT_MS);
         verify(filter, times(1)).updateBucketRange(any(), any(), any(), anyBoolean());
-        verify(shardManagerClient, times(1)).setBuckets(any(), any(), any(), anyBoolean());
+        verify(shardManagerClient, times(1)).waitSlavesSynced(any(), anyLong());
+        verify(shardManagerClient, times(1)).stopObserving(any(), any(), anyLong());
     }
 
     @Test
@@ -147,21 +155,27 @@ public class ShardManagerTest {
     public void testWaitSlavesSynced() throws Exception {
         when(shard.getCommitIndex()).thenReturn(2);
         when(shard.getLastSavedIndex()).thenReturn(1).thenReturn(2);
-        assertTrue(shardManager.waitSlavesSynced("shard1", 300));
+        when(shard.getMember(anyInt())).thenReturn(member);
+        when(member.getSlaveStatus()).thenReturn(getSuccessSlaveStatus());
+        assertTrue(shardManager.waitSlavesSynced(FROM_SHARD, 300));
     }
 
     @Test
     public void testWaitSlavesSynced_failed_never_catched_up() throws Exception {
         when(shard.getCommitIndex()).thenReturn(1+1);
         when(shard.getLastSavedIndex()).thenReturn(1);
-        assertFalse(shardManager.waitSlavesSynced("shard1", 300));
+        when(shard.getMember(anyInt())).thenReturn(member);
+        when(member.getSlaveStatus()).thenReturn(getSuccessSlaveStatus());
+        assertFalse(shardManager.waitSlavesSynced(FROM_SHARD, 300));
     }
 
     @Test
     public void testWaitSlavesApproaching() throws Exception {
         when(shard.getCommitIndex()).thenReturn(2);
         when(shard.getLastSavedIndex()).thenReturn(1).thenReturn(2);
-        assertTrue(shardManager.waitSlavesApproaching("shard1", 300));
+        when(shard.getMember(anyInt())).thenReturn(member);
+        when(member.getSlaveStatus()).thenReturn(getSuccessSlaveStatus());
+        assertTrue(shardManager.waitSlavesApproaching(FROM_SHARD, 300));
     }
 
 
@@ -169,7 +183,9 @@ public class ShardManagerTest {
     public void testWaitSlavesSynced_failed_never_approaching() throws Exception {
         when(shard.getCommitIndex()).thenReturn(1 + ShardManager.LOG_APPROACHING_DIFF + 1);
         when(shard.getLastSavedIndex()).thenReturn(1);
-        assertFalse(shardManager.waitSlavesSynced("shard1", 300));
+        when(shard.getMember(anyInt())).thenReturn(member);
+        when(member.getSlaveStatus()).thenReturn(getSuccessSlaveStatus());
+        assertFalse(shardManager.waitSlavesSynced(FROM_SHARD, 300));
     }
 
 }

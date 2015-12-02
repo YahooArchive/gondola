@@ -9,29 +9,33 @@ package com.yahoo.gondola.container.client;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
-import com.yahoo.gondola.container.Utils;
-import com.yahoo.gondola.container.client.ZookeeperStat.Status;
+import com.yahoo.gondola.container.client.ZookeeperAction.Action;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.curator.retry.RetryOneTime;
+import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_SET_BUCKETS;
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
+import static com.yahoo.gondola.container.Utils.pollingWithTimeout;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_1;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_2;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_3;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.START_SLAVE;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.STOP_SLAVE;
 import static com.yahoo.gondola.container.client.ZookeeperStat.Status.APPROACHED;
-import static com.yahoo.gondola.container.client.ZookeeperStat.Status.RUNNING;
 import static com.yahoo.gondola.container.client.ZookeeperStat.Status.SYNCED;
 import static com.yahoo.gondola.container.client.ZookeeperUtils.ensurePath;
 
@@ -41,20 +45,25 @@ import static com.yahoo.gondola.container.client.ZookeeperUtils.ensurePath;
 public class ZookeeperShardManagerClient implements ShardManagerClient {
 
     private String serviceName;
-    CuratorFramework client;
-    Config config;
+    private CuratorFramework client;
+    private Config config;
 
-    ObjectMapper objectMapper = new ObjectMapper();
-    Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerClient.class);
-    PathChildrenCache stats;
-    boolean tracing = false;
+    private ObjectMapper objectMapper = new ObjectMapper();
+    private Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerClient.class);
+    private PathChildrenCache stats;
+    private boolean tracing = false;
+    private String clientName;
 
-    public ZookeeperShardManagerClient(String serviceName, String connectString, Config config) {
+    Lock lock = new ReentrantLock();
+    Condition newEvent = lock.newCondition();
+
+    public ZookeeperShardManagerClient(String serviceName, String clientName, String connectString, Config config) {
         client = CuratorFrameworkFactory.newClient(connectString, new RetryOneTime(1000));
         client.start();
         this.serviceName = serviceName;
         this.config = config;
-        ensurePath(serviceName, client.getZookeeperClient());
+        this.clientName = clientName;
+        ensurePath(serviceName, client);
         watchZookeeperStats();
         config.registerForUpdates(config1 -> tracing = config.getBoolean("tracing.router"));
     }
@@ -62,31 +71,79 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     private void watchZookeeperStats() {
         try {
             stats = new PathChildrenCache(client, ZookeeperUtils.statBasePath(serviceName), true);
+            stats.getListenable().addListener((curatorFramework, pathChildrenCacheEvent) -> notifyNewEvent());
             stats.start();
         } catch (Exception e) {
             throw new IllegalStateException("Cannot start stats watch service.", e);
         }
     }
 
-    @Override
-    public void startObserving(String shardId, String observedShardId, long timeoutMs)
-        throws ShardManagerException, InterruptedException {
-        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            setAction(m.getMemberId(), START_SLAVE, shardId, observedShardId, timeoutMs);
+    private void notifyNewEvent() {
+        lock.lock();
+        try {
+            newEvent.signalAll();
+        } finally {
+            lock.unlock();
         }
     }
 
-    private void setAction(int memberId, ZookeeperAction.Action action, Object... args) {
+    @Override
+    public void startObserving(String shardId, String observedShardId, long timeoutMs)
+        throws ShardManagerException, InterruptedException {
+        // Set slave state
+        sendActionToShard(shardId, START_SLAVE, shardId, observedShardId, timeoutMs);
+        if (!waitCondition(shardId, ZookeeperStat::isSlaveOperational, timeoutMs)) {
+            throw new ShardManagerException(FAILED_START_SLAVE, "timed out");
+        }
+    }
+
+    private boolean waitCondition(String shardId, Function<ZookeeperStat, Boolean> statChecker, long timeoutMs)
+        throws InterruptedException, ShardManagerException {
         try {
-            trace("Write action {} to memberId={}", action, memberId);
+            if (!pollingWithTimeout(() -> getStatCheckPredicate(shardId, statChecker),
+                                    timeoutMs / 3, timeoutMs, lock, newEvent)) {
+                return false;
+            }
+        } catch (ExecutionException e) {
+            throw new ShardManagerException(e);
+        }
+        return true;
+    }
+
+
+    private boolean getStatCheckPredicate(String shardId, Function<ZookeeperStat, Boolean> statChecker)
+        throws java.io.IOException {
+        for (ChildData d : stats.getCurrentData()) {
+            ZookeeperStat stat = objectMapper.readValue(d.getData(), ZookeeperStat.class);
+            if (shardId != null && !isMemberInShard(stat.memberId, shardId)) {
+                continue;
+            }
+            if (!statChecker.apply(stat)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean isMemberInShard(int memberId, String shardId) {
+        return config.getMember(memberId).getShardId().equals(shardId);
+    }
+
+    private void sendActionToShard(String shardId, Action action, Object... args) {
+        config.getMembersInShard(shardId).forEach(m -> sendAction(m.getMemberId(), action, args));
+    }
+
+    private void sendAction(int memberId, Action action, Object... args) {
+        try {
+            trace("[{}] Write action {} to memberId={}, params={}", clientName, action, memberId, args);
             ZookeeperAction zookeeperAction = new ZookeeperAction();
             zookeeperAction.memberId = memberId;
             zookeeperAction.action = action;
             zookeeperAction.args = Arrays.asList(args);
             client.setData().forPath(ZookeeperUtils.actionPath(serviceName, memberId),
-                                     objectMapper.writeValueAsBytes(zookeeperAction));
+                                                    objectMapper.writeValueAsBytes(zookeeperAction));
         } catch (Exception e) {
-            logger.warn("Cannot write action {} to memberId={}", action, memberId);
+            logger.warn("[{}] Cannot write action {} to memberId={}, params={}", clientName, action, memberId, args);
         }
     }
 
@@ -94,89 +151,69 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     @Override
     public void stopObserving(String shardId, String observedShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        for (Config.ConfigMember m : config.getMembersInShard(shardId)) {
-            setAction(m.getMemberId(), STOP_SLAVE, shardId, observedShardId, timeoutMs);
-        }
+        sendActionToShard(shardId, STOP_SLAVE, shardId, observedShardId, timeoutMs);
+        waitCondition(shardId, ZookeeperStat::isNormalOperational, timeoutMs);
     }
+
 
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
-        throws ShardManagerException {
-        for (Config.ConfigMember m : config.getMembersInShard(fromShardId)) {
-            setAction(m.getMemberId(), MIGRATE_1, splitRange.lowerEndpoint(),
-                      splitRange.upperEndpoint(), fromShardId, toShardId, timeoutMs);
-        }
+        throws ShardManagerException, InterruptedException {
+        sendActionToShard(fromShardId, MIGRATE_1, splitRange.lowerEndpoint(),
+                          splitRange.upperEndpoint(), fromShardId, toShardId, timeoutMs);
+        waitCondition(fromShardId, ZookeeperStat::isMigrating1Operational, timeoutMs);
+        setBuckets(splitRange, fromShardId, toShardId, false);
+        setBuckets(splitRange, fromShardId, toShardId, true);
     }
 
     @Override
     public boolean waitSlavesSynced(String shardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        try {
-            return waitSlaveCondition(shardId, timeoutMs, Collections.singletonList(SYNCED));
-        } catch (ExecutionException e) {
-            logger.warn("Error happened in wait slaves -- msg={}", e.getMessage());
-            return false;
-        }
+        return waitCondition(shardId, stat -> stat.isSlaveOperational() && stat.status == SYNCED, timeoutMs);
     }
 
 
     @Override
     public boolean waitSlavesApproaching(String shardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        try {
-            return waitSlaveCondition(shardId, timeoutMs, Arrays.asList(APPROACHED, SYNCED));
-        } catch (ExecutionException e) {
-            logger.warn("Error happened in wait slaves -- msg={}", e.getMessage());
-            return false;
-        }
+        return waitCondition(shardId, getSlaveApproachingChecker(), timeoutMs);
     }
 
-    @Override
-    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
-        for (Config.ConfigMember m : config.getMembers()) {
-            setAction(m.getMemberId(), !migrationComplete ? MIGRATE_2 : MIGRATE_3, splitRange.lowerEndpoint(),
-                      splitRange.upperEndpoint(), fromShardId, toShardId, migrationComplete);
-        }
-    }
-
-    @Override
-    public boolean waitBucketsCondition(Range<Integer> range, String fromShardId, String toShardId, long timeoutMs)
-        throws InterruptedException {
-        try {
-            return Utils.pollingWithTimeout(() -> {
-                for (ChildData childData : stats.getCurrentData()) {
-                    ZookeeperStat stat = objectMapper.readValue(childData.getData(), ZookeeperStat.class);
-                    if (stat.mode != ZookeeperStat.Mode.MIGRATING_2 || !stat.status.equals(RUNNING)) {
-                        return false;
-                    }
-                }
-                return true;
-            }, timeoutMs / 3, timeoutMs);
-        } catch (ExecutionException e) {
-            logger.warn("Error while waitBucketCondition, message={}", e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean waitSlaveCondition(String shardId, long timeoutMs, List<Status> statuses)
-        throws InterruptedException, ExecutionException {
-        return Utils.pollingWithTimeout(() -> {
-            for (ChildData childData : stats.getCurrentData()) {
-                ZookeeperStat stat = objectMapper.readValue(childData.getData(), ZookeeperStat.class);
-                if (!config.getMember(stat.memberId).getShardId().equals(shardId)) {
-                    continue;
-                }
-                if (stat.mode != ZookeeperStat.Mode.SLAVE || !statuses.contains(stat.status)) {
-                    return false;
-                }
+    private Function<ZookeeperStat, Boolean> getSlaveApproachingChecker() {
+        return stat -> {
+            if (!stat.isSlaveOperational()) {
+                throw new RuntimeException("Master is gone..");
             }
-            return true;
-        }, timeoutMs / 3, timeoutMs);
+            return stat.isSlaveOperational() && Arrays.asList(APPROACHED, SYNCED).contains(stat.status);
+        };
+    }
+
+    @Override
+    public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete)
+        throws ShardManagerException, InterruptedException {
+        sendActionToAll(!migrationComplete ? MIGRATE_2 : MIGRATE_3, splitRange.lowerEndpoint(),
+                        splitRange.upperEndpoint(), fromShardId, toShardId, migrationComplete);
+        if (!waitCondition(null, !migrationComplete ? ZookeeperStat::isMigrating2Operational
+                                                    : ZookeeperStat::isNormalOperational, 300)) {
+            throw new ShardManagerException(FAILED_SET_BUCKETS, "timed out");
+        }
+    }
+
+    private void sendActionToAll(Action action, Object... args) {
+        for (Config.ConfigMember m : config.getMembers()) {
+            sendAction(m.getMemberId(), action, args);
+        }
     }
 
     private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
+    }
+
+    @Override
+    public void stop() {
+        CloseableUtils.closeQuietly(stats);
+        CloseableUtils.closeQuietly(client);
     }
 }

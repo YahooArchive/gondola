@@ -6,77 +6,96 @@
 
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.Shard;
-import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.Role;
+import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.container.ChangeLogProcessor;
+import com.yahoo.gondola.container.RoutingService;
+import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
+import javax.ws.rs.container.ContainerRequestContext;
+
 /**
  * The core business logic of demo service.
  */
-public class DemoService {
-    Logger logger = LoggerFactory.getLogger(DemoService.class);
+public class DemoService extends RoutingService {
 
-    Gondola gondola;
+    private static Logger logger = LoggerFactory.getLogger(DemoService.class);
+    private Map<String, String> entries = new ConcurrentHashMap<>();
+    private String hostId;
+    private DemoRoutingHelper demoRoutingHelper;
 
-    // The map holding all the entries
-    Map<String, String> entries = new ConcurrentHashMap<>();
-
-    // Gondola shard, used for replication
-    Shard shard;
-
-    ChangeLogProcessor clProcessor;
-
-    public DemoService(Gondola gondola) throws Exception {
-        this.gondola = gondola;
-        shard = gondola.getShardsOnHost().get(0);
-
-        clProcessor = new ChangeLogProcessor();
-        clProcessor.start();
+    /**
+     * Instantiates a new Routing service.
+     *
+     * @param gondola the gondola
+     */
+    public DemoService(Gondola gondola) {
+        super(gondola);
+        hostId = gondola.getHostId();
+        demoRoutingHelper = new DemoRoutingHelper(gondola.getHostId(), gondola.getConfig());
+        gondola.registerForRoleChanges(listener);
     }
+
+    Consumer<RoleChangeEvent> listener = crevt -> {
+        switch (crevt.newRole) {
+            case CANDIDATE:
+                logger.info("[{}] Current role: CANDIDATE", gondola.getHostId());
+                break;
+            case LEADER:
+                logger.info("[{}] Current role: LEADER", gondola.getHostId());
+                break;
+            case FOLLOWER:
+                logger.info("[{}] Current role: FOLLOWER", gondola.getHostId());
+                break;
+        }
+    };
+
 
     /**
      * Returns the value stored at the specified key.
      *
-     * @param key
+     * @param key            the key
+     * @param servletRequest the servlet request
      * @return The non-null value of the key
-     * @throws NotFoundException
+     * @throws NotLeaderException the not leader exception
+     * @throws NotFoundException  the not found exception
      */
-    public String getValue(String key) throws NotFoundException, NotLeaderException {
-        if (shard.getLocalRole() != Role.LEADER) {
+    public String getValue(String key, ContainerRequestContext servletRequest)
+        throws NotLeaderException, NotFoundException {
+        if (!isLeader(getShardId(servletRequest))) {
             throw new NotLeaderException();
         }
         if (!entries.containsKey(key)) {
             throw new NotFoundException();
         }
         String value = entries.get(key);
-        logger.info(String.format("[%s] Get key %s: %s", gondola.getHostId(), key, value));
+        logger.info(String.format("[%s] Get key %s: %s", this.hostId, key, value));
         return value;
     }
 
     /**
      * Commits the entry to Raft log. The entries map is not updated; it is updated by the Replicator thread.
-     * @param key The non-null key
-     * @param value The non-null value
+     *
+     * @param key            The non-null key
+     * @param value          The non-null value
+     * @param servletRequest the servlet request
+     * @throws NotLeaderException the not leader exception
      */
-    public void putValue(String key, String value) throws NotLeaderException {
+    public void putValue(String key, String value, ContainerRequestContext servletRequest) throws NotLeaderException {
         if (key.indexOf(" ") >= 0) {
             throw new IllegalArgumentException("The key must not contain spaces");
         }
         try {
-            Command command = shard.checkoutCommand();
             byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
-            command.commit(bytes, 0, bytes.length);
-            logger.info(String.format("[%s] Put key %s=%s", gondola.getHostId(), key, value));
+            writeLog(getShardId(servletRequest), bytes);
+            logger.info(String.format("[%s] Put key %s=%s", hostId, key, value));
         } catch (com.yahoo.gondola.NotLeaderException e) {
             logger.info(String.format("Failed to put %s/%s because not a leader", key, value));
         } catch (InterruptedException e) {
@@ -84,66 +103,37 @@ public class DemoService {
         }
     }
 
-    /**
-     * Returns the applied index.
-     *
-     * @return applied index.
-     */
-    public int getAppliedIndex() {
-       return clProcessor.getAppliedIndex();
-    }
-
-    /**
-     * Background thread that continuously reads committed commands from the Gondola shard, and updates the entries
-     * map. TODO: prevent reads until the map is fully updated.
-     */
-    public class ChangeLogProcessor extends Thread {
-        int appliedIndex = 0;
-        List<Consumer<String>> listeners = new ArrayList<>();
-
-        @Override
-        public void run() {
-            String string;
-            while (true) {
-                try {
-                    string = shard.getCommittedCommand(appliedIndex + 1).getString();
-                    appliedIndex++;
-                    logger.info("[{}] Executing command {}: {}", gondola.getHostId(),
-                                appliedIndex, string);
-                    String[] pair = string.split(" ", 2);
-                    if (pair.length == 2) {
-                        entries.put(pair[0], pair[1]);
-                    }
-                } catch (Throwable e) {
-                    logger.error(e.getMessage(), e);
-                    break;
-                }
+    @Override
+    public ChangeLogProcessor.ChangeLogConsumer provideChangeLogConsumer() {
+        return (shardId, command) -> {
+            String[] pair = command.getString().split(" ", 2);
+            if (pair.length == 2) {
+                entries.put(pair[0], pair[1]);
             }
-        }
+        };
+    }
 
-        public int getAppliedIndex() {
-            return appliedIndex;
-        }
+    @Override
+    public RoutingHelper provideRoutingHelper() {
+        return demoRoutingHelper;
+    }
+
+    @Override
+    public void ready(String shardId) {
+        logger.info("[{}] {} ready for serving", gondola.getHostId(), shardId);
     }
 
     /**
-     * Called after all changes from the Raft log have been applied and before requests
-     * are accepted.
+     * The type Not leader exception.
      */
-    public void beforeServing() {
-        // In this demo application, there's no need to update internal state
-        logger.info("[{}] Ready", gondola.getHostId());
+    public class NotLeaderException extends Exception {
+
     }
 
     /**
-     * Thrown when the key for a GET request does not exist.
+     * The type Not found exception.
      */
-    public static class NotFoundException extends Throwable {
-    }
+    public class NotFoundException extends Exception {
 
-    /**
-     * Thrown when the current node is not the leader.
-     */
-    public static class NotLeaderException extends Throwable {
     }
 }

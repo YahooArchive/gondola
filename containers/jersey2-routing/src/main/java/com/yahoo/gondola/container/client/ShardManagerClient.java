@@ -12,4 +12,5 @@ import com.yahoo.gondola.container.ShardManagerProtocol;
  * ShardManager provides the capability to manage the shard.
  */
 public interface ShardManagerClient extends ShardManagerProtocol {
+    void stop();
 }

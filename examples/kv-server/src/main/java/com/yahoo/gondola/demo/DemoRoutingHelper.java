@@ -6,9 +6,7 @@
 
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import java.util.HashSet;
@@ -16,7 +14,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import javax.ws.rs.container.ContainerRequestContext;
 
@@ -25,16 +22,16 @@ import javax.ws.rs.container.ContainerRequestContext;
  */
 public class DemoRoutingHelper implements RoutingHelper {
 
-    Gondola gondola;
+    String hostId;
+    Config config;
     int numberOfShards;
     List<String> shardIdList;
-    DemoService demoService;
 
-    public DemoRoutingHelper(Gondola gondola, DemoService demoService) {
-        this.gondola = gondola;
-        this.demoService = demoService;
-        loadNumberOfShards(gondola);
-        loadShardIdList(gondola);
+    public DemoRoutingHelper(String hostId, Config config) {
+        this.hostId = hostId;
+        this.config = config;
+        loadNumberOfShards();
+        loadShardIdList();
     }
 
     @Override
@@ -44,23 +41,11 @@ public class DemoRoutingHelper implements RoutingHelper {
     }
 
     @Override
-    public int getAppliedIndex(String shardId) {
-        return demoService.getAppliedIndex();
-    }
-
-    @Override
     public String getSiteId(ContainerRequestContext request) {
-        return gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("siteId");
+        return config.getAttributesForHost(hostId).get("siteId");
     }
 
-    @Override
-    public void beforeServing(String shardId) {
-        demoService.beforeServing();
-    }
-
-    private void loadNumberOfShards(Gondola gondola) {
-        Config config = gondola.getConfig();
-
+    private void loadNumberOfShards() {
         Set<String> shardIds = new HashSet<>();
         for (String hostId : config.getHostIds()) {
             shardIds.addAll(config.getShardIds(hostId));
@@ -68,10 +53,8 @@ public class DemoRoutingHelper implements RoutingHelper {
         numberOfShards = shardIds.size();
     }
 
-    private void loadShardIdList(Gondola gondola) {
-        shardIdList = gondola.getShardsOnHost().stream()
-                          .map(Shard::getShardId)
-                          .collect(Collectors.toList());
+    private void loadShardIdList() {
+        shardIdList = config.getShardIds(hostId);
     }
 
     /**

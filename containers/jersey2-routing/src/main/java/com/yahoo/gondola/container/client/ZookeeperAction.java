@@ -82,4 +82,13 @@ public class ZookeeperAction {
         public int rangeStop;
         public boolean complete;
     }
+
+    @Override
+    public String toString() {
+        return "ZookeeperAction{"
+               + "action=" + action
+               + ", memberId=" + memberId
+               + ", args=" + args
+               + '}';
+    }
 }
