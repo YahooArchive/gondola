@@ -10,12 +10,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
-import org.glassfish.jersey.server.ResourceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +90,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private List<Runnable> shutdownCallbacks = new ArrayList<>();
 
     private static List<RoutingFilter> instances = new ArrayList<>();
-    private ResourceConfig application;
+    private ChangeLogProcessor changeLogProcessor;
+    private RoutingService service;
 
     /**
      * Disallow default constructor.
@@ -98,29 +100,18 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
     /**
-     * Get application instance.
-     *
-     * @return Application instance.
-     */
-    public ResourceConfig getApplication() {
-        return application;
-    }
-
-    /**
      * Instantiates a new Routing filter.
      *
      * @param gondola             the gondola
      * @param routingHelper       the routing helper
      * @param proxyClientProvider the proxy client provider
-     * @param application         the application instance
      * @throws ServletException the servlet exception
      */
     RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                  ResourceConfig application)
+                  ChangeLogProcessor changeLogProcessor, RoutingService service)
         throws ServletException {
         this.gondola = gondola;
         this.routingHelper = routingHelper;
-        this.application = application;
         lockManager = new LockManager(gondola);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
@@ -128,6 +119,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
         instances.add(this);
+        this.changeLogProcessor = changeLogProcessor;
+        this.service = service;
+    }
+
+    public RoutingService getService() {
+        return service;
     }
 
     private void loadConfig() {
@@ -151,7 +148,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         waitDrainRaftLogs(shardId);
                         trace("[{}-{}] Raft logs are up-to-date, notify application is ready to serve...",
                               gondola.getHostId(), roleChangeEvent.leader.getMemberId());
-                        routingHelper.beforeServing(shardId);
+                        service.ready(shardId);
                         trace("[{}-{}] Ready for serving, unblocking the requests...",
                               gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                         long count = lockManager.unblockRequestOnShard(shardId);
@@ -180,6 +177,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         int bucketId = routingHelper.getBucketId(request);
         incrementBucketCounter(bucketId);
         String shardId = getShardId(request);
+
+        request.setProperty("shardId", shardId);
+        request.setProperty("bucketId", bucketId);
 
         trace("Processing request: {} of shard={}, forwarded={}",
               request.getUriInfo().getAbsolutePath(), shardId,
@@ -531,7 +531,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             try {
                 Thread.sleep(500);
                 long now = System.currentTimeMillis();
-                int diff = gondola.getShard(shardId).getCommitIndex() - routingHelper.getAppliedIndex(shardId);
+                int diff = gondola.getShard(shardId).getCommitIndex() - changeLogProcessor.getAppliedIndex(shardId);
                 if (now - checkTime > 10000) {
                     checkTime = now;
                     logger.warn("[{}] Recovery running for {} seconds, {} logs left", gondola.getHostId(),
@@ -567,7 +567,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         shutdownCallbacks.add(runnable);
     }
 
+    public void start() {
+        changeLogProcessor.start();
+    }
+
     private void stop() {
+        changeLogProcessor.stop();
         shutdownCallbacks.forEach(Runnable::run);
         gondola.stop();
     }
@@ -581,7 +586,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         RoutingHelper routingHelper;
         ProxyClientProvider proxyClientProvider;
         ShardManagerProvider shardManagerProvider;
-        ResourceConfig application;
+        Class<? extends RoutingService> serviceClass;
+        RoutingService service;
+        URI configUri;
 
         public static Builder createRoutingFilter() {
             return new Builder();
@@ -589,16 +596,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         Builder() {
             proxyClientProvider = new ProxyClientProvider();
-        }
-
-        public Builder setGondola(Gondola gondola) {
-            this.gondola = gondola;
-            return this;
-        }
-
-        public Builder setRoutingHelper(RoutingHelper routingHelper) {
-            this.routingHelper = routingHelper;
-            return this;
         }
 
         public Builder setProxyClientProvider(ProxyClientProvider proxyClientProvider) {
@@ -611,24 +608,45 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             return this;
         }
 
-        public Builder setApplication(ResourceConfig application) {
-            this.application = application;
+        public Builder setService(Class<? extends RoutingService> serviceClass) {
+            this.serviceClass = serviceClass;
             return this;
         }
 
-        public RoutingFilter build() throws ServletException {
-            Preconditions.checkState(gondola != null, "Gondola instance must be set");
+        public Builder setConfigUri(URI configUri) {
+            this.configUri = configUri;
+            return this;
+        }
+
+        public RoutingFilter build()
+            throws ServletException, GondolaException, NoSuchMethodException, IllegalAccessException,
+                   InvocationTargetException, InstantiationException {
+            Preconditions.checkState(serviceClass != null, "Service class must be set");
+            Preconditions.checkState(configUri != null, "Config URI must be set");
+            gondola = createGondolaInstance();
+            service = serviceClass.getConstructor(Gondola.class).newInstance(gondola);
+            routingHelper = service.provideRoutingHelper();
             Preconditions.checkState(routingHelper != null, "RoutingHelper instance must be set");
-            Preconditions.checkState(application != null, "ResourceConfig instance must be set");
+
             if (shardManagerProvider == null) {
                 shardManagerProvider = new ShardManagerProvider(gondola.getConfig());
             }
-            RoutingFilter routingFilter = new RoutingFilter(gondola, routingHelper, proxyClientProvider, application);
-            initializeShardManagerServer(routingFilter);
+            ChangeLogProcessor changeLogProcessor = new ChangeLogProcessor(gondola, service.provideChangeLogConsumer());
+            RoutingFilter routingFilter =
+                new RoutingFilter(gondola, routingHelper, proxyClientProvider, changeLogProcessor,
+                                  service);
+            initShardManagerServer(routingFilter);
+            gondola.start();
+            routingFilter.start();
             return routingFilter;
         }
 
-        private void initializeShardManagerServer(RoutingFilter routingFilter) {
+        private Gondola createGondolaInstance() {
+            String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
+            return new Gondola(new Config(new ConfigLoader().loadConfig(configUri)), hostId);
+        }
+
+        private void initShardManagerServer(RoutingFilter routingFilter) {
             ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
             if (shardManagerServer != null) {
                 ShardManager shardManager =

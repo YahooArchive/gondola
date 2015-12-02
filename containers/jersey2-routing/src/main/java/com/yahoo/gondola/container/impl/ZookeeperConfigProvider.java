@@ -71,6 +71,7 @@ public class ZookeeperConfigProvider implements Config.ConfigProvider {
     private void saveFile(byte[] bytes) throws IOException {
         FileWriter writer = new FileWriter(tmpFile.toFile());
         writer.write(new String(bytes));
+        writer.flush();
         writer.close();
         verifyConfig(tmpFile.toFile());
         Files.move(tmpFile, confFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);

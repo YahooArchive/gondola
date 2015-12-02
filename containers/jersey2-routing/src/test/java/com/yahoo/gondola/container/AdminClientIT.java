@@ -109,19 +109,10 @@ public class AdminClientIT {
             }
 
             @Override
-            public int getAppliedIndex(String shardId) {
-                return gondola.getShard(shardId).getCommitIndex();
-            }
-
-            @Override
             public String getSiteId(ContainerRequestContext request) {
                 return "gq1";
             }
 
-            @Override
-            public void beforeServing(String clusterId) {
-                // doing nothing
-            }
         }, new ProxyClientProvider());
     }
 

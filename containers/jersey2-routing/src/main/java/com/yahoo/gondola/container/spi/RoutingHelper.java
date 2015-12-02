@@ -29,25 +29,10 @@ public interface RoutingHelper {
     int getBucketId(ContainerRequestContext request);
 
     /**
-     * Returns the applied index.
-     *
-     * @param shardId the shard id
-     * @return the applied index
-     */
-    int getAppliedIndex(String shardId);
-
-    /**
      * Returns the site ID that should handle the specified request.
      *
      * @param request the request
      * @return a non-null site ID
      */
     String getSiteId(ContainerRequestContext request);
-
-    /**
-     * Callback to tell application that everything is set.
-     *
-     * @param shardId the shard id
-     */
-    void beforeServing(String shardId);
 }
