@@ -630,11 +630,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         private void initializeShardManagerServer(RoutingFilter routingFilter) {
             ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
-            ShardManager shardManager =
-                new ShardManager(gondola, routingFilter, gondola.getConfig(),
-                                 shardManagerProvider.getShardManagerClient());
-            shardManagerServer.setShardManager(shardManager);
-            routingFilter.registerShutdownFunction(shardManagerServer::stop);
+            if (shardManagerServer != null) {
+                ShardManager shardManager =
+                    new ShardManager(gondola, routingFilter, gondola.getConfig(),
+                                     shardManagerProvider.getShardManagerClient());
+                shardManagerServer.setShardManager(shardManager);
+                routingFilter.registerShutdownFunction(shardManagerServer::stop);
+            }
         }
     }
 
