@@ -17,6 +17,7 @@ import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 import com.yahoo.gondola.container.utils.ZookeeperServer;
 
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.internal.util.reflection.Whitebox;
 import org.testng.annotations.DataProvider;
@@ -58,6 +59,9 @@ public class AdminClientIT {
     AdminClient adminClient;
     List<ShardManagerServer> shardManagerServers;
 
+    @Mock
+    ConfigWriter configWriter;
+
     enum Type {DIRECT, ZOOKEEPER}
 
     public void setUp(Type type) throws Exception {
@@ -84,7 +88,7 @@ public class AdminClientIT {
         for (Map.Entry<String, CountDownLatch> e : latches.entrySet()) {
             e.getValue().await();
         }
-        adminClient = new AdminClient(SERVICE_NAME, shardManagerClient, config);
+        adminClient = new AdminClient(SERVICE_NAME, shardManagerClient, config, configWriter);
     }
 
     private Consumer<RoleChangeEvent> getRoleChangeEventListener() {

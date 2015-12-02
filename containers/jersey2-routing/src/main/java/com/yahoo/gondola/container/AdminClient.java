@@ -14,6 +14,7 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ public class AdminClient {
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
+    private ConfigWriter configWriter;
 
     private static Logger logger = LoggerFactory.getLogger(AdminClient.class);
     private boolean tracing = false;
@@ -41,10 +43,12 @@ public class AdminClient {
      * @param shardManagerClient the shard manager client
      * @param config             the config
      */
-    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config) {
+    public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config,
+                       ConfigWriter configWriter) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
         this.config = config;
+        this.configWriter = configWriter;
         this.config.registerForUpdates(config1 -> {
             tracing = config1.getBoolean("tracing.adminCli");
         });
@@ -87,11 +91,10 @@ public class AdminClient {
     /**
      * Sets config.
      *
-     * @param config the config
+     * @param configFile the config file.
      * @throws AdminException the admin exception
      */
-    public void setConfig(Config config) throws AdminException {
-        this.config = config;
+    public void setConfig(File configFile) throws AdminException {
     }
 
 
@@ -136,7 +139,9 @@ public class AdminClient {
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
                 shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
-                trace("[admin] Done!");
+                trace("[admin] success!");
+                trace("[admin] Writing latest config to config storage!");
+                saveConfig(fromShardId, toShardId);
                 break;
             } catch (ShardManagerException e) {
                 try {
@@ -153,6 +158,17 @@ public class AdminClient {
                 }
             }
         }
+    }
+
+    private void saveConfig(String fromShardId, String toShardId) throws AdminException {
+        configWriter.setBucketMap(fromShardId, getBucketMapString(fromShardId));
+        configWriter.setBucketMap(fromShardId, getBucketMapString(toShardId));
+        setConfig(configWriter.save());
+    }
+
+    private String getBucketMapString(String fromShardId) {
+        // TODO: implement
+        return "";
     }
 
     private void trace(String format, Object... args) {

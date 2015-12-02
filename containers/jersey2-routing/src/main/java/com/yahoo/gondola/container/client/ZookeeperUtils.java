@@ -23,6 +23,10 @@ public class ZookeeperUtils {
         return basePath(serviceName) + "/actions";
     }
 
+    public static String configPath(String serviceName) {
+        return basePath(serviceName) + "/config";
+    }
+
     public static String statPath(String serviceName, int memberId) {
         return statBasePath(serviceName) + "/" + memberId;
     }
