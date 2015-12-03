@@ -13,8 +13,6 @@ import org.apache.curator.framework.CuratorFramework;
  */
 public class ZookeeperUtils {
 
-    private static String PREFIX = "/commands";
-
     public static String actionPath(String serviceName, int memberId) {
         return actionBasePath(serviceName) + "/" + memberId;
     }
@@ -46,6 +44,6 @@ public class ZookeeperUtils {
     }
 
     public static String basePath(String serviceName) {
-        return "/" + serviceName + PREFIX;
+        return "/" + serviceName;
     }
 }

@@ -643,7 +643,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         private Gondola createGondolaInstance() throws GondolaException {
             String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
-            return new Gondola(new Config(new ConfigLoader().loadConfig(configUri)), hostId);
+            return new Gondola(ConfigLoader.getConfigInstance(configUri), hostId);
         }
 
         private void initShardManagerServer(RoutingFilter routingFilter) {

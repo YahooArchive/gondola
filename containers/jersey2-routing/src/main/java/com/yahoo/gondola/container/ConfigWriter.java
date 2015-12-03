@@ -38,7 +38,13 @@ public class ConfigWriter {
         this.configFile = configFile;
         config = new Config(configFile);
         configImpl = ConfigFactory.parseFile(configFile);
+        tmpFile = getFile(true);
+        tmpFile = getFile(true);
         verify();
+    }
+
+    private File getFile(boolean tmp) {
+        return new File("foo");
     }
 
     private void verify() {
@@ -51,7 +57,11 @@ public class ConfigWriter {
      * @return the file
      */
     public File save() {
-        ConfigRenderOptions renderOptions = ConfigRenderOptions.defaults().setJson(false);
+        ConfigRenderOptions renderOptions = ConfigRenderOptions.defaults()
+            .setComments(true)
+            .setFormatted(true)
+            .setOriginComments(false)
+            .setJson(false);
         bumpVersion();
         String configData = configImpl.root().render(renderOptions);
         FileWriter writer = null;
@@ -67,11 +77,27 @@ public class ConfigWriter {
     }
 
     private void bumpVersion() {
-        // TODO: bump config version
+        int version = configImpl.getInt("version");
+        version++;
+        configImpl = configImpl.withValue("version", ConfigValueFactory.fromAnyRef(version));
     }
 
     public void setBucketMap(String shardId, String bucketMapString) {
-        configImpl = configImpl
-            .withValue("gondola.shards." + shardId, ConfigValueFactory.fromAnyRef(bucketMapString));
+        boolean success = false;
+//        ConfigList configList = ConfigValueFactory.fromIterable(Collections.emptyList());
+//        for (com.typesafe.config.Config shard : configImpl.getConfigList("gondola.shards")) {
+//            if (shard.getString("shardId").equals(shardId)) {
+//                shard = shard.withValue("bucketMap", ConfigValueFactory.fromAnyRef(bucketMapString));
+//                success = true;
+//            }
+//            configList.add(shard.root());
+//            configList.
+//        }
+//        if (!success) {
+//            throw new IllegalArgumentException("ShardID not found in config!" + shardId);
+//        }
+//
+//
+//        configImpl = configImpl.withValue("gondola.shards", configList);
     }
 }

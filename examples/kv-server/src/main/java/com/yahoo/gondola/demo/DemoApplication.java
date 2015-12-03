@@ -29,6 +29,7 @@ public class DemoApplication extends ResourceConfig {
 
         // Initialize Routing application
         RoutingFilter routingFilter = RoutingFilter.Builder.createRoutingFilter()
+//            .setConfigUri(URI.create("zookeeper://localhost:2181/foo"))
             .setConfigUri(URI.create("classpath:///gondola.conf"))
             .setService(DemoService.class)
             .build();
