@@ -116,7 +116,7 @@ public class ExceptionLogger {
             }
 
             // Possibly suppress the stack trace depending on the class
-            if (e != null && stackTraceSuppression) {
+            if (e != null && stackTraceSuppression && noStackTraceClasses != null) {
                 for (Class c : noStackTraceClasses) {
                     if (e.getClass() == c) {
                         e = null;

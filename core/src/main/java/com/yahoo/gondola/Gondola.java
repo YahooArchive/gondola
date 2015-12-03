@@ -60,7 +60,7 @@ public class Gondola implements Stoppable {
     final String processId = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 
     // When null, indicates that start() has not been called yet
-    List<Shard> shards;
+    List<Shard> shards = new ArrayList<Shard>();
 
     // Shard id to shard map
     Map<String, Shard> shardMap = new HashMap<>();
@@ -82,12 +82,52 @@ public class Gondola implements Stoppable {
 
     ObjectName objectName;
 
+    // If false, init() should be called
+    boolean inited;
+
     /**
      * @param hostId the non-null id of the current host on which to start Gondola.
      */
-    public Gondola(Config config, String hostId) {
+    public Gondola(Config config, String hostId) throws GondolaException {
         this.config = config;
         this.hostId = hostId;
+
+        try {
+            // Initialize static config values
+            CoreCmd.initConfig(config);
+            Message.initConfig(config);
+            Peer.initConfig(config);
+            ExceptionLogger.initConfig(config);
+
+            messagePool = new MessagePool(config, stats);
+            init();
+        } catch (Exception e) {
+            throw new GondolaException(e);
+        }
+    }
+
+    private void init() throws Exception {
+        // Create implementations
+        String clockClassName = config.get(config.get("clock.impl") + ".class");
+        clock = (Clock) Class.forName(clockClassName).getConstructor(Gondola.class, String.class)
+                .newInstance(this, hostId);
+
+        String networkClassName = config.get(config.get("network.impl") + ".class");
+        network = (Network) Class.forName(networkClassName).getConstructor(Gondola.class, String.class)
+                .newInstance(this, hostId);
+
+        String storageClassName = config.get(config.get("storage.impl") + ".class");
+        storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
+                .newInstance(this, hostId);
+
+        // Create the shards running on a host
+        for (String shardId : config.getShardIds(hostId)) {
+            Shard shard = new Shard(this, shardId);
+
+            shards.add(shard);
+            shardMap.put(shardId, shard);
+        }
+        inited = true;
     }
 
     /**
@@ -98,38 +138,11 @@ public class Gondola implements Stoppable {
             logger.info("------- Gondola start: {}, {}, pid={} -------",
                     hostId, config.getAddressForHost(hostId), processId);
 
-            // Initialize static config values
-            CoreCmd.initConfig(config);
-            Message.initConfig(config);
-            Peer.initConfig(config);
-            ExceptionLogger.initConfig(config);
-
-            messagePool = new MessagePool(config, stats);
-
-            // Create implementations
-            String clockClassName = config.get(config.get("clock.impl") + ".class");
-            clock = (Clock) Class.forName(clockClassName).getConstructor(Gondola.class, String.class)
-                    .newInstance(this, hostId);
-
-            String networkClassName = config.get(config.get("network.impl") + ".class");
-            network = (Network) Class.forName(networkClassName).getConstructor(Gondola.class, String.class)
-                    .newInstance(this, hostId);
-
-            String storageClassName = config.get(config.get("storage.impl") + ".class");
-            storage = (Storage) Class.forName(storageClassName).getConstructor(Gondola.class, String.class)
-                    .newInstance(this, hostId);
-
-            // Create the shards running on a host
-            shards = new ArrayList<Shard>();
-            List<String> shardIds = config.getShardIds(hostId);
-            for (String shardId : shardIds) {
-                Shard shard = new Shard(this, shardId);
-
-                shards.add(shard);
-                shardMap.put(shardId, shard);
+            if (!inited) {
+                init();
             }
 
-            // Start all objects
+            // Start subsystem threads
             clock.start();
             network.start();
             storage.start();
@@ -158,22 +171,25 @@ public class Gondola implements Stoppable {
 
         // Shut down all local threads
         status = Utils.stopThreads(threads) && status;
+        threads.clear();
 
         // Shut down threads in all dependencies
         for (Shard shard : shards) {
             status = shard.stop() && status;
         }
+        shards.clear();
+        shardMap.clear();
         status = storage.stop() && status;
         status = clock.stop() && status;
 
-        threads.clear();
-        shardMap.clear();
         try {
             mbs.unregisterMBean(objectName);
+            inited = false;
         } catch (InstanceNotFoundException | MBeanRegistrationException e) {
             logger.error("Unregister MBean failed", e);
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
         }
-        shards = null;
         return status;
     }
 
@@ -196,9 +212,6 @@ public class Gondola implements Stoppable {
      * @return non-null list of shards.
      */
     public List<Shard> getShardsOnHost() {
-        if (shards == null) {
-            throw new IllegalStateException("start() must first be called");
-        }
         return shards;
     }
 
@@ -208,9 +221,6 @@ public class Gondola implements Stoppable {
      * @return null if the shard id does not exist.
      */
     public Shard getShard(String id) {
-        if (shards == null) {
-            throw new IllegalStateException("start() must first be called");
-        }
         return shardMap.get(id);
     }
 

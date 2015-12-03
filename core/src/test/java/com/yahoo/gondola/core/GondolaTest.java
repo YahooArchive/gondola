@@ -953,8 +953,8 @@ public class GondolaTest {
         // Create the slave
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g);
-        g.start();
         Member slave1 = g.getShard("shard2").getMember(1);
+        g.start();
 
         // Enable the slave
         slave1.setSlave(4);
@@ -994,8 +994,8 @@ public class GondolaTest {
         // Create the slave
         Gondola g = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g);
-        g.start();
         Member slave1 = g.getShard("shard2").getMember(1);
+        g.start();
 
         // Enable the slave
         slave1.setSlave(5);
