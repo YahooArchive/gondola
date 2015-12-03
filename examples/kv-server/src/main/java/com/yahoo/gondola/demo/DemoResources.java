@@ -17,8 +17,6 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.ServerErrorException;
 import javax.ws.rs.ServiceUnavailableException;
-import javax.ws.rs.container.ContainerRequestContext;
-import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 
 /**
@@ -33,9 +31,9 @@ public class DemoResources {
     DemoService service;
 
     @GET
-    public String getEntry(@PathParam("key") String key, @Context ContainerRequestContext request) {
+    public String getEntry(@PathParam("key") String key) {
         try {
-            return service.getValue(key, request);
+            return service.getValue(key);
         } catch (DemoService.NotLeaderException e) {
             throw new ServiceUnavailableException();
         } catch (DemoService.NotFoundException e) {
@@ -44,9 +42,9 @@ public class DemoResources {
     }
 
     @PUT
-    public void putEntry(String value, @PathParam("key") String key, @Context ContainerRequestContext request) {
+    public void putEntry(String value, @PathParam("key") String key) {
         try {
-            service.putValue(key, value, request);
+            service.putValue(key, value);
         } catch (DemoService.NotLeaderException e) {
             throw new ServiceUnavailableException();
         } catch (Throwable t) {

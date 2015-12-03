@@ -10,11 +10,11 @@ import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.client.ZookeeperShardManagerClient;
 import com.yahoo.gondola.container.impl.DirectShardManagerClient;
 import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
-import com.yahoo.gondola.container.spi.RoutingHelper;
 import com.yahoo.gondola.container.utils.ZookeeperServer;
 
 import org.mockito.Mock;
@@ -33,8 +33,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import javax.ws.rs.container.ContainerRequestContext;
 
 import static com.yahoo.gondola.container.AdminClientIT.Type.DIRECT;
 import static com.yahoo.gondola.container.AdminClientIT.Type.ZOOKEEPER;
@@ -101,19 +99,21 @@ public class AdminClientIT {
         };
     }
 
+    @Mock
+    ChangeLogProcessor changeLogProcessor;
+
+    @Mock
+    RoutingService routingService;
+
     private LocalTestRoutingServer getLocalTestRoutingServer(final Gondola gondola) throws Exception {
-        return new LocalTestRoutingServer(gondola, new RoutingHelper() {
-            @Override
-            public int getBucketId(ContainerRequestContext request) {
-                return 1;
-            }
-
-            @Override
-            public String getSiteId(ContainerRequestContext request) {
-                return "gq1";
-            }
-
-        }, new ProxyClientProvider());
+        return new LocalTestRoutingServer(gondola, request -> 1, new ProxyClientProvider(),
+                                          new HashMap<String, RoutingService>() {
+                                              {
+                                                  for (Shard shard : gondola.getShardsOnHost()) {
+                                                      put(shard.getShardId(), routingService);
+                                                  }
+                                              }
+                                          }, changeLogProcessor);
     }
 
     private ShardManagerServer getShardManagerServer(Type type, Gondola gondola,

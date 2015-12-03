@@ -9,97 +9,70 @@ package com.yahoo.gondola.container;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.NotLeaderException;
-import com.yahoo.gondola.container.spi.RoutingHelper;
+import com.yahoo.gondola.RoleChangeEvent;
+import com.yahoo.gondola.Shard;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
-
-import javax.ws.rs.container.ContainerRequestContext;
 
 /**
  * The type Routing service.
  */
 public abstract class RoutingService {
 
+    protected String hostId;
+    protected String shardId;
+    protected int memberId;
     protected Gondola gondola;
-    private List<Consumer<Event>> eventCallbacks = new ArrayList<>();
+    private Shard shard;
+    private List<Consumer<RoleChangeEvent>> eventCallbacks = new ArrayList<>();
 
-    /**
-     * Instantiates a new Routing service.
-     *
-     * @param gondola the gondola
-     */
-    public RoutingService(Gondola gondola) {
+
+    // TODO: use dependency injection to hide gondola instance from user app.
+    public RoutingService(Gondola gondola, String shardId) {
         this.gondola = gondola;
+        shard = gondola.getShard(shardId);
+        hostId = gondola.getHostId();
+        this.shardId = shardId;
+        memberId = shard.getLocalMember().getMemberId();
     }
 
-    public void registerEventHandler(Consumer<Event> consumer) {
+    public void registerEventHandler(Consumer<RoleChangeEvent> consumer) {
+        gondola.registerForRoleChanges(consumer);
         eventCallbacks.add(consumer);
     }
 
     /**
      * Provide changeLog consumer
-     *
      */
     public abstract ChangeLogProcessor.ChangeLogConsumer provideChangeLogConsumer();
 
     /**
-     * Provide routing helper routing helper.
-     *
-     * @return the routing helper
-     */
-    public abstract RoutingHelper provideRoutingHelper();
-
-    /**
      * Called by container when the shard is ready for serving.
-     *
-     * @param shardId the shard id
      */
-    public abstract void ready(String shardId);
+    public abstract void ready();
 
     /**
      * Write log.
      *
-     * @param shardId the shard id
-     * @param bytes   the bytes
+     * @param bytes the bytes
      * @throws NotLeaderException   the not leader exception
      * @throws InterruptedException the interrupted exception
      */
-    public void writeLog(String shardId, byte[] bytes)
+    public void writeLog(byte[] bytes)
         throws NotLeaderException, InterruptedException {
-        Command command = gondola.getShard(shardId).checkoutCommand();
+        Command command = shard.checkoutCommand();
         command.commit(bytes, 0, bytes.length);
-    }
-
-    /**
-     * Gets shard id.
-     *
-     * @param request the request
-     * @return the shard id
-     */
-    public String getShardId(ContainerRequestContext request) {
-        return (String) request.getProperty("shardId");
-    }
-
-    /**
-     * Gets bucket id.
-     *
-     * @param request the request
-     * @return the bucket id
-     */
-    public int getBucketId(ContainerRequestContext request) {
-        return Integer.parseInt((String) request.getProperty("bucketId"));
     }
 
     /**
      * Is leader boolean.
      *
-     * @param shardId the shard id
      * @return the boolean
      */
-    public boolean isLeader(String shardId) {
-        return gondola.getShard(shardId).getLocalMember().isLeader();
+    public boolean isLeader() {
+        return shard.getLocalMember().isLeader();
     }
 
     /**

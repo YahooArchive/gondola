@@ -20,6 +20,7 @@ class BucketManager {
     //bucketId -> shardId.
     private RangeMap<Integer, ShardState> bucketMap = TreeRangeMap.create();
     private Config config;
+    private int numberOfBuckets;
 
     public static class ShardState {
 
@@ -58,6 +59,7 @@ class BucketManager {
 
     private void loadBucketTable() {
         Range<Integer> range;
+        int numBuckets = 0;
         for (String shardId : config.getShardIds()) {
             Map<String, String> attributesForShard = config.getAttributesForShard(shardId);
             String bucketMapString = attributesForShard.get("bucketMap");
@@ -85,6 +87,11 @@ class BucketManager {
                 bucketMap.put(range, new ShardState(shardId, null));
             }
         }
+        for (Map.Entry<Range<Integer>, ShardState> e : bucketMap.asMapOfRanges().entrySet()) {
+            Range<Integer> r = e.getKey();
+            numBuckets += (r.upperEndpoint() - r.lowerEndpoint() + 1);
+        }
+        numberOfBuckets = numBuckets;
         validateBucketMap();
     }
 
@@ -116,6 +123,9 @@ class BucketManager {
                 throw new IllegalStateException("Range must start from 0");
             }
             prev = range;
+        }
+        if (numberOfBuckets == 0) {
+            throw new IllegalStateException("Number of bucket must not be 0");
         }
     }
 
@@ -169,5 +179,9 @@ class BucketManager {
         }
         shardState.migratingShardId = toShardId;
         bucketMap.put(range, shardState);
+    }
+
+    public int getNumberOfBuckets() {
+        return numberOfBuckets;
     }
 }

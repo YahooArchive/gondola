@@ -18,6 +18,7 @@ import javax.ws.rs.container.ContainerRequestContext;
  * <p> When processing the request <ul> <li>RoutingFilter pass gondola instance and servlet request to the
  * callback.</li> </ul> </p>
  */
+
 public interface RoutingHelper {
 
     /**
@@ -26,13 +27,5 @@ public interface RoutingHelper {
      * @param request the request
      * @return Gondola bucket Id, -1 means try to find colo affinity in routing layer
      */
-    int getBucketId(ContainerRequestContext request);
-
-    /**
-     * Returns the site ID that should handle the specified request.
-     *
-     * @param request the request
-     * @return a non-null site ID
-     */
-    String getSiteId(ContainerRequestContext request);
+    int getBucketHash(ContainerRequestContext request);
 }

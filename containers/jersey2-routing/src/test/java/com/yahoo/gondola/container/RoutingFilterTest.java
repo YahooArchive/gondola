@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -105,6 +106,8 @@ public class RoutingFilterTest {
     @Mock
     RoutingService routingService;
 
+    Map<String, RoutingService> routingServices = new HashMap<>();
+
     MultivaluedHashMap<String, String> headersMap = new MultivaluedHashMap<>();
 
     @BeforeMethod
@@ -114,14 +117,17 @@ public class RoutingFilterTest {
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
         when(gondola.getHostId()).thenReturn("host1");
-        when(routingHelper.getBucketId(any())).thenReturn(1);
+        when(routingHelper.getBucketHash(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
 
-        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, changeLogProcessor, routingService);
+        routingServices.put("shard1", routingService);
+        routingServices.put("shard2", routingService);
+
+        router = new RoutingFilter(gondola, routingHelper, proxyClientProvider, routingServices, changeLogProcessor);
     }
 
     private static String getResourceFile(String file) {
@@ -167,7 +173,7 @@ public class RoutingFilterTest {
     @Test
     public void testRouting_redirect_request_another_shard() throws Exception {
         reset(routingHelper);
-        when(routingHelper.getBucketId(any())).thenReturn(101); // shard2
+        when(routingHelper.getBucketHash(any())).thenReturn(101); // shard2
         when(shard.getLeader()).thenReturn(member);
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         when(member.isLocal()).thenReturn(false);
@@ -191,7 +197,7 @@ public class RoutingFilterTest {
         RoleChangeEvent event = new RoleChangeEvent(shard, member, member, null, null);
         consumer.getValue().accept(event);
         Thread.sleep(1000);
-//        verify(routingHelper, times(1)).beforeServing(any());
+//        verify(routingHelperClass, times(1)).beforeServing(any());
     }
 
     @Test
