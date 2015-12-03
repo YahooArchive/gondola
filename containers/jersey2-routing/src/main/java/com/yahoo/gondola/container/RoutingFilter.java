@@ -641,7 +641,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             return routingFilter;
         }
 
-        private Gondola createGondolaInstance() {
+        private Gondola createGondolaInstance() throws GondolaException {
             String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
             return new Gondola(new Config(new ConfigLoader().loadConfig(configUri)), hostId);
         }

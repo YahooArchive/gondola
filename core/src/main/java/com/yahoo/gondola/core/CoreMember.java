@@ -178,7 +178,7 @@ public class CoreMember implements Stoppable {
 
     /*
      * Called at the time of registration and whenever the config file changes.
-     */
+   */
     Consumer<Config> configListener = config -> {
         storageTracing = config.getBoolean("gondola.tracing.storage");
         commandTracing = config.getBoolean("gondola.tracing.command");

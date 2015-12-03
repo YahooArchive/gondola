@@ -69,6 +69,9 @@ public class GondolaRc {
         }
     }
 
+    /**
+     * Does not stop the extra gondola instances.
+     */
     public void stop() {
         for (Gondola g : gondolas) {
             boolean status = g.stop();
