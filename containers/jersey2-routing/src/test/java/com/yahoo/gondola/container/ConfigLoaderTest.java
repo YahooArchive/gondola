@@ -6,16 +6,18 @@
 
 package com.yahoo.gondola.container;
 
+import com.yahoo.gondola.container.utils.ZookeeperServer;
+
 import org.testng.annotations.Test;
 
 public class ConfigLoaderTest {
 
+    ZookeeperServer zookeeperServer = new ZookeeperServer();
+
     @Test
     public void testGetConfigInstance() throws Exception {
-        /* Sample URIs:
-             classpath:///gondola.conf
-             file:///usr/local/etc/conf/gondola.conf
-             zookeeper://127.0.0.1:2181/serviceName
-         */
+        //ConfigLoader.getConfigInstance(URI.create("classpath:///gondola.conf"));
+        //ConfigLoader.getConfigInstance(URI.create("file:///../../../../../resources/gondola.conf"));
+        //ConfigLoader.getConfigInstance(URI.create("zookeeper://127.0.0.1:2181/serviceName"));
     }
 }

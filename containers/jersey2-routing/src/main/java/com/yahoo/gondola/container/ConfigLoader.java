@@ -23,6 +23,10 @@ public class ConfigLoader {
 
     private static Logger logger = LoggerFactory.getLogger(ConfigLoader.class);
 
+
+    private ConfigLoader() {
+        // prevent Config Loader to instantiate.
+    }
     /**
      * Load config file.
      *
