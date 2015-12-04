@@ -14,6 +14,7 @@ import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
+import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.server.ResourceConfig;
 
 import java.lang.reflect.InvocationTargetException;
@@ -32,8 +33,23 @@ import javax.servlet.annotation.WebListener;
  * Gondola application.
  */
 public class GondolaApplication {
+    static private ResourceConfig application;
+    static private RoutingFilter routingFilter;
+    static private ShardManagerServer shardManagerServer;
 
     private GondolaApplication() {
+    }
+
+    public static ResourceConfig getApplication() {
+        return application;
+    }
+
+    public static RoutingFilter getRoutingFilter() {
+        return routingFilter;
+    }
+
+    public static ShardManagerServer getShardManagerServer() {
+        return shardManagerServer;
     }
 
     /**
@@ -123,6 +139,10 @@ public class GondolaApplication {
                 }
             });
             application.register(routingFilter);
+            application.register(AdminResource.class);
+            application.register(JacksonFeature.class);
+            GondolaApplication.routingFilter = routingFilter;
+            GondolaApplication.application = application;
         }
 
         private Gondola createGondolaInstance() throws GondolaException {
@@ -138,6 +158,7 @@ public class GondolaApplication {
                                      shardManagerProvider.getShardManagerClient());
                 shardManagerServer.setShardManager(shardManager);
                 routingFilter.registerShutdownFunction(shardManagerServer::stop);
+                GondolaApplication.shardManagerServer = shardManagerServer;
             }
         }
     }
@@ -151,12 +172,15 @@ public class GondolaApplication {
         @Override
         public void contextInitialized(ServletContextEvent sce) {
             ServletContext context = sce.getServletContext();
-            VmInspectionServlet vmInspectionServlet = new VmInspectionServlet();
             ServletRegistration.Dynamic
                 servlet =
-                context.addServlet("vmInspectionServlet", vmInspectionServlet);
+                context.addServlet("VmInspectionServlet", VmInspectionServlet.class);
             servlet.addMapping("/gondolaApplication");
             servlet.setLoadOnStartup(1);
+
+            ServletRegistration.Dynamic servlet2 = context.addServlet("GondolaAdminServlet", AdminServlet.class);
+            servlet2.addMapping("/admin");
+            servlet.setLoadOnStartup(0);
         }
 
         @Override

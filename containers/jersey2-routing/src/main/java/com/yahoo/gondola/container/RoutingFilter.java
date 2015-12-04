@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletContext;
@@ -89,6 +91,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private static List<RoutingFilter> instances = new ArrayList<>();
     private ChangeLogProcessor changeLogProcessor;
     private Map<String, RoutingService> services;
+    private Pattern whiteList = Pattern.compile("^gondola/.*");
 
     /**
      * Disallow default constructor.
@@ -196,6 +199,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
+        if (isWhiteList(request)) {
+            return;
+        }
         extractShardAndBucketIdFromRequest(request);
         int bucketId = getBucketIdFromRequest(request);
         String shardId = getShardIdFromRequest(request);
@@ -239,6 +245,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         // redirect the request to leader
         proxyRequestToLeader(request, shardId);
+    }
+
+    private boolean isWhiteList(ContainerRequestContext request) {
+        return whiteList.matcher(request.getUriInfo().getPath()).matches();
     }
 
     private void abortResponse(ContainerRequestContext requestContext, Response.Status status, String stringEntity) {
@@ -476,6 +486,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * Moves newAppUrl to the first entry of the routing table.
      */
     private void updateShardRoutingEntries(String shardId, String appUri) {
+        if (appUri.equals(myAppUri)) {
+            logger.warn("Trying to update routingTable with self appUri. -- skip");
+            return;
+        }
         List<String> appUris = lookupRoutingTable(shardId);
         List<String> newAppUris = new ArrayList<>(appUris.size());
         newAppUris.add(appUri);
@@ -626,5 +640,25 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             RoutingFilter.getInstance().forEach(RoutingFilter::stop);
             RoutingFilter.getInstance().clear();
         }
+    }
+
+    public Gondola getGondola() {
+        return gondola;
+    }
+
+    public ChangeLogProcessor getChangeLogProcessor() {
+        return changeLogProcessor;
+    }
+
+    public BucketManager getBucketManager() {
+        return bucketManager;
+    }
+
+    public Map<String, List<String>> getRoutingTable() {
+        return routingTable;
+    }
+
+    public LockManager getLockManager() {
+        return lockManager;
     }
 }

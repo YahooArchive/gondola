@@ -281,6 +281,11 @@
                 <artifactId>purej-vminspect</artifactId>
                 <version>${purej-vminspect.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.glassfish.jersey.media</groupId>
+                <artifactId>jersey-media-json-jackson</artifactId>
+                <version>${jersey-container-servlet.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
     <build>

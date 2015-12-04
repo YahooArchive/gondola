@@ -276,6 +276,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         CloseableUtils.closeQuietly(client);
     }
 
+    @Override
+    public ShardManager getShardManager() {
+        return delegate;
+    }
+
     private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);

@@ -17,5 +17,15 @@ public interface ShardManagerServer {
      */
     void setShardManager(ShardManager shardManager);
 
+    /**
+     * stop shard manager server.
+     */
     void stop();
+
+    /**
+     * get shard manager instance.
+     *
+     * @return
+     */
+    ShardManager getShardManager();
 }

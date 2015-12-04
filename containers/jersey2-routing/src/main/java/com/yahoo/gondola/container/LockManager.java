@@ -28,8 +28,8 @@ class LockManager {
 
     private static Logger logger = LoggerFactory.getLogger(LockManager.class);
     private CountDownLatch globalLock;
-    private Map<String, CountDownLatch> shards = new ConcurrentHashMap<>();
-    private Map<Range<Integer>, CountDownLatch> buckets = new HashMap<>();
+    private Map<String, CountDownLatch> shardLocks = new ConcurrentHashMap<>();
+    private Map<Range<Integer>, CountDownLatch> bucketLocks = new HashMap<>();
     private ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private boolean tracing = false;
     private Gondola gondola;
@@ -57,7 +57,7 @@ class LockManager {
             globalLock.await();
         }
 
-        CountDownLatch shardLock = shards.get(shardId);
+        CountDownLatch shardLock = shardLocks.get(shardId);
         if (shardLock != null) {
             trace("[{}] Request blocked by shard lock - shardId={}", gondola.getHostId(), shardId);
             shardLock.await();
@@ -79,7 +79,7 @@ class LockManager {
      * @return the long
      */
     public long unblockRequestOnShard(String shardId) {
-        CountDownLatch lock = shards.remove(shardId);
+        CountDownLatch lock = shardLocks.remove(shardId);
         if (lock != null) {
             // TODO: this is not the expected blocking count.
             long count = lock.getCount();
@@ -97,7 +97,7 @@ class LockManager {
      */
     public void blockRequestOnShard(String shardId) {
         trace("[{}] Block requests on shard : {}", gondola.getHostId(), shardId);
-        shards.putIfAbsent(shardId, new CountDownLatch(1));
+        shardLocks.putIfAbsent(shardId, new CountDownLatch(1));
     }
 
     /**
@@ -126,7 +126,7 @@ class LockManager {
      */
     public void unblockRequestOnBuckets(Range<Integer> splitRange) {
         trace("[{}] Unblock requests on buckets : {}", gondola.getHostId(), splitRange);
-        CountDownLatch lock = buckets.remove(splitRange);
+        CountDownLatch lock = bucketLocks.remove(splitRange);
         if (lock != null) {
             lock.countDown();
         }
@@ -140,13 +140,13 @@ class LockManager {
      */
     public void blockRequestOnBuckets(Range<Integer> splitRange) {
         trace("[{}] Block requests on buckets : {}", gondola.getHostId(), splitRange);
-        buckets.putIfAbsent(splitRange, new CountDownLatch(1));
+        bucketLocks.putIfAbsent(splitRange, new CountDownLatch(1));
     }
 
     private List<CountDownLatch> getBucketLocks(int bucketId) throws InterruptedException {
         rwLock.readLock().lock();
         try {
-            return buckets.entrySet().stream()
+            return bucketLocks.entrySet().stream()
                 .filter(e -> e.getKey().contains(bucketId))
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
@@ -159,5 +159,17 @@ class LockManager {
         if (tracing) {
             logger.info(format, args);
         }
+    }
+
+    public CountDownLatch getGlobalLock() {
+        return globalLock;
+    }
+
+    public Map<String, CountDownLatch> getShardLocks() {
+        return shardLocks;
+    }
+
+    public Map<Range<Integer>, CountDownLatch> getBucketLocks() {
+        return bucketLocks;
     }
 }

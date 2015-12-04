@@ -24,8 +24,8 @@ class BucketManager {
 
     public static class ShardState {
 
-        String shardId;
-        String migratingShardId;
+        public String shardId;
+        public String migratingShardId;
 
         public ShardState(String shardId, String migratingShardId) {
             this.shardId = shardId;
@@ -183,5 +183,9 @@ class BucketManager {
 
     public int getNumberOfBuckets() {
         return numberOfBuckets;
+    }
+
+    public RangeMap<Integer, ShardState> getBucketMap() {
+        return bucketMap;
     }
 }

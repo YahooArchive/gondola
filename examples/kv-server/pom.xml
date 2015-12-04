@@ -22,7 +22,7 @@
     <properties>
         <jetty.port>8080</jetty.port>
         <jetty-maven-plugin.version>9.3.0.M2</jetty-maven-plugin.version>
-        <jetty-scan-interval>1</jetty-scan-interval>
+        <jetty-scan-interval>0</jetty-scan-interval>
     </properties>
 
     <dependencies>
