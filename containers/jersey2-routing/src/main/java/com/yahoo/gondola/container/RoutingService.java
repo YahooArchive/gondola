@@ -38,6 +38,11 @@ public abstract class RoutingService {
         memberId = shard.getLocalMember().getMemberId();
     }
 
+    /**
+     * Register callback for getting all container events.
+     *
+     * @param consumer
+     */
     public void registerEventHandler(Consumer<RoleChangeEvent> consumer) {
         gondola.registerForRoleChanges(consumer);
         eventCallbacks.add(consumer);

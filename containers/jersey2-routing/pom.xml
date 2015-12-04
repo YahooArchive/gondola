@@ -110,5 +110,9 @@
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-recipes</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.purej</groupId>
+            <artifactId>purej-vminspect</artifactId>
+        </dependency>
     </dependencies>
 </project>

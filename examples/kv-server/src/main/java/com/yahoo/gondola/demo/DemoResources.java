@@ -27,6 +27,7 @@ public class DemoResources {
 
     Logger logger = LoggerFactory.getLogger(DemoResources.class);
 
+    /* Dependency injection for service */
     @Inject
     DemoService service;
 

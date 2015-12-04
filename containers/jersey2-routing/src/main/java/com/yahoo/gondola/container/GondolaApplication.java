@@ -7,6 +7,7 @@
 package com.yahoo.gondola.container;
 
 import com.google.common.base.Preconditions;
+import com.purej.vminspect.http.servlet.VmInspectionServlet;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Shard;
@@ -20,8 +21,16 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.ServletContext;
+import javax.servlet.ServletContextEvent;
+import javax.servlet.ServletContextListener;
 import javax.servlet.ServletException;
+import javax.servlet.ServletRegistration;
+import javax.servlet.annotation.WebListener;
 
+/**
+ * Gondola application.
+ */
 public class GondolaApplication {
 
     private GondolaApplication() {
@@ -133,4 +142,25 @@ public class GondolaApplication {
         }
     }
 
+    /**
+     * WebApp context listener.
+     */
+    @WebListener
+    public static class ContextListener implements ServletContextListener {
+
+        @Override
+        public void contextInitialized(ServletContextEvent sce) {
+            ServletContext context = sce.getServletContext();
+            VmInspectionServlet vmInspectionServlet = new VmInspectionServlet();
+            ServletRegistration.Dynamic
+                servlet =
+                context.addServlet("vmInspectionServlet", vmInspectionServlet);
+            servlet.addMapping("/gondolaApplication");
+            servlet.setLoadOnStartup(1);
+        }
+
+        @Override
+        public void contextDestroyed(ServletContextEvent sce) {
+        }
+    }
 }
