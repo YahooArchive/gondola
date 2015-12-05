@@ -421,6 +421,16 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <fileSets>
+                        <fileSet implementation="org.apache.maven.shared.model.fileset.FileSet">
+                            <directory>${project.build.directory}</directory>
+                            <includes>
+                                <include>*.exec</include>
+                            </includes>
+                        </fileSet>
+                    </fileSets>
+                </configuration>
             </plugin>
         </plugins>
     </build>

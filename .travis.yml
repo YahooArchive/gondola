@@ -8,7 +8,7 @@ branches:
   only:
   - master
   - "/^[0-9]+\\.[0-9]+\\.[0-9]+/"
-script: mvn verify jacoco:report coveralls:report
+script: mvn verify jacoco:merge jacoco:report coveralls:report
 after_success:
 - test "${TRAVIS_PULL_REQUEST}" == "false" && test "${TRAVIS_TAG}" != "" && mvn deploy
   --settings settings/maven/settings.xml
