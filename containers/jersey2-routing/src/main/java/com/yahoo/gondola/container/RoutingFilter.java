@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,10 +59,12 @@ import static javax.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
     public static final int POLLING_TIMES = 3;
+    public static final int RETRY_TIMES = 3;
     private static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
     static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
     static final String X_FORWARDED_BY = "X-Forwarded-By";
+    static final String X_GONDOLA_ERROR = "X-Gondola-Error";
     static final String APP_PORT = "appPort";
     static final String APP_SCHEME = "appScheme";
 
@@ -251,10 +253,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return whiteList.matcher(request.getUriInfo().getPath()).matches();
     }
 
+    /**
+     * The function is used for tell other routing filter that this server is not able to handle the request.
+     */
     private void abortResponse(ContainerRequestContext requestContext, Response.Status status, String stringEntity) {
         requestContext.abortWith(
             Response.status(status)
                 .entity(stringEntity)
+                .header(X_GONDOLA_ERROR, stringEntity)
                 .build()
         );
     }
@@ -438,39 +444,72 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void proxyRequestToLeader(ContainerRequestContext request, String shardId) throws IOException {
         List<String> appUris = lookupRoutingTable(shardId);
 
-        boolean fail = false;
+        boolean failed = false;
         for (String appUri : appUris) {
-            try {
-                trace("Proxy request to remote server, method={}, URI={}",
-                      request.getMethod(), appUri + request.getUriInfo().getRequestUri());
-                List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
-                if (forwardedBy == null) {
-                    forwardedBy = new ArrayList<>();
-                    request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
-                }
-                forwardedBy.add(myAppUri);
+            for (int i = 0; i < RETRY_TIMES; i++) {
+                try {
+                    trace("Proxy request to remote server, method={}, URI={}",
+                          request.getMethod(), appUri + request.getUriInfo().getRequestUri());
 
-                Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
-                String
-                    entity =
-                    proxiedResponse.getEntity() != null ? proxiedResponse.getEntity().toString() : "";
-                request.abortWith(Response
-                                      .status(proxiedResponse.getStatus())
-                                      .entity(entity)
-                                      .header(X_GONDOLA_LEADER_ADDRESS, appUri)
-                                      .build());
-                updateRoutingTableIfNeeded(shardId, proxiedResponse);
-                if (fail) {
-                    updateShardRoutingEntries(shardId, appUri);
+                    if (sendProxyRequest(request, shardId, appUri)) {
+                        // If the remote server is the leader, and the local server routing table is not right,
+                        // update routing table with the request appUri.
+                        if (failed) {
+                            updateShardRoutingEntries(shardId, appUri);
+                        }
+                        return;
+                    }
+                    failed = true;
+                    break;
+                } catch (IOException e) {
+                    logger.warn("[{}] Error while forwarding request to shard:{} {}, message={}",
+                                gondola.getHostId(), shardId, appUri, e.getMessage());
                 }
-                return;
-            } catch (IOException e) {
-                fail = true;
-                logger.error("[{}] Error while forwarding request to shard:{} {}", gondola.getHostId(), shardId, appUri,
-                             e);
             }
         }
         abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
+    }
+
+    private boolean sendProxyRequest(ContainerRequestContext request, String shardId, String appUri)
+        throws IOException {
+
+        appendForwardedByHeader(request);
+
+        Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
+
+        // Remote server is not able to serve the request.
+        if (proxiedResponse.getHeaderString(X_GONDOLA_ERROR) != null) {
+            return false;
+        }
+
+        String entity = getResponseEntity(proxiedResponse);
+
+        // Proxied response successful, response the data to the requester.
+        request.abortWith(Response
+                              .status(proxiedResponse.getStatus())
+                              .entity(entity)
+                              .header(X_GONDOLA_LEADER_ADDRESS, appUri)
+                              .build());
+
+        // If remote server is not the leader (2-hop, update the local routing table.
+        updateRoutingTableIfNeeded(shardId, proxiedResponse);
+        return true;
+    }
+
+
+    private String getResponseEntity(Response proxiedResponse) {
+        return proxiedResponse.getEntity() != null ? proxiedResponse.getEntity().toString() : "";
+    }
+
+    private void appendForwardedByHeader(ContainerRequestContext request) {
+        List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
+
+        if (forwardedBy == null) {
+            forwardedBy = Collections.singletonList(myAppUri);
+        } else {
+            forwardedBy = Collections.singletonList(forwardedBy.get(0) + "," + myAppUri);
+        }
+        request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
     }
 
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {

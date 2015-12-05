@@ -18,6 +18,7 @@ import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 
 import java.io.IOException;
@@ -31,13 +32,19 @@ import javax.ws.rs.core.Response;
  * Proxy client implementation using Apache Http Client.
  */
 public class ApacheHttpComponentProxyClient implements ProxyClient {
+
     /**
      * The Httpclient.
      */
     CloseableHttpClient httpClient;
 
     public ApacheHttpComponentProxyClient() {
-        httpClient = HttpClients.createDefault();
+        PoolingHttpClientConnectionManager cm = new PoolingHttpClientConnectionManager();
+        cm.setMaxTotal(200);
+        cm.setDefaultMaxPerRoute(200);
+        httpClient = HttpClients.custom()
+            .setConnectionManager(cm)
+            .build();
     }
 
     /**

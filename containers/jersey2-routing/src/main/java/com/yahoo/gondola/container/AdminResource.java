@@ -19,6 +19,7 @@ import com.yahoo.gondola.Shard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -30,7 +31,7 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 
 /**
- * JAX-RS Admin Resource
+ * JAX-RS Admin Resource.
  */
 
 @Path("/gondola/admin/v1")
@@ -76,10 +77,19 @@ public class AdminResource {
     @GET
     @Path("/requestInspect")
     public Map getRequestInfo(@QueryParam("requestUri") String requestUri) {
-        // TODO: current routingHelper only accept ContainerRequestContext, see if we can make it more specific to requestURI.
+        // TODO: current routingHelper only accept ContainerRequestContext,
+        // see if we can make it more specific to requestURI.
         Map<Object, Object> map = new LinkedHashMap<>();
         map.put("bucketId", 0);
         map.put("shardId", "shard1");
+        return map;
+    }
+
+    @GET
+    @Path("/systemStatus")
+    public Map getSystemStatus() {
+        // TODO: implement
+        Map map = new HashMap<>();
         return map;
     }
 
