@@ -34,7 +34,7 @@ public class BucketManagerTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        bucketManager = new BucketManager(config);
+        bucketManager = (BucketManager) Class.forName("com.yahoo.gondola.container.BucketManager").getConstructor(Config.class).newInstance(config);
     }
 
     @Test(expectedExceptions = IllegalStateException.class)

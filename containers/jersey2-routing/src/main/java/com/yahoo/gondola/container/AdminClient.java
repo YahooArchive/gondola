@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.SLAVE_NOT_SYNC;
@@ -32,6 +31,8 @@ public class AdminClient {
     private Config config;
     private ShardManagerClient shardManagerClient;
     private ConfigWriter configWriter;
+    private GondolaAdminClient gondolaAdminClient;
+
 
     private static Logger logger = LoggerFactory.getLogger(AdminClient.class);
     private boolean tracing = false;
@@ -44,7 +45,7 @@ public class AdminClient {
      * @param config             the config
      */
     public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config,
-                       ConfigWriter configWriter) {
+                       ConfigWriter configWriter, GondolaAdminClient gondolaAdminClient) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
         this.config = config;
@@ -52,6 +53,7 @@ public class AdminClient {
         this.config.registerForUpdates(config1 -> {
             tracing = config1.getBoolean("tracing.adminCli");
         });
+        this.gondolaAdminClient = gondolaAdminClient;
     }
 
 
@@ -107,18 +109,15 @@ public class AdminClient {
      */
     public void splitShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupSplitRange(fromShardId, toShardId);
-        assignBuckets(range, fromShardId, toShardId);
+        assignBuckets(range.lowerEndpoint(), range.upperEndpoint(), fromShardId, toShardId);
     }
 
     /**
      * Assign buckets.
-     *
-     * @param fromShardId the from shard id
-     * @param toShardId   the to shard id
-     * @param range       the range
      */
-    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+    public void assignBuckets(int lowerBound, int upperBound, String fromShardId, String toShardId)
         throws InterruptedException, AdminException {
+        Range range = Range.closed(lowerBound, upperBound);
         trace("[admin] Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
@@ -192,7 +191,7 @@ public class AdminClient {
      */
     public void mergeShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupMergeRange(fromShardId, toShardId);
-        assignBuckets(range, fromShardId, toShardId);
+        assignBuckets(range.lowerEndpoint(), range.upperEndpoint(), fromShardId, toShardId);
     }
 
     private Range<Integer> lookupMergeRange(String fromShardId, String toShardId) {
@@ -222,19 +221,6 @@ public class AdminClient {
      */
     public void disable(Target target, String targetId) throws AdminException {
 
-    }
-
-
-    /**
-     * Gets stats.
-     *
-     * @param target the target
-     * @return the stats
-     * @throws AdminException the admin exception
-     */
-    public Map<Target, List<Stat>> getStats(Target target)
-        throws AdminException {
-        return null;
     }
 
 
@@ -269,22 +255,6 @@ public class AdminClient {
         ALL
     }
 
-    class Stat {
-
-    }
-
-    class HostStat extends Stat {
-
-    }
-
-    class StorageStat extends Stat {
-
-    }
-
-    class ShardStat extends Stat {
-
-    }
-
     class AdminException extends Exception {
 
         ErrorCode errorCode;
@@ -306,5 +276,17 @@ public class AdminClient {
         ErrorCode(int code) {
             this.code = code;
         }
+    }
+
+    public Map setLeader(String hostId, String shardId) {
+        return gondolaAdminClient.setLeader(hostId, shardId);
+    }
+
+    public Map getHostStatus(String hostId) {
+        return gondolaAdminClient.getHostStatus(hostId);
+    }
+
+    public Map getServiceStatus() {
+        return gondolaAdminClient.getServiceStatus();
     }
 }

@@ -11,6 +11,7 @@ import com.purej.vminspect.http.servlet.VmInspectionServlet;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Shard;
+import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
@@ -33,9 +34,11 @@ import javax.servlet.annotation.WebListener;
  * Gondola application.
  */
 public class GondolaApplication {
+
     static private ResourceConfig application;
     static private RoutingFilter routingFilter;
     static private ShardManagerServer shardManagerServer;
+    static private ShardManagerClient shardManagerClient;
 
     private GondolaApplication() {
     }
@@ -51,6 +54,11 @@ public class GondolaApplication {
     public static ShardManagerServer getShardManagerServer() {
         return shardManagerServer;
     }
+
+    public static ShardManagerClient getShardManagerClient() {
+        return shardManagerClient;
+    }
+
 
     /**
      * Builder class.
@@ -120,7 +128,7 @@ public class GondolaApplication {
             }
 
             if (shardManagerProvider == null) {
-                shardManagerProvider = new ShardManagerProvider(gondola.getConfig());
+                shardManagerProvider = new ShardManagerProvider(gondola);
             }
             ChangeLogProcessor changeLogProcessor = new ChangeLogProcessor(gondola, services);
             RoutingHelper routingHelper = routingHelperClass.newInstance();
@@ -139,6 +147,7 @@ public class GondolaApplication {
                 }
             });
             application.register(routingFilter);
+            application.register(GondolaAdminResource.class);
             application.register(AdminResource.class);
             application.register(JacksonFeature.class);
             GondolaApplication.routingFilter = routingFilter;
@@ -152,10 +161,11 @@ public class GondolaApplication {
 
         private void initShardManagerServer(RoutingFilter routingFilter) {
             ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
+            ShardManagerClient shardManagerClient = shardManagerProvider.getShardManagerClient();
             if (shardManagerServer != null) {
                 ShardManager shardManager =
                     new ShardManager(gondola, routingFilter, gondola.getConfig(),
-                                     shardManagerProvider.getShardManagerClient());
+                                     shardManagerClient);
                 shardManagerServer.setShardManager(shardManager);
                 routingFilter.registerShutdownFunction(shardManagerServer::stop);
                 GondolaApplication.shardManagerServer = shardManagerServer;

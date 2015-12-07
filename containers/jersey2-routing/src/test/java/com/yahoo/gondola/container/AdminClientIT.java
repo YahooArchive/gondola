@@ -6,7 +6,6 @@
 
 package com.yahoo.gondola.container;
 
-import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.RoleChangeEvent;
@@ -86,7 +85,7 @@ public class AdminClientIT {
         for (Map.Entry<String, CountDownLatch> e : latches.entrySet()) {
             e.getValue().await();
         }
-        adminClient = new AdminClient(SERVICE_NAME, shardManagerClient, config, configWriter);
+        adminClient = new AdminClient(SERVICE_NAME, shardManagerClient, config, configWriter, new GondolaAdminClient(config));
     }
 
     private Consumer<RoleChangeEvent> getRoleChangeEventListener() {
@@ -186,7 +185,7 @@ public class AdminClientIT {
         }
 
         try {
-            adminClient.assignBuckets(Range.closed(0, 10), "shard1", "shard2");
+            adminClient.assignBuckets(0, 10, "shard1", "shard2");
             for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
                 assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
                 assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);

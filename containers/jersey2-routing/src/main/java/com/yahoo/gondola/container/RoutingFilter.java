@@ -20,7 +20,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -65,8 +64,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
     static final String X_FORWARDED_BY = "X-Forwarded-By";
     static final String X_GONDOLA_ERROR = "X-Gondola-Error";
-    static final String APP_PORT = "appPort";
-    static final String APP_SCHEME = "appScheme";
 
     private RoutingHelper routingHelper;
     private Gondola gondola;
@@ -140,7 +137,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         gondola.registerForRoleChanges(roleChangeEvent -> {
             if (roleChangeEvent.leader != null) {
                 Config config = gondola.getConfig();
-                String appUri = getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
+                String appUri = Utils.getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
                 updateShardRoutingEntries(roleChangeEvent.shard.getShardId(), appUri);
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
@@ -380,10 +377,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         Config config = gondola.getConfig();
         for (String hostId : config.getHostIds()) {
             if (hostId.equals(gondola.getHostId())) {
-                myAppUri = getAppUri(config, hostId);
+                myAppUri = Utils.getAppUri(config, hostId);
                 continue;
             }
-            String appUri = getAppUri(config, hostId);
+            String appUri = Utils.getAppUri(config, hostId);
             serviceUris.put(hostId, appUri);
             for (String shardId : config.getShardIds(hostId)) {
                 List<String> addresses = newRoutingTable.get(shardId);
@@ -398,20 +395,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         routingTable = newRoutingTable;
     }
 
-    private String getAppUri(Config config, String hostId) {
-        InetSocketAddress address = config.getAddressForHost(hostId);
-        Map<String, String> attrs = config.getAttributesForHost(hostId);
-        String
-            appUri =
-            String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
-        if (!attrs.containsKey(APP_PORT) || !attrs.containsKey(APP_SCHEME)) {
-            throw new IllegalStateException(
-                String
-                    .format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT,
-                            APP_SCHEME));
-        }
-        return appUri;
-    }
 
 
     private String getShardId(int bucketId) {
