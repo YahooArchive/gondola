@@ -20,10 +20,8 @@ import com.yahoo.gondola.container.client.ZookeeperUtils;
 import com.yahoo.gondola.core.Utils;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
-import org.apache.curator.retry.RetryForever;
 import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +73,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         this.delegate = shardmanager;
         config = gondola.getConfig();
         config.registerForUpdates(config -> tracing = config.getBoolean("tracing.router"));
-        client = CuratorFrameworkFactory.newClient(connectString, new RetryForever(1000));
-        client.start();
+        client = ZookeeperUtils.getCuratorFrameworkInstance(connectString);
         Watcher watcher = new Watcher();
         watcher.start();
         threads.add(watcher);

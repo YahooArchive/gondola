@@ -18,7 +18,7 @@ import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import javax.ejb.Singleton;
+import javax.inject.Singleton;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -30,15 +30,16 @@ import javax.ws.rs.QueryParam;
 @Singleton
 public class AdminResource {
 
-    static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
-    AdminClient client;
-    Config config;
-    ShardManagerClient shardManagerClient = GondolaApplication.getShardManagerServer().getShardManager().getShardManagerClient();
+    private static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
+    private static AdminClient client;
+    private static Config config;
+    private static ShardManagerClient shardManagerClient;
 
     public AdminResource() {
         Gondola gondola = GondolaApplication.getRoutingFilter().getGondola();
-        this.config = gondola.getConfig();
+        config = gondola.getConfig();
         client = AdminClient.getInstance(config, "adminResource");
+        shardManagerClient = GondolaApplication.getShardManagerServer().getShardManager().getShardManagerClient();
     }
 
 
@@ -119,7 +120,6 @@ public class AdminResource {
         }
         return map;
     }
-
 
 
     @Path("/setLeader")

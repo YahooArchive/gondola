@@ -166,5 +166,4 @@ public class Utils {
         Type type;
         Map<String, String> attributes;
     }
-
 }

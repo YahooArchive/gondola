@@ -12,11 +12,8 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ZookeeperAction.Action;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.retry.RetryForever;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,8 +56,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     Condition newEvent = lock.newCondition();
 
     public ZookeeperShardManagerClient(String serviceName, String clientName, String connectString, Config config) {
-        client = CuratorFrameworkFactory.newClient(connectString, new RetryForever(1000));
-        client.start();
+        client = ZookeeperUtils.getCuratorFrameworkInstance(connectString);
         this.serviceName = serviceName;
         this.config = config;
         this.clientName = clientName;
