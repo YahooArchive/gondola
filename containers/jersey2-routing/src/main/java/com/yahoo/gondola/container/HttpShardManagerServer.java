@@ -68,7 +68,7 @@ public class HttpShardManagerServer implements ShardManagerServer {
         }
     }
 
-    @GET
+    @POST
     @Path("/migrateBuckets")
     public void migrateBuckets(@QueryParam("lowerBound") int lowerBound, @QueryParam("upperBound") int upperBound,
                                @QueryParam("fromShardId") String fromShardId,
@@ -94,7 +94,7 @@ public class HttpShardManagerServer implements ShardManagerServer {
         }
     }
 
-    @GET
+    @POST
     @Path("stopObserving")
     public void stopObserving(@QueryParam("shardId") String shardId, @QueryParam("masterShardId") String masterShardId,
                               @QueryParam("timeoutMs") long timeoutMs)
@@ -107,7 +107,7 @@ public class HttpShardManagerServer implements ShardManagerServer {
         }
     }
 
-    @GET
+    @POST
     @Path("setBuckets")
     public void setBuckets(@QueryParam("lowerBound") int lowerBound, @QueryParam("upperBound") int upperBound,
                            @QueryParam("fromShardId") String fromShardId,
