@@ -34,8 +34,8 @@ else
 fi
 
 export hostId
-export JAVA_TOOL_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
-mvn -DskipTests -Dcheckstyle.skip -Djacoco.skip jetty:run -Djetty.port=$port -Dconf=$CONF &
+export MAVEN_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
+mvn -DskipTests -Dcheckstyle.skip=true -Djacoco.skip=true jetty:run -Djetty.port=$port -Dconf=$CONF &
 pid=$!
 trap "echo 'Stopping java process...'; kill $pid; wait"  SIGINT SIGTERM
 wait
