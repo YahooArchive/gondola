@@ -24,7 +24,6 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.retry.RetryForever;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,7 +68,8 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     List<Thread> threads = new ArrayList<>();
     boolean tracing = false;
 
-    public ZookeeperShardManagerServer(String serviceName, String connectString, Gondola gondola, ShardManager shardmanager) {
+    public ZookeeperShardManagerServer(String serviceName, String connectString, Gondola gondola,
+                                       ShardManager shardmanager) {
         this.serviceName = serviceName;
         this.gondola = gondola;
         this.delegate = shardmanager;
@@ -182,7 +182,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
               gondola.getHostId(), memberId, zookeeperStat);
         try {
             client.setData().forPath(ZookeeperUtils.statPath(serviceName, memberId),
-                                                    objectMapper.writeValueAsBytes(zookeeperStat));
+                                     objectMapper.writeValueAsBytes(zookeeperStat));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
@@ -198,7 +198,9 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         return () -> {
             try {
                 if (node.getCurrentData() != null) {
-                    ZookeeperAction action = objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
+                    ZookeeperAction
+                        action =
+                        objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
                     actions.put(action.memberId, action);
                     processAction(stat, action);
                 }
