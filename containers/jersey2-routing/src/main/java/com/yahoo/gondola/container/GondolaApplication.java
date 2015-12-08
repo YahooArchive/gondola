@@ -11,7 +11,6 @@ import com.purej.vminspect.http.servlet.VmInspectionServlet;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Shard;
-import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
@@ -38,7 +37,6 @@ public class GondolaApplication {
     static private ResourceConfig application;
     static private RoutingFilter routingFilter;
     static private ShardManagerServer shardManagerServer;
-    static private ShardManagerClient shardManagerClient;
 
     private GondolaApplication() {
     }
@@ -54,11 +52,6 @@ public class GondolaApplication {
     public static ShardManagerServer getShardManagerServer() {
         return shardManagerServer;
     }
-
-    public static ShardManagerClient getShardManagerClient() {
-        return shardManagerClient;
-    }
-
 
     /**
      * Builder class.
@@ -158,18 +151,14 @@ public class GondolaApplication {
         }
 
         private void initShardManagerServer(RoutingFilter routingFilter) {
-
             if (shardManagerProvider == null) {
-                shardManagerProvider = new ShardManagerProvider(routingFilter);
-                ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
-                ShardManagerClient shardManagerClient = shardManagerProvider.getShardManagerClient();
-                if (shardManagerServer != null) {
-                    routingFilter.registerShutdownFunction(shardManagerServer::stop);
-                    GondolaApplication.shardManagerServer = shardManagerServer;
-                    GondolaApplication.shardManagerClient = shardManagerClient;
-                }
+                shardManagerProvider = new ShardManagerProvider();
             }
 
+            if (GondolaApplication.shardManagerServer == null) {
+                GondolaApplication.shardManagerServer = shardManagerProvider.getShardManagerServer(routingFilter, application);
+                routingFilter.registerShutdownFunction(GondolaApplication.shardManagerServer::stop);
+            }
         }
     }
 

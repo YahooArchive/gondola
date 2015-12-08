@@ -86,7 +86,7 @@ public class LocalTestRoutingServerTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
+        when(shardManagerProvider.getShardManagerServer(any(), any())).thenReturn(shardManagerServer);
         when(gondola.getConfig()).thenReturn(config);
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
@@ -94,7 +94,7 @@ public class LocalTestRoutingServerTest {
         when(routingHelper.getBucketHash(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
-        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
+        when(shardManagerProvider.getShardManagerServer(any(), any())).thenReturn(shardManagerServer);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));

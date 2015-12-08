@@ -56,6 +56,13 @@ public class AdminClient {
         this.gondolaAdminClient = gondolaAdminClient;
     }
 
+    public static AdminClient getInstance(Config config, String clientName) {
+        return new AdminClient(Utils.getRegistryConfig(config).attributes.get("serviceName"),
+                               new ShardManagerProvider().getShardManagerClient(config, clientName),
+                               config,
+                               new ConfigWriter(config.getFile()),
+                               new GondolaAdminClient(config));
+    }
 
     /**
      * Sets service name.

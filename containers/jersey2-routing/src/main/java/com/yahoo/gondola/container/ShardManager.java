@@ -238,4 +238,8 @@ public class ShardManager implements ShardManagerProtocol {
             logger.info(format, args);
         }
     }
+
+    public ShardManagerClient getShardManagerClient() {
+        return shardManagerClient;
+    }
 }

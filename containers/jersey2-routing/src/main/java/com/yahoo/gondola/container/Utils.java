@@ -145,6 +145,9 @@ public class Utils {
                     conf.attributes.put("connectString", config.get("registry.zookeeper.connect_string"));
                     conf.attributes.put("serviceName", config.get("registry.zookeeper.service_name"));
                     break;
+                case "registry.http":
+                    conf.type = Type.HTTP;
+                    break;
                 default:
                     throw new IllegalArgumentException("Impl=" + impl + " does not supported");
             }
@@ -154,7 +157,7 @@ public class Utils {
         return conf;
     }
 
-    enum Type {NONE, ZOOKEEPER}
+    enum Type {NONE, HTTP, ZOOKEEPER}
 
     /**
      * Registry config.

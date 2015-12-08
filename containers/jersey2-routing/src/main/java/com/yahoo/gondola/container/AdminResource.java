@@ -32,18 +32,13 @@ public class AdminResource {
 
     static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
     AdminClient client;
-    ShardManagerClient shardManagerClient = GondolaApplication.getShardManagerClient();
     Config config;
+    ShardManagerClient shardManagerClient = GondolaApplication.getShardManagerServer().getShardManager().getShardManagerClient();
 
     public AdminResource() {
-        // TODO: refine admin client interface
         Gondola gondola = GondolaApplication.getRoutingFilter().getGondola();
         this.config = gondola.getConfig();
-        client = new AdminClient(Utils.getRegistryConfig(gondola.getConfig()).attributes.get("serviceName"),
-                                 shardManagerClient,
-                                 gondola.getConfig(),
-                                 new ConfigWriter(gondola.getConfig().getFile()),
-                                 new GondolaAdminClient(gondola.getConfig()));
+        client = AdminClient.getInstance(config, "adminResource");
     }
 
 

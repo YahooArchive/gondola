@@ -12,51 +12,46 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.client.ZookeeperShardManagerClient;
 import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
 
+import org.glassfish.jersey.server.ResourceConfig;
+
 /**
  * A Provider that provide the CommandListener implementation.
  */
 public class ShardManagerProvider {
 
-    Gondola gondola;
-    Config config;
-    RoutingFilter filter;
-
-
-    public ShardManagerProvider(RoutingFilter filter) {
-        this.filter = filter;
-        this.gondola = filter.getGondola();
-        this.config = gondola.getConfig();
-    }
-
-    public ShardManagerServer getShardManagerServer() {
+    public ShardManagerServer getShardManagerServer(RoutingFilter filter, ResourceConfig application) {
+        Gondola gondola = filter.getGondola();
         Utils.RegistryConfig conf = Utils.getRegistryConfig(gondola.getConfig());
         ShardManager shardManager =
             new ShardManager(gondola, filter, gondola.getConfig(),
-                             getShardManagerClient());
+                             getShardManagerClient(gondola.getConfig(), gondola.getHostId()));
         switch (conf.type) {
             case NONE:
                 return null;
+            case HTTP:
+                HttpShardManagerServer httpShardManagerServer = new HttpShardManagerServer(shardManager);
+                application.register(httpShardManagerServer);
+                return httpShardManagerServer;
             case ZOOKEEPER:
-                ZookeeperShardManagerServer
-                    zookeeperShardManagerServer =
-                    new ZookeeperShardManagerServer(conf.attributes.get("serviceName"),
-                                                    conf.attributes.get("connectString"),
-                                                    gondola, shardManager);
-                return zookeeperShardManagerServer;
+                return new ZookeeperShardManagerServer(conf.attributes.get("serviceName"),
+                                                       conf.attributes.get("connectString"),
+                                                       gondola, shardManager);
         }
         throw new IllegalArgumentException("Unknown config");
     }
 
-    public ShardManagerClient getShardManagerClient() {
-        Utils.RegistryConfig conf = Utils.getRegistryConfig(gondola.getConfig());
+    public ShardManagerClient getShardManagerClient(Config config, String clientName) {
+        Utils.RegistryConfig conf = Utils.getRegistryConfig(config);
         switch (conf.type) {
             case NONE:
                 return null;
+            case HTTP:
+                return new HttpShardManagerClient(config);
             case ZOOKEEPER:
                 return new ZookeeperShardManagerClient(conf.attributes.get("serviceName"),
-                                                       gondola.getHostId(),
+                                                       clientName,
                                                        conf.attributes.get("connectString"),
-                                                       gondola.getConfig());
+                                                       config);
         }
         throw new IllegalArgumentException("Unknown config");
     }
