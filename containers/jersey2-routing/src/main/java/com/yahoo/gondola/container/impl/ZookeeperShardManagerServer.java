@@ -152,7 +152,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 case MIGRATING_2:
                     break;
                 case SLAVE:
-                    if (action.action.equals(ZookeeperAction.Action.START_SLAVE)) {
+                    if (action.action.equals(ZookeeperAction.Action.START_SLAVE) && stat.isSlaveOperational()) {
                         try {
                             if (delegate.waitSlavesSynced(args.fromShard, 0)) {
                                 stat.status = SYNCED;
