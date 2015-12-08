@@ -86,7 +86,12 @@ public class ShardManager implements ShardManagerProtocol {
         throws InterruptedException, ShardManagerException {
 
         try {
-            gondola.getShard(shardId).getLocalMember().setSlave(memberId);
+            Member localMember = gondola.getShard(shardId).getLocalMember();
+            Member.SlaveStatus slaveStatus = localMember.getSlaveStatus();
+            if (slaveStatus != null && slaveStatus.masterId == memberId && slaveStatus.running) {
+                return true;
+            }
+            localMember.setSlave(memberId);
             return Utils.pollingWithTimeout(() -> {
                 Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
                 if (slaveOperational(status)) {
