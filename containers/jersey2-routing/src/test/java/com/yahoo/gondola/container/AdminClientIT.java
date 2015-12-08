@@ -125,8 +125,7 @@ public class AdminClientIT {
                 }
             case ZOOKEEPER:
                 ZookeeperShardManagerServer shardManagerServer =
-                    new ZookeeperShardManagerServer(SERVICE_NAME, zookeeperServer.getConnectString(), gondola);
-                shardManagerServer.setShardManager(shardManager);
+                    new ZookeeperShardManagerServer(SERVICE_NAME, zookeeperServer.getConnectString(), gondola, shardManager);
                 shardManagerServers.add(shardManagerServer);
                 return shardManagerServer;
         }

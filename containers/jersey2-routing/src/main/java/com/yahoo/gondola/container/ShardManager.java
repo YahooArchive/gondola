@@ -64,7 +64,7 @@ public class ShardManager implements ShardManagerProtocol {
         throws ShardManagerException, InterruptedException {
         boolean success = false;
         trace("[{}-{}] Try to follow shardId={} as slave...",
-              gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), shardId, observedShardId);
+              gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), observedShardId);
         List<Config.ConfigMember> membersInShard = config.getMembersInShard(observedShardId);
         for (Config.ConfigMember m : membersInShard) {
             if (success = setSlave(shardId, m.getMemberId(), timeoutMs / membersInShard.size())) {

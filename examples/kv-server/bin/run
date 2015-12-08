@@ -1,4 +1,7 @@
 #!/bin/bash
+if [ "$CONF" == "" ]; then
+  CONF="classpath:///gondola.conf"
+fi
 if [ $1 = "host1" ]; then
 hostId=host1 
 port=8080
@@ -11,16 +14,28 @@ elif [ $1 = "host3" ]; then
 hostId=host3
 port=8082
 debugPort=10002
+elif [ $1 = "host4" ]; then
+hostId=host4
+port=8083
+debugPort=10003
+elif [ $1 = "host5" ]; then
+hostId=host5
+port=8084
+debugPort=10004
+elif [ $1 = "host6" ]; then
+hostId=host6
+port=8085
+debugPort=10005
 else
   echo "Run service ";
   echo "";
-  echo "Usage: $0 [host1|host2|host3]";
+  echo "Usage: $0 [host1|host2|host3|host4|host5|host6]";
   exit;
 fi
 
 export hostId
 export JAVA_TOOL_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=$debugPort -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
-mvn -DskipTests -Dcheckstyle.skip -Djacoco.skip jetty:run -Djetty.port=$port &
+mvn -DskipTests -Dcheckstyle.skip -Djacoco.skip jetty:run -Djetty.port=$port -Dconf=$CONF &
 pid=$!
 trap "echo 'Stopping java process...'; kill $pid; wait"  SIGINT SIGTERM
 wait

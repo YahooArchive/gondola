@@ -60,10 +60,9 @@ public class ZookeeperShardManagerClientTest {
             Gondola gondola = mock(Gondola.class);
             when(gondola.getHostId()).thenReturn(hostId);
             when(gondola.getConfig()).thenReturn(config);
-            ZookeeperShardManagerServer server =
-                new ZookeeperShardManagerServer("foo", zookeeperServer.getConnectString(), gondola);
             ShardManager shardManager = mock(ShardManager.class);
-            server.setShardManager(shardManager);
+            ZookeeperShardManagerServer server =
+                new ZookeeperShardManagerServer("foo", zookeeperServer.getConnectString(), gondola, shardManager);
             shardManagers.put(hostId, shardManager);
             servers.put(hostId, server);
         }

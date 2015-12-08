@@ -15,6 +15,7 @@ import com.yahoo.gondola.Shard;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,8 +39,16 @@ public class GondolaAdminResource {
 
     @POST
     @Path("/setLeader")
-    public void setLeader(@QueryParam("shardId") String shardId) {
-        GondolaApplication.getRoutingFilter().getGondola().getShard(shardId).forceLeader(5000);
+    public Map setLeader(@QueryParam("shardId") String shardId) {
+        Map<Object, Object> result = new HashMap<>();
+        try {
+            GondolaApplication.getRoutingFilter().getGondola().getShard(shardId).forceLeader(5000);
+            result.put("success", true);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("reason", e.getMessage());
+        }
+        return result;
     }
 
     @GET
@@ -106,7 +115,7 @@ public class GondolaAdminResource {
         ShardManagerServer shardManagerServer = GondolaApplication.getShardManagerServer();
         if (shardManagerServer != null) {
             ShardManager shardManager = shardManagerServer.getShardManager();
-            //map.put("shardManagerServer", shardManagerServer);
+            map.put("shardManagerServer", shardManagerServer.getStatus());
             //map.put("shardManager", shardManager);
         }
         return map;

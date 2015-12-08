@@ -16,31 +16,40 @@ import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
  * A Provider that provide the CommandListener implementation.
  */
 public class ShardManagerProvider {
+
     Gondola gondola;
     Config config;
+    RoutingFilter filter;
 
 
-    public ShardManagerProvider(Gondola gondola) {
-        this.gondola = gondola;
+    public ShardManagerProvider(RoutingFilter filter) {
+        this.filter = filter;
+        this.gondola = filter.getGondola();
         this.config = gondola.getConfig();
     }
 
     public ShardManagerServer getShardManagerServer() {
         Utils.RegistryConfig conf = Utils.getRegistryConfig(gondola.getConfig());
-        switch(conf.type) {
+        ShardManager shardManager =
+            new ShardManager(gondola, filter, gondola.getConfig(),
+                             getShardManagerClient());
+        switch (conf.type) {
             case NONE:
                 return null;
             case ZOOKEEPER:
-                return new ZookeeperShardManagerServer(conf.attributes.get("serviceName"),
-                                                       conf.attributes.get("connectString"),
-                                                       gondola);
+                ZookeeperShardManagerServer
+                    zookeeperShardManagerServer =
+                    new ZookeeperShardManagerServer(conf.attributes.get("serviceName"),
+                                                    conf.attributes.get("connectString"),
+                                                    gondola, shardManager);
+                return zookeeperShardManagerServer;
         }
         throw new IllegalArgumentException("Unknown config");
     }
 
     public ShardManagerClient getShardManagerClient() {
         Utils.RegistryConfig conf = Utils.getRegistryConfig(gondola.getConfig());
-        switch(conf.type) {
+        switch (conf.type) {
             case NONE:
                 return null;
             case ZOOKEEPER:

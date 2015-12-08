@@ -127,16 +127,14 @@ public class GondolaApplication {
                 services.put(shard.getShardId(), service);
             }
 
-            if (shardManagerProvider == null) {
-                shardManagerProvider = new ShardManagerProvider(gondola);
-            }
             ChangeLogProcessor changeLogProcessor = new ChangeLogProcessor(gondola, services);
             RoutingHelper routingHelper = routingHelperClass.newInstance();
             RoutingFilter routingFilter =
                 new RoutingFilter(gondola, routingHelper, proxyClientProvider, services, changeLogProcessor);
-            initShardManagerServer(routingFilter);
             gondola.start();
             routingFilter.start();
+
+            initShardManagerServer(routingFilter);
 
             // register dependency injection.
             application.register(new AbstractBinder() {
@@ -160,16 +158,18 @@ public class GondolaApplication {
         }
 
         private void initShardManagerServer(RoutingFilter routingFilter) {
-            ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
-            ShardManagerClient shardManagerClient = shardManagerProvider.getShardManagerClient();
-            if (shardManagerServer != null) {
-                ShardManager shardManager =
-                    new ShardManager(gondola, routingFilter, gondola.getConfig(),
-                                     shardManagerClient);
-                shardManagerServer.setShardManager(shardManager);
-                routingFilter.registerShutdownFunction(shardManagerServer::stop);
-                GondolaApplication.shardManagerServer = shardManagerServer;
+
+            if (shardManagerProvider == null) {
+                shardManagerProvider = new ShardManagerProvider(routingFilter);
+                ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
+                ShardManagerClient shardManagerClient = shardManagerProvider.getShardManagerClient();
+                if (shardManagerServer != null) {
+                    routingFilter.registerShutdownFunction(shardManagerServer::stop);
+                    GondolaApplication.shardManagerServer = shardManagerServer;
+                    GondolaApplication.shardManagerClient = shardManagerClient;
+                }
             }
+
         }
     }
 

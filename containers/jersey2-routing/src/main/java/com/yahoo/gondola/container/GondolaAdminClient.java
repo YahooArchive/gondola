@@ -18,7 +18,6 @@ import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 
 public class GondolaAdminClient {
 
@@ -34,9 +33,10 @@ public class GondolaAdminClient {
 
     public Map setLeader(String hostId, String shardId) {
         String appUri = Utils.getAppUri(config, hostId);
-        WebTarget target = client.target(appUri).path(API_SET_LEADER + "?shardId=" + shardId);
-        Response response = target.request(MediaType.APPLICATION_JSON_TYPE).post(null);
-        return null;
+        WebTarget target = client.target(appUri)
+            .path(API_SET_LEADER)
+            .queryParam("shardId", shardId);
+        return target.request().post(null, Map.class);
     }
 
 
@@ -46,7 +46,7 @@ public class GondolaAdminClient {
         try {
             return target.request(MediaType.APPLICATION_JSON_TYPE).get(Map.class);
         } catch (Exception e) {
-            logger.warn("Cannot get remote host hostId={}, message={}", hostId,  e.getMessage());
+            logger.warn("Cannot get remote host hostId={}, message={}", hostId, e.getMessage());
             return null;
         }
     }

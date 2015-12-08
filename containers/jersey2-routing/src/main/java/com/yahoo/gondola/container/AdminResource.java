@@ -7,14 +7,15 @@
 package com.yahoo.gondola.container;
 
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.container.client.ShardManagerClient;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import javax.ejb.Singleton;
@@ -30,14 +31,16 @@ import javax.ws.rs.QueryParam;
 public class AdminResource {
 
     static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
-    static ObjectMapper objectMapper = Utils.getObjectMapperInstance();
     AdminClient client;
+    ShardManagerClient shardManagerClient = GondolaApplication.getShardManagerClient();
+    Config config;
 
     public AdminResource() {
         // TODO: refine admin client interface
         Gondola gondola = GondolaApplication.getRoutingFilter().getGondola();
+        this.config = gondola.getConfig();
         client = new AdminClient(Utils.getRegistryConfig(gondola.getConfig()).attributes.get("serviceName"),
-                                 GondolaApplication.getShardManagerClient(),
+                                 shardManagerClient,
                                  gondola.getConfig(),
                                  new ConfigWriter(gondola.getConfig().getFile()),
                                  new GondolaAdminClient(gondola.getConfig()));
@@ -94,19 +97,49 @@ public class AdminResource {
         client.disableTracing(target, targetId);
     }
 
+    @Path("/setSlave")
+    @POST
+    public Map setSlave(@QueryParam("shardId") String shardId, @QueryParam("masterShardId") String masterShardId) {
+        Map<Object, Object> map = new LinkedHashMap<>();
+        try {
+            shardManagerClient.startObserving(shardId, masterShardId, 5000);
+            map.put("success", true);
+        } catch (ShardManagerProtocol.ShardManagerException | InterruptedException e) {
+            map.put("success", false);
+            map.put("reason", e.getMessage());
+        }
+        return map;
+    }
+
+    @Path("/unsetSlave")
+    @POST
+    public Map unsetSlave(@QueryParam("shardId") String shardId, @QueryParam("masterShardId") String masterShardId) {
+        Map<Object, Object> map = new LinkedHashMap<>();
+        try {
+            shardManagerClient.stopObserving(shardId, masterShardId, 5000);
+            map.put("success", true);
+        } catch (ShardManagerProtocol.ShardManagerException | InterruptedException e) {
+            map.put("success", false);
+            map.put("reason", e.getMessage());
+        }
+        return map;
+    }
+
+
+
     @Path("/setLeader")
     @POST
     public Map setLeader(@QueryParam("hostId") String hostId, @QueryParam("shardId") String shardId) {
         return client.setLeader(hostId, shardId);
     }
 
-    @Path("/getHostStatus")
+    @Path("/hostStatus")
     @GET
     public Map getHostStatus(@QueryParam("hostId") String hostId) {
         return client.getHostStatus(hostId);
     }
 
-    @Path("/getServiceStatus")
+    @Path("/serviceStatus")
     @GET
     public Map getServiceStatus() {
         return client.getServiceStatus();

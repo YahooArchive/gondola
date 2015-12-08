@@ -26,8 +26,7 @@ public class DemoApplication extends ResourceConfig {
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
         // Initialize Routing application
         GondolaApplication.Builder.createGondolaApplication()
-//            .setConfigUri(URI.create("zookeeper://localhost:2181/foo"))
-            .setConfigUri(URI.create("classpath:///gondola.conf"))
+            .setConfigUri(URI.create(System.getProperty("conf")))
             .setRoutingHelper(DemoRoutingHelper.class)
             .setService(DemoService.class)
             .setApplication(this)
