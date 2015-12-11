@@ -853,9 +853,10 @@ public class CoreMember implements Stoppable {
         if (force || now > showSummaryTs) {
             Stats stats = gondola.getStats();
             logger.info(
-                    String.format("[%s-%d] %s%s pid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
+                    String.format("[%s-%d] %s%s %spid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
                                     + "|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
-                                  gondola.getHostId(), memberId, role, masterId >= 0 ? "-SLAVE" : "",
+                                  gondola.getHostId(), memberId, role, enabled ? "" : " (disabled)",
+                                  masterId >= 0 ? "-SLAVE" : "",
                                   gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
                                   incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
                                   CoreCmd.commitLatency.get(), latency.get()));
@@ -973,6 +974,11 @@ public class CoreMember implements Stoppable {
      * If not a prevote, increments the current term before sending out the message.
      */
     public void sendRequestVoteRequest(boolean isPrevote) throws GondolaException {
+        // If disabled, don't participate in voting
+        if (!enabled) {
+            return;
+        }
+
         if (!isPrevote) {
             // Increment the current term
             currentTerm++;
@@ -1126,6 +1132,11 @@ public class CoreMember implements Stoppable {
                 return;
             }
 
+            // If disabled, don't participate in voting
+            if (!enabled) {
+                return;
+            }
+
             // Determine if sender's log is up-to-date
             saveQueue.getLatest(savedRid);
             boolean validLog = lastRid.term > savedRid.term
@@ -1184,6 +1195,11 @@ public class CoreMember implements Stoppable {
             Peer peer = peerMap.get(fromMemberId);
             if (peer == null) {
                 logger.error("Received rv from unknown member {}", fromMemberId);
+                return;
+            }
+
+            // If disabled, don't participate in voting
+            if (!enabled) {
                 return;
             }
 
@@ -1284,6 +1300,29 @@ public class CoreMember implements Stoppable {
             latencyCount = 0;
             return result;
         }
+    }
+
+    /* ************************************ disable mode ************************************* */
+
+    private boolean enabled = true;
+
+    /**
+     * See Member.enable().
+     */
+    public void enable(boolean on) throws GondolaException {
+        logger.info("[{}-{}] {}",
+                    gondola.getHostId(), memberId, on ? "Enabling" : "Disabling");
+        enabled = on;
+        if (isLeader()) {
+            becomeFollower(-1);
+        }
+    }
+
+    /**
+     * See Member.isEnabled().
+     */
+    public boolean isEnabled() {
+        return enabled;
     }
 
     /* ************************************ slave mode ************************************* */

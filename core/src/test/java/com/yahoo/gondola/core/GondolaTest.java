@@ -928,6 +928,45 @@ public class GondolaTest {
     }
 
     /**************************
+     * disabled mode
+     ***********************/
+
+    @Test
+    public void disable() throws Exception {
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        runningTick = 50;
+
+        // Disable member
+        member1.enable(false);
+
+        // Wait until one of the other nodes becomes a leader
+        while (!member2.isLeader() && !member3.isLeader()) {
+            assertTrue(!member1.isLeader(), "disabled member should never become a leader");
+            Thread.sleep(100);
+        }
+
+        // Disable another member
+        member2.enable(false);
+        Thread.sleep(500);
+
+        // Make sure there are no leaders
+        assertTrue(!member1.isLeader(), "no majority, so should not be a leader");
+        assertTrue(!member2.isLeader(), "no majority, so should not be a leader");
+        assertTrue(!member3.isLeader(), "no majority, so should not be a leader");
+
+        // Re-enable
+        member1.enable(true);
+        member2.enable(true);
+
+        // Wait until one of the nodes becomes a leader
+        while (!member1.isLeader() && member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(100);
+        }
+    }
+
+    /**************************
      * slave mode
      ***********************/
 
@@ -962,21 +1001,19 @@ public class GondolaTest {
         Member slave2 = g2.getShard("shard2").getMember(2);
         g2.start();
 
-        /*
         // First try a non-leader
         slave1.setSlave(6);
         slave2.setSlave(6);
-        Thread.sleep(1000);
+        Thread.sleep(500);
         assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
         assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
         
         // Try another non-leader
         slave1.setSlave(5);
         slave2.setSlave(5);
-        Thread.sleep(1000);
+        Thread.sleep(500);
         assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
         assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
-        */
 
         // Now hit the leader
         slave1.setSlave(4);
@@ -988,8 +1025,8 @@ public class GondolaTest {
             Thread.sleep(100);
 
             // Just call again to make sure this is idempotent
-            //slave1.setSlave(4);
-            //slave2.setSlave(4);
+            slave1.setSlave(4);
+            slave2.setSlave(4);
         }
         Member.SlaveStatus status = slave1.getSlaveStatus();
         logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
