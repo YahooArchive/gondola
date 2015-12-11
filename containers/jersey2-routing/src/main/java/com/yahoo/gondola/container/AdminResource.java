@@ -14,7 +14,6 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -46,55 +45,12 @@ public class AdminResource {
         }
     }
 
-
-    public void setServiceName(String serviceName) throws AdminClient.AdminException {
-        client.setServiceName(serviceName);
-    }
-
-    public String getServiceName() throws AdminClient.AdminException {
-        return client.getServiceName();
-    }
-
-    public Config getConfig() throws AdminClient.AdminException {
-        return client.getConfig();
-    }
-
-    public void setConfig(File configFile) throws AdminClient.AdminException {
-        client.setConfig(configFile);
-    }
-
-    public void splitShard(String fromShardId, String toShardId)
-        throws AdminClient.AdminException, InterruptedException {
-        client.splitShard(fromShardId, toShardId);
-    }
-
     @POST
     @Path("/assignBuckets")
     public void assignBuckets(@QueryParam("lowerBound") int lowerBound, @QueryParam("upperBound") int upperBound,
                               @QueryParam("fromShardId") String fromShardId, @QueryParam("toShardId") String toShardId)
         throws InterruptedException, AdminClient.AdminException {
         client.assignBuckets(lowerBound, upperBound, fromShardId, toShardId);
-    }
-
-    public void mergeShard(String fromShardId, String toShardId)
-        throws AdminClient.AdminException, InterruptedException {
-        client.mergeShard(fromShardId, toShardId);
-    }
-
-    public void enable(AdminClient.Target target, String targetId) throws AdminClient.AdminException {
-        client.enable(target, targetId);
-    }
-
-    public void disable(AdminClient.Target target, String targetId) throws AdminClient.AdminException {
-        client.disable(target, targetId);
-    }
-
-    public void enableTracing(AdminClient.Target target, String targetId) throws AdminClient.AdminException {
-        client.enableTracing(target, targetId);
-    }
-
-    public void disableTracing(AdminClient.Target target, String targetId) throws AdminClient.AdminException {
-        client.disableTracing(target, targetId);
     }
 
     @Path("/setSlave")
@@ -148,5 +104,19 @@ public class AdminResource {
     @GET
     public Map getServiceStatus() {
         return client.getServiceStatus();
+    }
+
+    @Path("/enableSite")
+    @POST
+    public void enableSite(@QueryParam("siteId") String siteId, @QueryParam("enable") boolean enable)
+        throws AdminClient.AdminException {
+        client.enable(AdminClient.Target.SITE, siteId, enable);
+    }
+
+    @Path("/enableHost")
+    @POST
+    public void enableHost(@QueryParam("hostId") String hostId, @QueryParam("enable") boolean enable)
+        throws AdminClient.AdminException {
+        client.enable(AdminClient.Target.HOST, hostId, enable);
     }
 }

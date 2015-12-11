@@ -27,6 +27,7 @@ public class GondolaAdminClient {
     public static final String API_SET_LEADER = "/api/gondola/v1/local/setLeader";
     public static final String API_GONDOLA_STATUS = "/api/gondola/v1/local/gondolaStatus";
     public static final String API_INSPECT_REQUEST_URI = "/api/gondola/v1/local/inspectRequestUri";
+    public static final String API_ENABLE = "/api/gondola/v1/local/enable";
     Config config;
     Client client = ClientBuilder.newClient();
     Logger logger = LoggerFactory.getLogger(GondolaAdminClient.class);
@@ -43,6 +44,14 @@ public class GondolaAdminClient {
         return target.request().post(null, Map.class);
     }
 
+    public Map enable(String hostId, String shardId, boolean enable) {
+        String appUri = Utils.getAppUri(config, hostId);
+        WebTarget target = client.target(appUri)
+            .path(API_ENABLE)
+            .queryParam("shardId", shardId)
+            .queryParam("enable", enable);
+        return target.request().post(null, Map.class);
+    }
 
     public Map getHostStatus(String hostId) {
         String appUri = Utils.getAppUri(config, hostId);

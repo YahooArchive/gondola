@@ -11,6 +11,8 @@ import com.yahoo.gondola.Config;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 public class AdminCli {
@@ -23,14 +25,28 @@ public class AdminCli {
         new AdminCli(args);
     }
 
-    public AdminCli(String[] args) throws Exception {
-        Config config = ConfigLoader.getConfigInstance(URI.create("classpath:///gondola.conf"));
-        adminClient = AdminClient.getInstance(config, "adminCli");
-        if (args.length == 1) {
+    public AdminCli(String[] stringArgs) throws Exception {
+        List<String> argsList = Arrays.asList(stringArgs);
+        if (argsList.size() < 2) {
             usage();
         }
 
-        switch (args[1]) {
+        String confFile = "file:///examples/kv-server/src/main/resources/gondola.conf";
+        for (int i = 0; i < argsList.size(); i++) {
+            if (argsList.get(i).equals("-c")) {
+                confFile = argsList.get(i+1);
+                argsList.remove(i);
+                argsList.remove(i);
+                break;
+            }
+        }
+        Config config = ConfigLoader.getConfigInstance(URI.create(confFile));
+        adminClient = AdminClient.getInstance(config, "adminCli");
+        if (argsList.size() == 0) {
+            usage();
+        }
+
+        switch (argsList.get(0)) {
             case "enable":
             case "disable":
                 break;
@@ -38,7 +54,7 @@ public class AdminCli {
             case "splitShard":
                 break;
             case "setConfig":
-                URI uri = URI.create(args[2]);
+                URI uri = URI.create(argsList.get(1));
                 Config configInstance = ConfigLoader.getConfigInstance(uri);
                 adminClient.setConfig(configInstance.getFile());
                 break;
@@ -52,26 +68,26 @@ public class AdminCli {
                 printStates(adminClient.getServiceStatus());
                 break;
             case "setBuckets":
-                if (args.length != 6) {
+                if (argsList.size() != 5) {
                     usage();
                 }
-                int rangeStart = Integer.parseInt(args[2]);
-                int rangeEnd = Integer.parseInt(args[3]);
-                String fromShard = args[4];
-                String toShard = args[5];
+                int rangeStart = Integer.parseInt(argsList.get(1));
+                int rangeEnd = Integer.parseInt(argsList.get(2));
+                String fromShard = argsList.get(3);
+                String toShard = argsList.get(4);
                 adminClient.assignBuckets(rangeStart, rangeEnd, fromShard, toShard);
                 break;
             case "inspectUri":
-                if (args.length != 3) {
+                if (argsList.size() != 2) {
                     usage();
                 }
-                adminClient.inspectRequestUri(config.getHostIds().get(0), args[2]);
+                adminClient.inspectRequestUri(config.getHostIds().get(0), argsList.get(1));
                 break;
             case "setLeader":
-                if (args.length != 3) {
+                if (argsList.size() != 2) {
                     usage();
                 }
-                String hostId = args[2];
+                String hostId = argsList.get(1);
                 for (String shardId : config.getShardIds(hostId)) {
                     adminClient.setLeader(hostId, shardId);
                 }
@@ -107,13 +123,15 @@ public class AdminCli {
                        "   enableTracing  <hostId>\n" +
                        "   disableTracing <hostId>\n" +
                        "   setLeader      <hostId>\n" +
+                       "   setSlave       <fromShard> <toShard>\n" +
+                       "   unsetSlave     <fromShard> <toShard>\n" +
                        "   mergeShard     <fromShardId> <toShardId>\n" +
                        "   splitShard     <fromShardId> <toShardId>\n" +
                        "   setBuckets     <bucketStart> <bucketEnd> <fromShardId> <toShardId>\n" +
-                       "   inspectUri     <URI>\n" +
+                       "   inspectUri     <uri>\n" +
                        "   status         \n" +
                        "   getConfig      \n" +
-                       "   setConfig      \n" +
+                       "   setConfig      <file>\n" +
                        "   getHostIds     \n";
         System.out.println(usage);
         System.exit(1);

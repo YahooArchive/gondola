@@ -212,22 +212,34 @@ public class AdminClient {
      *
      * @param target   the target
      * @param targetId the target id
+     * @param enable   enable or disable
      * @throws AdminException the admin exception
      */
-    public void enable(Target target, String targetId) throws AdminException {
-
-    }
-
-
-    /**
-     * Disable.
-     *
-     * @param target   the target
-     * @param targetId the target id
-     * @throws AdminException the admin exception
-     */
-    public void disable(Target target, String targetId) throws AdminException {
-
+    public void enable(Target target, String targetId, boolean enable) throws AdminException {
+        switch (target) {
+            case HOST:
+                for (String shardId : config.getShardIds(targetId)) {
+                    gondolaAdminClient.enable(targetId, shardId, enable);
+                }
+                break;
+            case SHARD:
+                throw new UnsupportedOperationException("Enable/disable a shard is not allowed.");
+            case SITE:
+                config.getHostIds().stream().filter(hostId -> config.getSiteIdForHost(hostId).equals(targetId)).forEach(
+                    hostId -> {
+                        for (String shardId : config.getShardIds(hostId)) {
+                            gondolaAdminClient.enable(hostId, shardId, enable);
+                        }
+                    }
+                );
+                break;
+            case STORAGE:
+                break;
+            case ALL:
+                throw new UnsupportedOperationException("Enable/disable a shard is not allowed.");
+            default:
+                throw new IllegalStateException("unsupported target");
+        }
     }
 
 
@@ -297,7 +309,7 @@ public class AdminClient {
         return gondolaAdminClient.getServiceStatus();
     }
 
-    public Map inspectRequestUri (String hostId, String uri) {
+    public Map inspectRequestUri(String hostId, String uri) {
         return gondolaAdminClient.inspectRequestUri(uri, hostId);
     }
 }

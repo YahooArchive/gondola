@@ -36,9 +36,9 @@ public class ConfigLoader {
     public static Config getConfigInstance(URI configUri) {
         Config config;
         File configFile;
+        String path  = configUri.getPath().replaceFirst("^/", "");
         switch (configUri.getScheme()) {
             case "classpath":
-                String path  = configUri.getPath().replaceFirst("^/", "");
                 URL resource = Thread.currentThread().getContextClassLoader().getResource(path);
                 if (resource == null) {
                     throw new IllegalArgumentException("File not found in " + configUri.toString());
@@ -47,7 +47,10 @@ public class ConfigLoader {
                 config = new Config(configFile);
                 break;
             case "file":
-                configFile = new File(configUri.getPath());
+                configFile = new File(path);
+                if (!configFile.exists()) {
+                    throw new IllegalArgumentException("File not found in " + configFile.getAbsolutePath());
+                }
                 config = new Config(configFile);
                 break;
             case "zookeeper":

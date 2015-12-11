@@ -56,6 +56,21 @@ public class GondolaAdminResource {
         return result;
     }
 
+    @POST
+    @Path("/enable")
+    public Map enable(@QueryParam("shardId") String shardId, @QueryParam("enable") boolean enable) {
+        Map<Object, Object> result = new HashMap<>();
+        Member localMember = GondolaApplication.getRoutingFilter().getGondola().getShard(shardId).getLocalMember();
+        try {
+            localMember.enable(enable);
+            result.put("success", true);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("reason", e.getMessage());
+        }
+        return result;
+    }
+
     @GET
     @Path("/gondolaStatus")
     public Map getGondolaStatus() {
@@ -114,6 +129,7 @@ public class GondolaAdminResource {
             shardMap.put("appliedIndex", changeLogProcessor.getAppliedIndex(shardId));
             shardMap.put("slaveStatus", getSlaveStatus(shard));
             shardMap.put("role", shard.getLocalRole());
+            shardMap.put("enabled", shard.getLocalMember().isEnabled());
             shards.put(shardId, shardMap);
         }
         return shards;
@@ -123,9 +139,7 @@ public class GondolaAdminResource {
         Map<Object, Object> map = new LinkedHashMap<>();
         ShardManagerServer shardManagerServer = GondolaApplication.getShardManagerServer();
         if (shardManagerServer != null) {
-            ShardManager shardManager = shardManagerServer.getShardManager();
             map.put("shardManagerServer", shardManagerServer.getStatus());
-            //map.put("shardManager", shardManager);
         }
         return map;
     }
