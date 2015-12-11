@@ -64,6 +64,14 @@ public class MemberRc {
         return cmember.getCommitIndex();
     }
     
+    public void enable(boolean on) throws Exception {
+        cmember.enable(on);
+    }
+
+    public boolean isEnabled() {
+        return cmember.isEnabled();
+    }
+
     public Command checkoutCommand() throws Exception {
         return shard.checkoutCommand();
     }

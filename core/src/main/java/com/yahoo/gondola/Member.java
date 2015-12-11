@@ -100,6 +100,22 @@ public class Member {
         return gondola.getConfig().getAddressForMember(getMemberId());
     }
 
+    /* ************************************ enable mode ************************************* */
+
+    /**
+     * When disabled, the member will resign if it is the leader and not send nor respond to vote requests.
+     */
+    public void enable(boolean on) throws GondolaException {
+        cmember.enable(on);
+    }
+
+    /**
+     * When disabled, the member will resign if it is the leader and not send nor respond to vote requests.
+     */
+    public boolean isEnabled() {
+        return cmember.isEnabled();
+    }
+
     /* ************************************ slave mode ************************************* */
 
     InetSocketAddress masterAddress;
