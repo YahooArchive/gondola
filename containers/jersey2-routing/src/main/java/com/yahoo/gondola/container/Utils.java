@@ -163,6 +163,7 @@ public class Utils {
      * Registry config.
      */
     public static class RegistryConfig {
+
         Type type;
         Map<String, String> attributes;
     }

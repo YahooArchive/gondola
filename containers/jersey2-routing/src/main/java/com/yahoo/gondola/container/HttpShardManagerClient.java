@@ -17,12 +17,15 @@ import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
 
+/**
+ * Shard manager client - HTTP.
+ */
 public class HttpShardManagerClient implements ShardManagerClient {
 
     Config config;
     Client client = ClientBuilder.newClient();
     Logger logger = LoggerFactory.getLogger(GondolaAdminClient.class);
-    String PREFIX = "/api/gondola/shardManager/v1/";
+    static String PREFIX = "/api/gondola/shardManager/v1/";
 
     public HttpShardManagerClient(Config config) {
         this.config = config;

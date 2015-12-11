@@ -19,6 +19,9 @@ import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.client.WebTarget;
 import javax.ws.rs.core.MediaType;
 
+/**
+ * Gondola admin client.
+ */
 public class GondolaAdminClient {
 
     public static final String API_SET_LEADER = "/api/gondola/v1/local/setLeader";

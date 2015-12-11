@@ -67,7 +67,8 @@ public class ShardManager implements ShardManagerProtocol {
               gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), observedShardId);
         List<Config.ConfigMember> membersInShard = config.getMembersInShard(observedShardId);
         for (Config.ConfigMember m : membersInShard) {
-            if (success = setSlave(shardId, m.getMemberId(), timeoutMs / membersInShard.size())) {
+            if (success = setSlave(shardId, m.getMemberId(), timeoutMs)) {
+                filter.getChangeLogProcessor().reset(shardId);
                 trace("[{}-{}] Successfully to follow masterId={}",
                       gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), m.getMemberId());
                 break;

@@ -30,6 +30,7 @@ public class ChangeLogProcessor {
 
     /**
      * Instantiates a new Change log processor.
+     *
      * @param gondola  the gondola
      * @param services the routing services
      */
@@ -51,6 +52,7 @@ public class ChangeLogProcessor {
         private String hostId;
         private int memberId;
         private ChangeLogConsumer changeLogConsumer;
+        boolean reset = false;
 
         public ChangeLogProcessorThread(String shardId) {
             setName("ChangeLogProcessor");
@@ -71,8 +73,13 @@ public class ChangeLogProcessor {
                     }
                     appliedIndex++;
                 } catch (InterruptedException e) {
-                    logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                    return;
+                    if (!reset) {
+                        reset = false;
+                        appliedIndex = 0;
+                    } else {
+                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                        return;
+                    }
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
                     if (++retryCount == 3) {
@@ -118,10 +125,20 @@ public class ChangeLogProcessor {
     }
 
     /**
+     * Reset
+     */
+    public void reset(String shardId) {
+        ChangeLogProcessorThread t = threads.get(shardId);
+        t.reset = false;
+        t.interrupt();
+    }
+
+    /**
      * Change log consumer functional interface.
      */
     @FunctionalInterface
     public interface ChangeLogConsumer {
+
         void applyLog(String shardId, Command command);
     }
 }

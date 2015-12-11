@@ -72,7 +72,7 @@ public class AdminCli {
                     usage();
                 }
                 String hostId = args[2];
-                for (String shardId  : config.getShardIds(hostId)) {
+                for (String shardId : config.getShardIds(hostId)) {
                     adminClient.setLeader(hostId, shardId);
                 }
                 break;

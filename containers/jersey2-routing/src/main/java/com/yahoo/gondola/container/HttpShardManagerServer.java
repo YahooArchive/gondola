@@ -17,6 +17,9 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.QueryParam;
 
+/**
+ * Shard manager server - http.
+ */
 @Path("/gondola/shardManager/v1/")
 public class HttpShardManagerServer implements ShardManagerServer {
 
