@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container.client;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -15,7 +16,7 @@ import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -99,7 +100,12 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
         }
 
         if (httpRequest instanceof HttpEntityEnclosingRequest) {
-            ((HttpEntityEnclosingRequest) httpRequest).setEntity(new InputStreamEntity(request.getEntityStream()));
+            Object requestBody = request.getProperty("requestBody");
+            if (requestBody == null) {
+                requestBody = IOUtils.toString(request.getEntityStream());
+                request.setProperty("requestBody", requestBody);
+            }
+            ((HttpEntityEnclosingRequest) httpRequest).setEntity(new StringEntity((String)requestBody));
         }
         proxiedResponse = httpClient.execute(httpRequest);
         return proxiedResponse;
