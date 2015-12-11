@@ -113,6 +113,13 @@ public class SocketNetwork implements Network {
 
     @Override
     public Channel createChannel(int fromMemberId, int toMemberId) {
+        for (Channel c : channels) {
+            SocketChannel ch = (SocketChannel) c;
+            if (ch.memberId == fromMemberId && ch.peerId == toMemberId) {
+                channels.remove(ch);
+                break;
+            }
+        }
         SocketChannel channel = new SocketChannel(gondola, fromMemberId, toMemberId);
         channels.add(channel);
         return channel;
@@ -366,8 +373,6 @@ public class SocketNetwork implements Network {
          * Initiates a call to the remote member.
          */
         void makeCall(int fromMemberId, int toMemberId) throws IOException {
-            assert fromMemberId > toMemberId;
-
             outgoing(true, fromMemberId, toMemberId);
         }
 

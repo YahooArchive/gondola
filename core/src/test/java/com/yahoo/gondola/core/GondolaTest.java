@@ -962,7 +962,23 @@ public class GondolaTest {
         Member slave2 = g2.getShard("shard2").getMember(2);
         g2.start();
 
-        // Enable the slave
+        /*
+        // First try a non-leader
+        slave1.setSlave(6);
+        slave2.setSlave(6);
+        Thread.sleep(1000);
+        assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
+        assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
+        
+        // Try another non-leader
+        slave1.setSlave(5);
+        slave2.setSlave(5);
+        Thread.sleep(1000);
+        assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
+        assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
+        */
+
+        // Now hit the leader
         slave1.setSlave(4);
         slave2.setSlave(4);
         while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
@@ -972,8 +988,8 @@ public class GondolaTest {
             Thread.sleep(100);
 
             // Just call again to make sure this is idempotent
-            slave1.setSlave(4);
-            slave2.setSlave(4);
+            //slave1.setSlave(4);
+            //slave2.setSlave(4);
         }
         Member.SlaveStatus status = slave1.getSlaveStatus();
         logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);

@@ -202,14 +202,16 @@ public class Peer {
 
     /******************** methods *********************/
 
-
+    /**
+     * Replaces the current channel with the new one.
+     * The old channel (if any) will be stopped and the new channel started.
+     */
     public void setChannel(Channel channel) throws GondolaException {
-        Channel old = this.channel;
-        this.channel = channel;
         channel.start();
         if (this.channel != null) {
             this.channel.stop();
         }
+        this.channel = channel;
     }
 
     /**

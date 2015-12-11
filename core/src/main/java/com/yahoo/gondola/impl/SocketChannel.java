@@ -179,7 +179,7 @@ public class SocketChannel implements Channel {
         lock.lock();
         try {
             if (stopped) {
-                throw new EOFException();
+                throw new EOFException("channel for member " + memberId + " has been stopped");
             }
             if (!socketValid || this.in == null || errorOccurred && in == this.in) {
                 awaitOperationalUnlocked();
@@ -201,7 +201,7 @@ public class SocketChannel implements Channel {
         lock.lock();
         try {
             if (stopped) {
-                throw new EOFException();
+                throw new EOFException("channel for member " + memberId + " has been stopped");
             }
             if (!socketValid || this.out == null || errorOccurred && out == this.out) {
                 awaitOperationalUnlocked();
@@ -220,6 +220,8 @@ public class SocketChannel implements Channel {
     void awaitOperationalUnlocked() throws InterruptedException {
         // If the socket was valid, create a thread to reconnect
         if (socketValid) {
+            logger.info("[{}-{}] Socket to {} is now non-operational. Closing.",
+                        gondola.getHostId(), memberId, peerId);
             socketValid = false;
 
             // Close the current socket
@@ -250,11 +252,8 @@ public class SocketChannel implements Channel {
     void setSocket(Socket socket, InputStream in, OutputStream out) throws IOException {
         lock.lock();
         try {
-            if (socketValid) {
-                // This can happen with a call from NetworkChannel
-                logger.info("[{}-{}] A valid socket to {} is being replaced",
-                            gondola.getHostId(), memberId, peerId);
-            }
+            logger.info("[{}-{}] {}valid socket to {} is being replaced ",
+                        gondola.getHostId(), memberId, socketValid ? "A " : "An in", peerId);
             close(this.socket, this.in, this.out);
 
             // Update new streams
@@ -321,7 +320,7 @@ public class SocketChannel implements Channel {
 
             // Initiate the connection only if this member id is
             // larger than the remote member or if this member is a
-            // slave.  Otherwise, it's assumed that the remote member will initiate the connectin.
+            // slave.  Otherwise, it's assumed that the remote member will initiate the connection.
             boolean initiateCall = memberId > peerId || isSlave;
             new SocketCreator(initiateCall).start();
         }
