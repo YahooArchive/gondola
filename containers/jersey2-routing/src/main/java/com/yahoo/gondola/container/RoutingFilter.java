@@ -31,7 +31,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -59,11 +62,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     public static final int POLLING_TIMES = 3;
     public static final int RETRY_TIMES = 3;
+    public static final int WAIT_MS = 1000;
     private static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
-    static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
-    static final String X_FORWARDED_BY = "X-Forwarded-By";
-    static final String X_GONDOLA_ERROR = "X-Gondola-Error";
+    public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
+    public static final String X_FORWARDED_BY = "X-Forwarded-By";
+    public static final String X_GONDOLA_ERROR = "X-Gondola-Error";
 
     private RoutingHelper routingHelper;
     private Gondola gondola;
@@ -91,6 +95,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private ChangeLogProcessor changeLogProcessor;
     private Map<String, RoutingService> services;
     private Pattern whiteList = Pattern.compile("^gondola/.*");
+
+    private ReentrantLock lock = new ReentrantLock();
+    Condition leaderFoundCondition = lock.newCondition();
 
     /**
      * Disallow default constructor.
@@ -136,8 +143,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void watchGondolaEvent() {
         gondola.registerForRoleChanges(roleChangeEvent -> {
             if (roleChangeEvent.leader != null) {
+                lock.lock();
+                try {
+                    logger.info("New leader found, signal all!");
+                    leaderFoundCondition.signalAll();
+                } finally {
+                    lock.unlock();
+                }
                 Config config = gondola.getConfig();
-                String appUri = Utils.getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
+                String
+                    appUri =
+                    Utils.getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
                 updateShardRoutingEntries(roleChangeEvent.shard.getShardId(), appUri);
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
@@ -173,7 +189,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
-    private void extractShardAndBucketIdFromRequest(ContainerRequestContext request) {
+    public void extractShardAndBucketIdFromRequest(ContainerRequestContext request) {
         // Extract required data
         if (request.getProperty("shardId") == null) {
             int bucketId = getBucketId(request);
@@ -184,10 +200,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
     }
 
-    private int getBucketId(ContainerRequestContext request) {
-        return Math.abs(routingHelper.getBucketHash(request) % bucketManager.getNumberOfBuckets());
-    }
-
     private int getBucketIdFromRequest(ContainerRequestContext request) {
         return (Integer) request.getProperty("bucketId");
     }
@@ -195,6 +207,12 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private String getShardIdFromRequest(ContainerRequestContext request) {
         return (String) request.getProperty("shardId");
     }
+
+
+    private int getBucketId(ContainerRequestContext request) {
+        return Math.abs(routingHelper.getBucketHash(request) % bucketManager.getNumberOfBuckets());
+    }
+
 
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
@@ -230,20 +248,43 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         // Block request if needed
         blockRequest(bucketId, shardId);
 
-        Member leader = getLeader(shardId);
-        // Those are the condition that the server should process this request
-        // Still under leader election
+        Member leader = null;
+        try {
+            leader = waitForLeader(shardId);
+        } catch (InterruptedException e) {
+            abortResponse(request, Response.Status.INTERNAL_SERVER_ERROR, "Request interrupted");
+        }
+
         if (leader == null) {
             abortResponse(request, SERVICE_UNAVAILABLE, "No leader is available");
-            trace("Leader is not available");
             return;
-        } else if (leader.isLocal()) {
+
+        }
+
+        if (leader.isLocal()) {
             trace("Processing this request");
             return;
         }
 
         // redirect the request to leader
         proxyRequestToLeader(request, shardId);
+    }
+
+    private Member waitForLeader(String shardId) throws InterruptedException {
+        Member leader;
+        lock.lock();
+        try {
+            for (int i = 0; i < RETRY_TIMES; i++) {
+                leader = getLeader(shardId);
+                if (leader != null) {
+                    return leader;
+                }
+                leaderFoundCondition.await(WAIT_MS, TimeUnit.MILLISECONDS);
+            }
+        } finally {
+            lock.unlock();
+        }
+        return null;
     }
 
     private boolean isWhiteList(ContainerRequestContext request) {
@@ -394,7 +435,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         }
         routingTable = newRoutingTable;
     }
-
 
 
     private String getShardId(int bucketId) {

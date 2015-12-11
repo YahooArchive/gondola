@@ -155,9 +155,12 @@ public class GondolaApplication {
                 shardManagerProvider = new ShardManagerProvider();
             }
 
-            if (GondolaApplication.shardManagerServer == null) {
-                GondolaApplication.shardManagerServer = shardManagerProvider.getShardManagerServer(routingFilter, application);
-                routingFilter.registerShutdownFunction(GondolaApplication.shardManagerServer::stop);
+            ShardManagerServer
+                shardManagerServer =
+                shardManagerProvider.getShardManagerServer(routingFilter, application);
+            if (GondolaApplication.shardManagerServer == null && shardManagerServer != null) {
+                GondolaApplication.shardManagerServer = shardManagerServer;
+                routingFilter.registerShutdownFunction(shardManagerServer::stop);
             }
         }
     }

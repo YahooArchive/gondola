@@ -20,6 +20,7 @@ import java.util.Map;
 
 import javax.inject.Singleton;
 import javax.ws.rs.GET;
+import javax.ws.rs.NotAllowedException;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -39,7 +40,10 @@ public class AdminResource {
         Gondola gondola = GondolaApplication.getRoutingFilter().getGondola();
         config = gondola.getConfig();
         client = AdminClient.getInstance(config, "adminResource");
-        shardManagerClient = GondolaApplication.getShardManagerServer().getShardManager().getShardManagerClient();
+        ShardManagerServer shardManagerServer = GondolaApplication.getShardManagerServer();
+        if (shardManagerServer != null) {
+            shardManagerClient = GondolaApplication.getShardManagerServer().getShardManager().getShardManagerClient();
+        }
     }
 
 
@@ -96,6 +100,9 @@ public class AdminResource {
     @Path("/setSlave")
     @POST
     public Map setSlave(@QueryParam("shardId") String shardId, @QueryParam("masterShardId") String masterShardId) {
+        if (shardManagerClient == null) {
+            throw new NotAllowedException("The operation only supported in multi-shard mode");
+        }
         Map<Object, Object> map = new LinkedHashMap<>();
         try {
             shardManagerClient.startObserving(shardId, masterShardId, 5000);
@@ -111,6 +118,9 @@ public class AdminResource {
     @POST
     public Map unsetSlave(@QueryParam("shardId") String shardId, @QueryParam("masterShardId") String masterShardId) {
         Map<Object, Object> map = new LinkedHashMap<>();
+        if (shardManagerClient == null) {
+            throw new NotAllowedException("The operation only supported in multi-shard mode");
+        }
         try {
             shardManagerClient.stopObserving(shardId, masterShardId, 5000);
             map.put("success", true);

@@ -293,7 +293,11 @@ public class AdminClient {
         return gondolaAdminClient.getHostStatus(hostId);
     }
 
-    public Map getServiceStatus() {
+    public Map<String, Object> getServiceStatus() {
         return gondolaAdminClient.getServiceStatus();
+    }
+
+    public Map inspectRequestUri (String hostId, String uri) {
+        return gondolaAdminClient.inspectRequestUri(uri, hostId);
     }
 }

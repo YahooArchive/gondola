@@ -12,9 +12,12 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
 
+import org.glassfish.jersey.internal.MapPropertiesDelegate;
+import org.glassfish.jersey.server.ContainerRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,6 +29,8 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.core.Context;
 
 /**
  * JAX-RS Gondola Admin Resource.
@@ -87,12 +92,16 @@ public class GondolaAdminResource {
 
     @GET
     @Path("/requestInspect")
-    public Map getRequestInfo(@QueryParam("requestUri") String requestUri) {
-        // TODO: current routingHelper only accept ContainerRequestContext,
-        // see if we can make it more specific to requestURI.
+    public Map getRequestInfo(@QueryParam("requestUri") String requestUri, @Context ContainerRequestContext request) {
+        ContainerRequest
+            containerRequest =
+            new ContainerRequest(request.getUriInfo().getBaseUri(), URI.create(requestUri), "GET", null,
+                                 new MapPropertiesDelegate());
+        RoutingFilter routingFilter = GondolaApplication.getRoutingFilter();
+        routingFilter.extractShardAndBucketIdFromRequest(containerRequest);
         Map<Object, Object> map = new LinkedHashMap<>();
-        map.put("bucketId", 0);
-        map.put("shardId", "shard1");
+        map.put("bucketId", containerRequest.getProperty("bucketId"));
+        map.put("shardId", containerRequest.getProperty("shardId"));
         return map;
     }
 

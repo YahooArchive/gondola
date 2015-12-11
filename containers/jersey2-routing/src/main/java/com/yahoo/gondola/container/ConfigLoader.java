@@ -38,7 +38,8 @@ public class ConfigLoader {
         File configFile;
         switch (configUri.getScheme()) {
             case "classpath":
-                URL resource = Thread.currentThread().getContextClassLoader().getResource(configUri.getPath());
+                String path  = configUri.getPath().replaceFirst("^/", "");
+                URL resource = Thread.currentThread().getContextClassLoader().getResource(path);
                 if (resource == null) {
                     throw new IllegalArgumentException("File not found in " + configUri.toString());
                 }

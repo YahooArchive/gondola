@@ -23,6 +23,7 @@ public class GondolaAdminClient {
 
     public static final String API_SET_LEADER = "/api/gondola/v1/local/setLeader";
     public static final String API_GONDOLA_STATUS = "/api/gondola/v1/local/gondolaStatus";
+    public static final String API_INSPECT_REQUEST_URI = "/api/gondola/v1/local/inspectRequestUri";
     Config config;
     Client client = ClientBuilder.newClient();
     Logger logger = LoggerFactory.getLogger(GondolaAdminClient.class);
@@ -51,11 +52,17 @@ public class GondolaAdminClient {
         }
     }
 
-    public Map getServiceStatus() {
-        Map<Object, Object> map = new LinkedHashMap<>();
+    public Map<String, Object> getServiceStatus() {
+        Map<String, Object> map = new LinkedHashMap<>();
         for (String hostId : config.getHostIds()) {
             map.put(hostId, getHostStatus(hostId));
         }
         return map;
+    }
+
+    public Map inspectRequestUri(String uri, String hostId) {
+        String appUri = Utils.getAppUri(config, hostId);
+        return client.target(appUri).path(API_INSPECT_REQUEST_URI)
+            .queryParam("requestUri", uri).request().get(Map.class);
     }
 }
