@@ -923,7 +923,8 @@ public class CoreMember implements Stoppable {
                 Peer slave = it.next();
                 if (now - slave.getLastReceivedTs() > slaveInactivityTimeout) {
                     // Slave is inactive so stop and remove it
-                    logger.info("[{}-{}] Removing slave {}", gondola.getHostId(), memberId, slave.peerId);
+                    logger.info("[{}-{}] Removing slave {} because of inactivity for {}ms",
+                                gondola.getHostId(), memberId, slave.peerId, slaveInactivityTimeout);
                     slave.stop();
                     it.remove();
                 }
@@ -974,8 +975,8 @@ public class CoreMember implements Stoppable {
      * If not a prevote, increments the current term before sending out the message.
      */
     public void sendRequestVoteRequest(boolean isPrevote) throws GondolaException {
-        // If disabled, don't participate in voting
-        if (!enabled) {
+        // If slave or disabled, don't participate in voting
+        if (!enabled || masterId >= 0) {
             return;
         }
 
@@ -1132,8 +1133,8 @@ public class CoreMember implements Stoppable {
                 return;
             }
 
-            // If disabled, don't participate in voting
-            if (!enabled) {
+            // If slave or disabled, don't participate in voting
+            if (!enabled || masterId >= 0) {
                 return;
             }
 
