@@ -950,27 +950,62 @@ public class GondolaTest {
         member3.setFollower();
         runningTick = 50;
 
-        // Create the slave
-        Gondola g = new Gondola(gondolaRc.getConfig(), "D");
-        gondolaRc.add(g);
-        Member slave1 = g.getShard("shard2").getMember(1);
-        g.start();
+        // Create slave1
+        Gondola g1 = new Gondola(gondolaRc.getConfig(), "D");
+        gondolaRc.add(g1);
+        Member slave1 = g1.getShard("shard2").getMember(1);
+        g1.start();
 
-        // Enable the slave
+        // Create slave2 so we can get a majority
+        Gondola g2 = new Gondola(gondolaRc.getConfig(), "E");
+        gondolaRc.add(g2);
+        Member slave2 = g2.getShard("shard2").getMember(2);
+        g2.start();
+
+        /*
+        // First try a non-leader
+        slave1.setSlave(6);
+        slave2.setSlave(6);
+        Thread.sleep(1000);
+        assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
+        assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
+        
+        // Try another non-leader
+        slave1.setSlave(5);
+        slave2.setSlave(5);
+        Thread.sleep(1000);
+        assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
+        assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
+        */
+
+        // Now hit the leader
         slave1.setSlave(4);
+        slave2.setSlave(4);
         while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
             assertTrue(!status.running, "slave should not be running");
             logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
             Thread.sleep(100);
+
+            // Just call again to make sure this is idempotent
+            //slave1.setSlave(4);
+            //slave2.setSlave(4);
         }
         Member.SlaveStatus status = slave1.getSlaveStatus();
         logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
 
         // Disable the slave
         slave1.setSlave(-1);
+        slave2.setSlave(-1);
         assertNull(slave1.getSlaveStatus());
-        g.stop();
+        assertNull(slave2.getSlaveStatus());
+
+        // Wait to make sure slave1 becomes the leader
+        while (!slave1.isLeader() && !slave2.isLeader()) {
+            Thread.sleep(100);
+        }
+        g1.stop();
+        g2.stop();
     }
 
     /**

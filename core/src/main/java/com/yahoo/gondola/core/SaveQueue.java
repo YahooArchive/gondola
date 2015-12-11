@@ -386,7 +386,7 @@ public class SaveQueue {
                 }
 
                 if (index <= savedIndex) {
-                    // Overwriting a previous entry
+                    // Possibly overwrite an old entry
                     LogEntry le = storage.getLogEntry(cmember.memberId, index);
                     if (le == null) {
                         throw new IllegalStateException(String.format("[%s] Could not retrieve index=%d. savedIndex=%d",

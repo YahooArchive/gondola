@@ -173,12 +173,12 @@ public class CoreMember implements Stoppable {
         // Initialize some convenience variables for use when calculating the commit index
         majority = (peers.size() + 1) / 2 + 1;
         matchIndices = new int[peers.size()];
-        reset();
+        reset(Role.FOLLOWER);
     }
 
     /*
      * Called at the time of registration and whenever the config file changes.
-   */
+    */
     Consumer<Config> configListener = config -> {
         storageTracing = config.getBoolean("gondola.tracing.storage");
         commandTracing = config.getBoolean("gondola.tracing.command");
@@ -204,9 +204,9 @@ public class CoreMember implements Stoppable {
     /**
      * Reinitializes the members after changing the contents of storage.
      */
-    public void reset() throws GondolaException {
+    public void reset(Role role) throws GondolaException {
         // Reset state variables
-        becomeFollower(-1);
+        become(role, -1);
         lastSentTs = clock.now();
         commitIndex = 0;
         prevotesOnly = true;
@@ -691,8 +691,9 @@ public class CoreMember implements Stoppable {
     }
 
     public void becomeCandidate() throws GondolaException {
-        logger.info("[{}-{}] Becomes CANDIDATE {}",
-                gondola.getHostId(), memberId, isPrimary ? "(primary)" : "");
+        logger.info("[{}-{}] Becomes CANDIDATE{} {}",
+                    gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
+                    isPrimary ? "(primary)" : "");
         shutdownSlaves();
         become(Role.CANDIDATE, -1);
 
@@ -701,8 +702,9 @@ public class CoreMember implements Stoppable {
     }
 
     public void becomeFollower(int leaderId) throws GondolaException {
-        logger.info("[{}-{}] Becomes FOLLOWER of {} {}",
-                gondola.getHostId(), memberId, leaderId, isPrimary ? "(primary)" : "");
+        logger.info("[{}-{}] Becomes FOLLOWER{} of {} {}",
+                    gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
+                    leaderId, isPrimary ? "(primary)" : "");
         shutdownSlaves();
         become(Role.FOLLOWER, leaderId);
 
@@ -1325,6 +1327,7 @@ public class CoreMember implements Stoppable {
                     saveQueue.truncate();
 
                     // Update the persistant Raft state
+                    this.masterId = masterId;
                     currentTerm = 1;
                     save(1, -1);
                     becomeCandidate();
@@ -1337,16 +1340,17 @@ public class CoreMember implements Stoppable {
                 } else {
                     // Leave slave mode and restore original peers
                     logger.info("[{}-{}] Leaving slave mode from master {}",
-                                gondola.getHostId(), memberId, masterId);
+                                gondola.getHostId(), memberId, this.masterId);
+
                     for (int id : peerIds) {
                         Peer peer = new Peer(gondola, this, id);
-                        peer.start();
                         peers.add(peer);
                         peerMap.put(peer.peerId, peer);
+                        peer.start();
                     }
-                    reset();
+                    this.masterId = masterId;
+                    reset(Role.CANDIDATE);
                 }
-                this.masterId = masterId;
             }
         } catch (Exception e) {
             throw new GondolaException(e);

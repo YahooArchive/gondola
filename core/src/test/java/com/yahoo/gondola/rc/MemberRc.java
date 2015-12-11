@@ -9,6 +9,7 @@ package com.yahoo.gondola.rc;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Network;
 import com.yahoo.gondola.Role;
 import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.core.CoreMember;
@@ -32,7 +33,7 @@ public class MemberRc {
     Shard shard;
     public CoreMember cmember;
     RcStorage storage;
-    RcNetwork network;
+    Network network;
 
     public MemberRc(GondolaRc rc, Gondola gondola) {
         this.rc = rc;
@@ -40,11 +41,11 @@ public class MemberRc {
         shard = gondola.getShard("shard1");
         cmember = CoreMember.getCoreMember(shard);
         storage = (RcStorage) gondola.getStorage();
-        network = (RcNetwork) gondola.getNetwork();
+        network = gondola.getNetwork();
     }
 
     public void reset() throws Exception {
-        cmember.reset();
+        cmember.reset(Role.FOLLOWER);
     }
 
     public Gondola getGondola() {
@@ -115,7 +116,9 @@ public class MemberRc {
      * Pauses delivery of messages to this member.
      */
     public void pauseDelivery(boolean pause) throws Exception {
-        network.pauseDeliveryTo(cmember.getMemberId(), pause);
+        if (network instanceof RcNetwork) {
+            ((RcNetwork) network).pauseDeliveryTo(cmember.getMemberId(), pause);
+        }
     }
 
     public void deliverRequestVoteReply(MemberRc from, int term, boolean isPrevote, boolean voteGranted) throws Exception {
