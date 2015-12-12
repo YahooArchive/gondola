@@ -43,15 +43,6 @@ public class CoreMember implements Stoppable {
     final SaveQueue saveQueue;
     final CommitQueue commitQueue;
 
-    /**
-     * The serialized Action execute by MainLoop.
-     */
-    public enum Action {
-        BECOME_FOLLOWER,
-        UPDATE_SAVED_INDEX,
-        UPDATE_STORAGE_INDEX,
-    }
-
     public List<Peer> peers = new ArrayList<>();
     public List<Peer> slaves = new ArrayList<>();
 
@@ -98,7 +89,8 @@ public class CoreMember implements Stoppable {
     BlockingQueue<CoreCmd> commandQueue = new LinkedBlockingQueue<>();
 
     // Contains action requests from other threads
-    Queue<Action> actionQueue = new ConcurrentLinkedQueue<>();
+    //Queue<CoreMemberActionQueue> actionQueue = new ConcurrentLinkedQueue<>();
+    CoreMemberActionQueue actionQueue = new CoreMemberActionQueue();
 
     // Contains time of last heartbeat. Used to determine whether a heartbeat should be sent out or not
     long lastSentTs;
@@ -396,12 +388,12 @@ public class CoreMember implements Stoppable {
      */
     public void indexUpdated(boolean storageError, boolean entriesDeleted) {
         if (storageError) {
-            actionQueue.add(Action.BECOME_FOLLOWER);
+            actionQueue.becomeFollower();
         } else if (entriesDeleted) {
             assert role != Role.LEADER;
-            actionQueue.add(Action.UPDATE_STORAGE_INDEX);
+            actionQueue.updateStorageIndex();
         } else {
-            actionQueue.add(Action.UPDATE_SAVED_INDEX);
+            actionQueue.updateSavedIndex();
         }
         lock.lock();
         try {
@@ -432,7 +424,7 @@ public class CoreMember implements Stoppable {
                     return;
                 } catch (Throwable e) {
                     logger.error("Unhandled exception in MainLoop", e);
-                    actionQueue.add(Action.BECOME_FOLLOWER);
+                    actionQueue.becomeFollower();
 
                     // Pause to avoid a spin loop
                     try {
@@ -473,9 +465,9 @@ public class CoreMember implements Stoppable {
                 }
 
                 // Process any actions
-                Action action = actionQueue.poll();
+                CoreMemberActionQueue.Action action = actionQueue.queue.poll();
                 while (action != null) {
-                    switch (action) {
+                    switch (action.type) {
                         case BECOME_FOLLOWER:
                             // An error occurred somewhere. Become a follower to reset state.
                             becomeFollower(-1);
@@ -495,8 +487,11 @@ public class CoreMember implements Stoppable {
                             }
                             updateWaitingCommands();
                             break;
+                        case EXECUTE:
+                            action.futureTask.run();
+                            break;
                     }
-                    action = actionQueue.poll();
+                    action = actionQueue.queue.poll();
                 }
                 long t2 = System.nanoTime();
                 b1 += t2 - t1;
@@ -544,7 +539,7 @@ public class CoreMember implements Stoppable {
                 // Wait for a queue to be not empty
                 lock.lock();
                 try {
-                    if (actionQueue.peek() == null && incomingQueue.peek() == null) {
+                    if (actionQueue.queue.peek() == null && incomingQueue.peek() == null) {
                         waitMs = computeWaitTime();
                         long t3 = System.nanoTime();
                         clock.awaitCondition(lock, workAvailable, waitMs);
@@ -581,7 +576,7 @@ public class CoreMember implements Stoppable {
                     return;
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
-                    actionQueue.add(Action.BECOME_FOLLOWER);
+                    actionQueue.becomeFollower();
 
                     // Pause to avoid a spin loop
                     try {
@@ -692,8 +687,8 @@ public class CoreMember implements Stoppable {
 
     public void becomeCandidate() throws GondolaException {
         logger.info("[{}-{}] Becomes CANDIDATE{} {}",
-                    gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
-                    isPrimary ? "(primary)" : "");
+                gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
+                isPrimary ? "(primary)" : "");
         shutdownSlaves();
         become(Role.CANDIDATE, -1);
 
@@ -703,8 +698,8 @@ public class CoreMember implements Stoppable {
 
     public void becomeFollower(int leaderId) throws GondolaException {
         logger.info("[{}-{}] Becomes FOLLOWER{} of {} {}",
-                    gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
-                    leaderId, isPrimary ? "(primary)" : "");
+                gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
+                leaderId, isPrimary ? "(primary)" : "");
         shutdownSlaves();
         become(Role.FOLLOWER, leaderId);
 
@@ -855,11 +850,11 @@ public class CoreMember implements Stoppable {
             logger.info(
                     String.format("[%s-%d] %s%s %spid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
                                     + "|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
-                                  gondola.getHostId(), memberId, role, enabled ? "" : " (disabled)",
-                                  masterId >= 0 ? "-SLAVE" : "",
-                                  gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
-                                  incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
-                                  CoreCmd.commitLatency.get(), latency.get()));
+                            gondola.getHostId(), memberId, role, enabled ? "" : " (disabled)",
+                            masterId >= 0 ? "-SLAVE" : "",
+                            gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
+                            incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
+                            CoreCmd.commitLatency.get(), latency.get()));
             logger.info(String.format("[%s-%d] - leader=%d cterm=%d ci=%d latest=(%d,%d) votedFor=%d msgPool=%d/%d",
                     gondola.getHostId(), memberId, leaderId, currentTerm, commitIndex,
                     sentRid.term, sentRid.index, votedFor,
@@ -924,7 +919,7 @@ public class CoreMember implements Stoppable {
                 if (now - slave.getLastReceivedTs() > slaveInactivityTimeout) {
                     // Slave is inactive so stop and remove it
                     logger.info("[{}-{}] Removing slave {} because of inactivity for {}ms",
-                                gondola.getHostId(), memberId, slave.peerId, slaveInactivityTimeout);
+                            gondola.getHostId(), memberId, slave.peerId, slaveInactivityTimeout);
                     slave.stop();
                     it.remove();
                 }
@@ -1312,7 +1307,7 @@ public class CoreMember implements Stoppable {
      */
     public void enable(boolean on) throws GondolaException {
         logger.info("[{}-{}] {}",
-                    gondola.getHostId(), memberId, on ? "Enabling" : "Disabling");
+                gondola.getHostId(), memberId, on ? "Enabling" : "Disabling");
         enabled = on;
         if (isLeader()) {
             becomeFollower(-1);
@@ -1343,58 +1338,66 @@ public class CoreMember implements Stoppable {
      *
      * @param masterId the identity of a leader to sync with.
      */
-    public void setSlave(int masterId) throws GondolaException {
-        try {
-            if (masterId != this.masterId) {
-                // Remove the current peers
-                for (Peer peer : peers) {
-                    peer.stop();
-                }
-                peers.clear();
-                peerMap.clear();
+    public void setSlave(int masterId) throws GondolaException, InterruptedException {
+        final CoreMember member = this;
 
-                // Prepare to talk to new master
-                if (masterId >= 0) {
-                    // Make sure this member and the master are not in the same shard
-                    logger.info("[{}-{}] Entering slave mode to master {}",
-                                gondola.getHostId(), memberId, masterId);
-                    String shardId = gondola.getConfig().getMember(masterId).getShardId();
-                    if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
-                        throw new GondolaException(GondolaException.Code.SAME_SHARD, memberId, masterId, shardId);
+        // To avoid race conditions, the following executed by the main loop
+        actionQueue.execute(new Runnable() {
+            public void run() {
+                try {
+                    if (masterId != member.masterId) {
+                        // Remove the current peers
+                        for (Peer peer : peers) {
+                            peer.stop();
+                        }
+                        peers.clear();
+                        peerMap.clear();
+
+                        // Prepare to talk to new master
+                        if (masterId >= 0) {
+                            // Make sure this member and the master are not in the same shard
+                            logger.info("[{}-{}] Entering slave mode to master {}",
+                                    gondola.getHostId(), memberId, masterId);
+                            String shardId = gondola.getConfig().getMember(masterId).getShardId();
+                            if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
+                                throw new GondolaException(GondolaException.Code.SAME_SHARD,
+                                                           memberId, masterId, shardId);
+                            }
+
+                            // Delete the entire log
+                            saveQueue.truncate();
+
+                            // Update the persistant Raft state
+                            member.masterId = masterId;
+                            currentTerm = 1;
+                            save(1, -1);
+                            becomeCandidate();
+
+                            // Create a new peer to the master
+                            Peer masterPeer = new Peer(gondola, member, masterId);
+                            peers.add(masterPeer);
+                            peerMap.put(masterPeer.peerId, masterPeer);
+                            masterPeer.start();
+                        } else {
+                            // Leave slave mode and restore original peers
+                            logger.info("[{}-{}] Leaving slave mode from master {}",
+                                    gondola.getHostId(), memberId, member.masterId);
+
+                            for (int id : peerIds) {
+                                Peer peer = new Peer(gondola, member, id);
+                                peers.add(peer);
+                                peerMap.put(peer.peerId, peer);
+                                peer.start();
+                            }
+                            member.masterId = masterId;
+                            reset(Role.CANDIDATE);
+                        }
                     }
-
-                    // Delete the entire log
-                    saveQueue.truncate();
-
-                    // Update the persistant Raft state
-                    this.masterId = masterId;
-                    currentTerm = 1;
-                    save(1, -1);
-                    becomeCandidate();
-
-                    // Create a new peer to the master
-                    Peer masterPeer = new Peer(gondola, this, masterId);
-                    peers.add(masterPeer);
-                    peerMap.put(masterPeer.peerId, masterPeer);
-                    masterPeer.start();
-                } else {
-                    // Leave slave mode and restore original peers
-                    logger.info("[{}-{}] Leaving slave mode from master {}",
-                                gondola.getHostId(), memberId, this.masterId);
-
-                    for (int id : peerIds) {
-                        Peer peer = new Peer(gondola, this, id);
-                        peers.add(peer);
-                        peerMap.put(peer.peerId, peer);
-                        peer.start();
-                    }
-                    this.masterId = masterId;
-                    reset(Role.CANDIDATE);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
                 }
             }
-        } catch (Exception e) {
-            throw new GondolaException(e);
-        }
+        });
     }
 
     /**
@@ -1436,7 +1439,7 @@ public class CoreMember implements Stoppable {
         for (Config.ConfigMember m : shardMembers) {
             if (m.getMemberId() == channel.getRemoteMemberId()) {
                 logger.info("[{}-{}] Slave request from {} rejected: in the same shard",
-                            gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                        gondola.getHostId(), memberId, channel.getRemoteMemberId());
                 return false;
             }
         }
@@ -1445,7 +1448,7 @@ public class CoreMember implements Stoppable {
         for (Peer slave : slaves) {
             if (slave.peerId == channel.getRemoteMemberId()) {
                 logger.info("[{}-{}] Slave request from {} accepted",
-                            gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                        gondola.getHostId(), memberId, channel.getRemoteMemberId());
                 try {
                     slave.setChannel(channel);
                 } catch (GondolaException e) {
@@ -1459,12 +1462,12 @@ public class CoreMember implements Stoppable {
         // If this member is not a leader, reject the request
         if (role != Role.LEADER) {
             logger.info("[{}-{}] Slave request from {} rejected: not a leader",
-                        gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                    gondola.getHostId(), memberId, channel.getRemoteMemberId());
             return false;
         }
 
         logger.info("[{}-{}] Slave request from {} accepted",
-                    gondola.getHostId(), memberId, channel.getRemoteMemberId());
+                gondola.getHostId(), memberId, channel.getRemoteMemberId());
 
         Peer slave = new Peer(gondola, this, channel);
         slaves.add(slave);
