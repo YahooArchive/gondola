@@ -91,18 +91,18 @@ public class BucketManagerTest {
     public void testUpdateBucketRange_success() throws Exception {
         assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
-        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
-        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
+        assertEquals(bucketManager.lookupBucketTable(11).shardId, "shard1");
+        assertEquals(bucketManager.lookupBucketTable(11).migratingShardId, null);
         bucketManager.updateBucketRange(Range.closed(0, 10), "shard1", "shard2", false);
         assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, "shard2");
-        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
-        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
+        assertEquals(bucketManager.lookupBucketTable(11).shardId, "shard1");
+        assertEquals(bucketManager.lookupBucketTable(11).migratingShardId, null);
         bucketManager.updateBucketRange(Range.closed(0, 10), "shard1", "shard2", true);
         assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
-        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
-        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
+        assertEquals(bucketManager.lookupBucketTable(11).shardId, "shard1");
+        assertEquals(bucketManager.lookupBucketTable(11).migratingShardId, null);
     }
 
     @Test(expectedExceptions = IllegalStateException.class)
