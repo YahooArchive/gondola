@@ -159,7 +159,7 @@ public class Member {
      *
      * @param masterId the member id of the leader to sync with. Set to -1 to leave slave mode.
      */
-    public void setSlave(int masterId) throws GondolaException {
+    public void setSlave(int masterId) throws GondolaException, InterruptedException {
         cmember.setSlave(masterId);
     }
 

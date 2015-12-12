@@ -947,21 +947,23 @@ public class GondolaTest {
             Thread.sleep(100);
         }
 
-        // Disable another member
-        member2.enable(false);
-        Thread.sleep(500);
+        if (member2.isLeader()) {
+            member3.enable(false);
+            Thread.sleep(100);
+            assertTrue(member2.isLeader(), "other nodes are disabled but this node should remain be a leader");
+        } else {
+            member2.enable(false);
+            Thread.sleep(100);
+            assertTrue(member3.isLeader(), "other nodes are disabled but this node should remain a leader");
+        }
 
-        // Make sure there are no leaders
-        assertTrue(!member1.isLeader(), "no majority, so should not be a leader");
-        assertTrue(!member2.isLeader(), "no majority, so should not be a leader");
-        assertTrue(!member3.isLeader(), "no majority, so should not be a leader");
-
-        // Re-enable
+        // Re-enable and disable current leader
         member1.enable(true);
         member2.enable(true);
+        member3.enable(false);
 
         // Wait until one of the nodes becomes a leader
-        while (!member1.isLeader() && member2.isLeader() && !member3.isLeader()) {
+        while (!member1.isLeader() && !member2.isLeader()) {
             Thread.sleep(100);
         }
     }

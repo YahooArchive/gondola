@@ -149,6 +149,10 @@ public class Config {
      * simple property
      *******************/
 
+    public boolean has(String property) {
+        return getSecret(property) != null || configData.cfg.hasPath(property);
+    }
+
     public String get(String property) {
         String secret = getSecret(property);
         return secret == null ? configData.cfg.getString(property) : secret;

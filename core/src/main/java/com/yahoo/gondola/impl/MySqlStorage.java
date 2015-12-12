@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.impl;
 
+import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
@@ -40,10 +41,14 @@ public class MySqlStorage implements Storage {
 
     public MySqlStorage(Gondola gondola, String hostId) throws GondolaException {
         // Get configs
-        maxCommandSize = gondola.getConfig().getInt("raft.command_max_size");
-        String user = gondola.getConfig().get("storage.mysql.user");
-        String password = gondola.getConfig().get("storage.mysql.password");
-        String url = gondola.getConfig().get("storage.mysql.url");
+        Config cfg = gondola.getConfig();
+        maxCommandSize = cfg.getInt("raft.command_max_size");
+        String user = cfg.get("storage.mysql.user");
+        String password = cfg.get("storage.mysql.password");
+
+        String storeId = cfg.getAttributesForHost(hostId).get("storeId");
+        String urlKey = "storage." + storeId + ".mysql.url";
+        String url = cfg.has(urlKey) ? cfg.get(urlKey) : cfg.get("storage.mysql.url");
         url = url.replace("$hostId", hostId);
 
         logger.info("Initializing MySql storage. maxCommandSize={} url={}", maxCommandSize, url);
