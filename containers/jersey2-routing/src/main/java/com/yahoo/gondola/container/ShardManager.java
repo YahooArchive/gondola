@@ -236,7 +236,12 @@ public class ShardManager implements ShardManagerProtocol {
     public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         trace("[{}] Update local bucket table: buckets={} {} => {}. status={}",
               gondola.getHostId(), splitRange, fromShardId, toShardId, migrationComplete ? "COMPLETE" : "MIGRATING");
-        filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
+        filter.getBucketManager().updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
+    }
+
+    @Override
+    public void rollbackBuckets(Range<Integer> splitRange) {
+        filter.getBucketManager().rollbackBuckets(splitRange);
     }
 
     private void trace(String format, Object... args) {

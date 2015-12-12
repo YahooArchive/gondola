@@ -1,8 +1,8 @@
 #!/bin/bash
 rm /tmp/gondola*
 export CONF="classpath:///gondola_service.conf"
-#./bin/run host1 2>&1 > target/host1 &
-#pid1=$!
+./bin/run host1 2>&1 > target/host1 &
+pid1=$!
 ./bin/run host2 2>&1 > target/host2 &
 pid2=$!
 ./bin/run host3 2>&1 > target/host3 &

@@ -12,14 +12,12 @@ import com.yahoo.gondola.container.client.ShardManagerClient;
 import com.yahoo.gondola.container.client.ZookeeperShardManagerClient;
 import com.yahoo.gondola.container.impl.ZookeeperShardManagerServer;
 
-import org.glassfish.jersey.server.ResourceConfig;
-
 /**
  * A Provider that provide the CommandListener implementation.
  */
 public class ShardManagerProvider {
 
-    public ShardManagerServer getShardManagerServer(RoutingFilter filter, ResourceConfig application) {
+    public ShardManagerServer getShardManagerServer(RoutingFilter filter) {
         Gondola gondola = filter.getGondola();
         Utils.RegistryConfig conf = Utils.getRegistryConfig(gondola.getConfig());
         ShardManager shardManager =
@@ -28,10 +26,6 @@ public class ShardManagerProvider {
         switch (conf.type) {
             case NONE:
                 return null;
-            case HTTP:
-                HttpShardManagerServer httpShardManagerServer = new HttpShardManagerServer(shardManager);
-                application.register(httpShardManagerServer);
-                return httpShardManagerServer;
             case ZOOKEEPER:
                 return new ZookeeperShardManagerServer(conf.attributes.get("serviceName"),
                                                        conf.attributes.get("connectString"),
@@ -45,8 +39,6 @@ public class ShardManagerProvider {
         switch (conf.type) {
             case NONE:
                 return null;
-            case HTTP:
-                return new HttpShardManagerClient(config);
             case ZOOKEEPER:
                 return new ZookeeperShardManagerClient(conf.attributes.get("serviceName"),
                                                        clientName,

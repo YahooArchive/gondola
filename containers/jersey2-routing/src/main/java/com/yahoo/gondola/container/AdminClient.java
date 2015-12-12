@@ -129,7 +129,7 @@ public class AdminClient {
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 trace("[admin] Initializing slaves on {} ...", toShardId);
-                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS * 3);
+                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
                     "[admin] All nodes in {} are in slave mode, "
@@ -151,7 +151,8 @@ public class AdminClient {
                 break;
             } catch (ShardManagerException e) {
                 try {
-                    shardManagerClient.stopObserving(toShardId, fromShardId, TIMEOUT_MS * 3);
+                    shardManagerClient.stopObserving(toShardId, fromShardId, TIMEOUT_MS);
+                    shardManagerClient.rollbackBuckets(range);
                 } catch (ShardManagerException e1) {
                     logger.info("Rollback, Stop observing failed, ignoring the error. msg={}", e1.getMessage());
                 }

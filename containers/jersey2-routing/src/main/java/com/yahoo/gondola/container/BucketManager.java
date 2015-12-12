@@ -188,4 +188,9 @@ class BucketManager {
     public RangeMap<Integer, ShardState> getBucketMap() {
         return bucketMap;
     }
+
+    public void rollbackBuckets(Range<Integer> range) {
+        ShardState shardState = lookupBucketTable(range);
+        shardState.migratingShardId = null;
+    }
 }

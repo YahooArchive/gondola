@@ -68,6 +68,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
     public static final String X_FORWARDED_BY = "X-Forwarded-By";
     public static final String X_GONDOLA_ERROR = "X-Gondola-Error";
+    public static final String X_GONDOLA_BUCKET_ID = "X-Gondola-Bucket-Id";
+    public static final String X_GONDOLA_SHARD_ID = "X-Gondola-Shard-Id";
 
     private RoutingHelper routingHelper;
     private Gondola gondola;
@@ -217,6 +219,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
         if (isWhiteList(request)) {
+            request.setProperty("whiteList", true);
             return;
         }
         extractShardAndBucketIdFromRequest(request);
@@ -320,7 +323,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
         throws IOException {
+        if (requestContext.getProperty("whiteList") != null) {
+            return;
+        }
         decrementBucketCounter(routingHelper.getBucketHash(requestContext));
+        responseContext.getHeaders()
+            .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
+        responseContext.getHeaders()
+            .put(X_GONDOLA_SHARD_ID, Collections.singletonList(requestContext.getProperty("shardId")));
     }
 
     /**
@@ -371,12 +381,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
               gondola.getHostId(), range, fromShard, toShard);
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
-
-    protected boolean isBucketRange(Range<Integer> range, String shardId, String migratingShardId) {
-        BucketManager.ShardState shardState = bucketManager.lookupBucketTable(range);
-        return shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId);
-    }
-
 
     /**
      * Waits until there is no request to the target buckets.

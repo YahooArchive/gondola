@@ -34,7 +34,7 @@ public class BucketManagerTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        bucketManager = (BucketManager) Class.forName("com.yahoo.gondola.container.BucketManager").getConstructor(Config.class).newInstance(config);
+        bucketManager = new BucketManager(config);
     }
 
     @Test(expectedExceptions = IllegalStateException.class)
@@ -91,9 +91,18 @@ public class BucketManagerTest {
     public void testUpdateBucketRange_success() throws Exception {
         assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
+        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
+        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
         bucketManager.updateBucketRange(Range.closed(0, 10), "shard1", "shard2", false);
         assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, "shard2");
+        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
+        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
+        bucketManager.updateBucketRange(Range.closed(0, 10), "shard1", "shard2", true);
+        assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
+        assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
+        assertEquals(bucketManager.lookupBucketTable(100).shardId, "shard2");
+        assertEquals(bucketManager.lookupBucketTable(100).migratingShardId, null);
     }
 
     @Test(expectedExceptions = IllegalStateException.class)

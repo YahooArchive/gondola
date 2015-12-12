@@ -241,6 +241,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                                             args.fromShard, args.toShard, args.complete);
                         stat.mode = NORMAL;
                         break;
+                    case MIGRATE_ROLLBACK:
+                        delegate.rollbackBuckets(Range.closed(args.rangeStart, args.rangeStop));
+                        stat.mode = NORMAL;
+                        break;
+
                 }
                 stat.status = RUNNING;
                 stat.reason = null;

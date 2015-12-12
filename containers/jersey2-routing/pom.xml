@@ -140,6 +140,7 @@
                     </execution>
                 </executions>
                 <configuration>
+                    <repositoryLayout>flat</repositoryLayout>
                     <useAllProjectDependencies>true</useAllProjectDependencies>
                     <programs>
                         <program>
