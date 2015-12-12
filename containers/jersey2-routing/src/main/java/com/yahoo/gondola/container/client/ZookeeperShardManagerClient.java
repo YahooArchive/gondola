@@ -159,11 +159,18 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        sendActionToShard(fromShardId, MIGRATE_1, splitRange.lowerEndpoint(),
+        // Enable special mode on destination shard.
+        sendActionToShard(toShardId, MIGRATE_1, splitRange.lowerEndpoint(),
                           splitRange.upperEndpoint(), fromShardId, toShardId, timeoutMs);
         waitCondition(fromShardId, ZookeeperStat::isMigrating1Operational, timeoutMs);
+
+        // set all nodes in migrating mode, traffic to the original shard will route to new shard in this state.
         setBuckets(splitRange, fromShardId, toShardId, false);
+
+        // set all nodes migration complete, all traffic will route to new shard.
         setBuckets(splitRange, fromShardId, toShardId, true);
+
+        // done, mark operation as completed
         sendActionToAll(Action.NOOP);
     }
 

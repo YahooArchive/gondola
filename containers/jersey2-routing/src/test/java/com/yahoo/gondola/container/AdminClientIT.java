@@ -189,6 +189,11 @@ public class AdminClientIT {
                 assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard2");
                 assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
             }
+            adminClient.assignBuckets(0, 10, "shard2", "shard1");
+            for (BucketManager bucketManager : getBucketManagersFromAllHosts()) {
+                assertEquals(bucketManager.lookupBucketTable(0).shardId, "shard1");
+                assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
+            }
         } finally {
             tearDown();
         }
