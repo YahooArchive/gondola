@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.SLAVE_NOT_SYNC;
@@ -32,6 +31,8 @@ public class AdminClient {
     private Config config;
     private ShardManagerClient shardManagerClient;
     private ConfigWriter configWriter;
+    private GondolaAdminClient gondolaAdminClient;
+
 
     private static Logger logger = LoggerFactory.getLogger(AdminClient.class);
     private boolean tracing = false;
@@ -44,7 +45,7 @@ public class AdminClient {
      * @param config             the config
      */
     public AdminClient(String serviceName, ShardManagerClient shardManagerClient, Config config,
-                       ConfigWriter configWriter) {
+                       ConfigWriter configWriter, GondolaAdminClient gondolaAdminClient) {
         this.serviceName = serviceName;
         this.shardManagerClient = shardManagerClient;
         this.config = config;
@@ -52,8 +53,16 @@ public class AdminClient {
         this.config.registerForUpdates(config1 -> {
             tracing = config1.getBoolean("tracing.adminCli");
         });
+        this.gondolaAdminClient = gondolaAdminClient;
     }
 
+    public static AdminClient getInstance(Config config, String clientName) {
+        return new AdminClient(Utils.getRegistryConfig(config).attributes.get("serviceName"),
+                               new ShardManagerProvider().getShardManagerClient(config, clientName),
+                               config,
+                               new ConfigWriter(config.getFile()),
+                               new GondolaAdminClient(config));
+    }
 
     /**
      * Sets service name.
@@ -107,23 +116,20 @@ public class AdminClient {
      */
     public void splitShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupSplitRange(fromShardId, toShardId);
-        assignBuckets(range, fromShardId, toShardId);
+        assignBuckets(range.lowerEndpoint(), range.upperEndpoint(), fromShardId, toShardId);
     }
 
     /**
      * Assign buckets.
-     *
-     * @param fromShardId the from shard id
-     * @param toShardId   the to shard id
-     * @param range       the range
      */
-    public void assignBuckets(Range<Integer> range, String fromShardId, String toShardId)
+    public void assignBuckets(int lowerBound, int upperBound, String fromShardId, String toShardId)
         throws InterruptedException, AdminException {
+        Range range = Range.closed(lowerBound, upperBound);
         trace("[admin] Executing assign buckets={} from {} to {}", range, fromShardId, toShardId);
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 trace("[admin] Initializing slaves on {} ...", toShardId);
-                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
+                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS * 3);
 
                 trace(
                     "[admin] All nodes in {} are in slave mode, "
@@ -144,15 +150,15 @@ public class AdminClient {
                 saveConfig(fromShardId, toShardId);
                 break;
             } catch (ShardManagerException e) {
+                logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
+                            i, RETRY_COUNT, e.getMessage());
                 try {
                     shardManagerClient.stopObserving(toShardId, fromShardId, TIMEOUT_MS);
+                    shardManagerClient.rollbackBuckets(range);
                 } catch (ShardManagerException e1) {
                     logger.info("Rollback, Stop observing failed, ignoring the error. msg={}", e1.getMessage());
                 }
-                if (i != RETRY_COUNT) {
-                    logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
-                                i, RETRY_COUNT, e.getMessage());
-                } else {
+                if (i == RETRY_COUNT) {
                     logger.error("Assign bucket failed, lastError={}", e.getMessage());
                     throw new AdminException(e);
                 }
@@ -192,7 +198,7 @@ public class AdminClient {
      */
     public void mergeShard(String fromShardId, String toShardId) throws AdminException, InterruptedException {
         Range<Integer> range = lookupMergeRange(fromShardId, toShardId);
-        assignBuckets(range, fromShardId, toShardId);
+        assignBuckets(range.lowerEndpoint(), range.upperEndpoint(), fromShardId, toShardId);
     }
 
     private Range<Integer> lookupMergeRange(String fromShardId, String toShardId) {
@@ -206,35 +212,34 @@ public class AdminClient {
      *
      * @param target   the target
      * @param targetId the target id
+     * @param enable   enable or disable
      * @throws AdminException the admin exception
      */
-    public void enable(Target target, String targetId) throws AdminException {
-
-    }
-
-
-    /**
-     * Disable.
-     *
-     * @param target   the target
-     * @param targetId the target id
-     * @throws AdminException the admin exception
-     */
-    public void disable(Target target, String targetId) throws AdminException {
-
-    }
-
-
-    /**
-     * Gets stats.
-     *
-     * @param target the target
-     * @return the stats
-     * @throws AdminException the admin exception
-     */
-    public Map<Target, List<Stat>> getStats(Target target)
-        throws AdminException {
-        return null;
+    public void enable(Target target, String targetId, boolean enable) throws AdminException {
+        switch (target) {
+            case HOST:
+                for (String shardId : config.getShardIds(targetId)) {
+                    gondolaAdminClient.enable(targetId, shardId, enable);
+                }
+                break;
+            case SHARD:
+                throw new UnsupportedOperationException("Enable/disable a shard is not allowed.");
+            case SITE:
+                config.getHostIds().stream().filter(hostId -> config.getSiteIdForHost(hostId).equals(targetId)).forEach(
+                    hostId -> {
+                        for (String shardId : config.getShardIds(hostId)) {
+                            gondolaAdminClient.enable(hostId, shardId, enable);
+                        }
+                    }
+                );
+                break;
+            case STORAGE:
+                break;
+            case ALL:
+                throw new UnsupportedOperationException("Enable/disable a shard is not allowed.");
+            default:
+                throw new IllegalStateException("unsupported target");
+        }
     }
 
 
@@ -269,22 +274,6 @@ public class AdminClient {
         ALL
     }
 
-    class Stat {
-
-    }
-
-    class HostStat extends Stat {
-
-    }
-
-    class StorageStat extends Stat {
-
-    }
-
-    class ShardStat extends Stat {
-
-    }
-
     class AdminException extends Exception {
 
         ErrorCode errorCode;
@@ -306,5 +295,21 @@ public class AdminClient {
         ErrorCode(int code) {
             this.code = code;
         }
+    }
+
+    public Map setLeader(String hostId, String shardId) {
+        return gondolaAdminClient.setLeader(hostId, shardId);
+    }
+
+    public Map getHostStatus(String hostId) {
+        return gondolaAdminClient.getHostStatus(hostId);
+    }
+
+    public Map<String, Object> getServiceStatus() {
+        return gondolaAdminClient.getServiceStatus();
+    }
+
+    public Map inspectRequestUri(String hostId, String uri) {
+        return gondolaAdminClient.inspectRequestUri(uri, hostId);
     }
 }

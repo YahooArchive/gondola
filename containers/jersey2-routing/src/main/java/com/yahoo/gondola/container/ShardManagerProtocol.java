@@ -78,6 +78,13 @@ public interface ShardManagerProtocol {
         throws ShardManagerException, InterruptedException;
 
     /**
+     * rollback buckets to original state.
+     *
+     * @param splitRange
+     */
+    void rollbackBuckets(Range<Integer> splitRange) throws ShardManagerException, InterruptedException;
+
+    /**
      * The type Shard manager exception.
      */
     class ShardManagerException extends Exception {
@@ -90,6 +97,7 @@ public interface ShardManagerProtocol {
             FAILED_START_SLAVE,
             FAILED_STOP_SLAVE,
             FAILED_MIGRATE_BUCKETS,
+            FAILED_BUCKET_ROLLBACK,
             FAILED_SET_BUCKETS,
             MASTER_IS_GONE,
             SLAVE_NOT_SYNC,

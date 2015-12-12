@@ -6,16 +6,28 @@
 
 package com.yahoo.gondola.container;
 
+import java.util.Map;
+
 /**
  * Listens to the admin command.
  */
 public interface ShardManagerServer {
 
     /**
-     * set shard manager handler.
-     * @param shardManager
+     * stop shard manager server.
      */
-    void setShardManager(ShardManager shardManager);
-
     void stop();
+
+    /**
+     * get shard manager instance.
+     *
+     * @return
+     */
+    ShardManager getShardManager();
+
+    /**
+     * Get current status
+     * @return
+     */
+    Map getStatus();
 }

@@ -20,10 +20,8 @@ import com.yahoo.gondola.container.client.ZookeeperUtils;
 import com.yahoo.gondola.core.Utils;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -53,6 +52,7 @@ import static com.yahoo.gondola.container.client.ZookeeperUtils.statPath;
 public class ZookeeperShardManagerServer implements ShardManagerServer {
 
     private static final long RETRY_WAIT_TIME = AdminClient.TIMEOUT_MS / AdminClient.RETRY_COUNT;
+    private static final int RETRY_TIME = 3;
     private CuratorFramework client;
     private ShardManager delegate;
     private String serviceName;
@@ -66,13 +66,14 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     List<Thread> threads = new ArrayList<>();
     boolean tracing = false;
 
-    public ZookeeperShardManagerServer(String serviceName, String connectString, Gondola gondola) {
+    public ZookeeperShardManagerServer(String serviceName, String connectString, Gondola gondola,
+                                       ShardManager shardmanager) {
         this.serviceName = serviceName;
         this.gondola = gondola;
+        this.delegate = shardmanager;
         config = gondola.getConfig();
         config.registerForUpdates(config -> tracing = config.getBoolean("tracing.router"));
-        client = CuratorFrameworkFactory.newClient(connectString, new RetryOneTime(1000));
-        client.start();
+        client = ZookeeperUtils.getCuratorFrameworkInstance(connectString);
         Watcher watcher = new Watcher();
         watcher.start();
         threads.add(watcher);
@@ -115,7 +116,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 nodes.add(node);
             } catch (Exception e) {
                 logger.warn("[{}-{}] Unable to create member node, msg={}",
-                            gondola.getHostId(), member.getMemberId(), e.getMessage());
+                            gondola.getHostId(), member.getMemberId(), e.getMessage(), e);
             }
         }
     }
@@ -151,7 +152,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 case MIGRATING_2:
                     break;
                 case SLAVE:
-                    if (action.action.equals(ZookeeperAction.Action.START_SLAVE)) {
+                    if (action.action.equals(ZookeeperAction.Action.START_SLAVE) && stat.isSlaveOperational()) {
                         try {
                             if (delegate.waitSlavesSynced(args.fromShard, 0)) {
                                 stat.status = SYNCED;
@@ -178,7 +179,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
               gondola.getHostId(), memberId, zookeeperStat);
         try {
             client.setData().forPath(ZookeeperUtils.statPath(serviceName, memberId),
-                                                    objectMapper.writeValueAsBytes(zookeeperStat));
+                                     objectMapper.writeValueAsBytes(zookeeperStat));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
@@ -194,7 +195,8 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         return () -> {
             try {
                 if (node.getCurrentData() != null) {
-                    ZookeeperAction action =
+                    ZookeeperAction
+                        action =
                         objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
                     actions.put(action.memberId, action);
                     processAction(stat, action);
@@ -211,11 +213,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         }
         trace("[{}-{}] Processing action={} args={}", gondola.getHostId(), stat.memberId, action.action, action.args);
         ZookeeperAction.Args args = action.parseArgs();
-        while (true) {
+        for (int i = 0; i < RETRY_TIME; i++) {
             try {
                 switch (action.action) {
                     case NOOP:
-                        return;
+                        break;
                     case START_SLAVE:
                         delegate.startObserving(args.fromShard, args.toShard, args.timeoutMs);
                         stat.mode = SLAVE;
@@ -239,6 +241,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                                             args.fromShard, args.toShard, args.complete);
                         stat.mode = NORMAL;
                         break;
+                    case MIGRATE_ROLLBACK:
+                        delegate.rollbackBuckets(Range.closed(args.rangeStart, args.rangeStop));
+                        stat.mode = NORMAL;
+                        break;
+
                 }
                 stat.status = RUNNING;
                 stat.reason = null;
@@ -257,11 +264,6 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     }
 
     @Override
-    public void setShardManager(ShardManager shardManager) {
-        this.delegate = shardManager;
-    }
-
-    @Override
     public void stop() {
         nodes.forEach(CloseableUtils::closeQuietly);
         for (NodeCache node : nodes) {
@@ -274,6 +276,19 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         }
         Utils.stopThreads(threads);
         CloseableUtils.closeQuietly(client);
+    }
+
+    @Override
+    public ShardManager getShardManager() {
+        return delegate;
+    }
+
+    @Override
+    public Map getStatus() {
+        Map<Object, Object> map = new LinkedHashMap<>();
+        map.put("currentStats", currentStats);
+        map.put("actions", actions);
+        return map;
     }
 
     private void trace(String format, Object... args) {

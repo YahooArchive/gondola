@@ -12,10 +12,8 @@ import com.yahoo.gondola.Config;
 import com.yahoo.gondola.container.client.ZookeeperAction.Action;
 
 import org.apache.curator.framework.CuratorFramework;
-import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.ChildData;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
-import org.apache.curator.retry.RetryOneTime;
 import org.apache.curator.utils.CloseableUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,12 +25,15 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_BUCKET_ROLLBACK;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_SET_BUCKETS;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
 import static com.yahoo.gondola.container.Utils.pollingWithTimeout;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_1;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_2;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_3;
+import static com.yahoo.gondola.container.client.ZookeeperAction.Action.MIGRATE_ROLLBACK;
+import static com.yahoo.gondola.container.client.ZookeeperAction.Action.NOOP;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.START_SLAVE;
 import static com.yahoo.gondola.container.client.ZookeeperAction.Action.STOP_SLAVE;
 import static com.yahoo.gondola.container.client.ZookeeperStat.Status.APPROACHED;
@@ -58,8 +59,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     Condition newEvent = lock.newCondition();
 
     public ZookeeperShardManagerClient(String serviceName, String clientName, String connectString, Config config) {
-        client = CuratorFrameworkFactory.newClient(connectString, new RetryOneTime(1000));
-        client.start();
+        client = ZookeeperUtils.getCuratorFrameworkInstance(connectString);
         this.serviceName = serviceName;
         this.config = config;
         this.clientName = clientName;
@@ -159,11 +159,19 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     @Override
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
-        sendActionToShard(fromShardId, MIGRATE_1, splitRange.lowerEndpoint(),
+        // Enable special mode on destination shard.
+        sendActionToShard(toShardId, MIGRATE_1, splitRange.lowerEndpoint(),
                           splitRange.upperEndpoint(), fromShardId, toShardId, timeoutMs);
         waitCondition(fromShardId, ZookeeperStat::isMigrating1Operational, timeoutMs);
+
+        // set all nodes in migrating mode, traffic to the original shard will route to new shard in this state.
         setBuckets(splitRange, fromShardId, toShardId, false);
+
+        // set all nodes migration complete, all traffic will route to new shard.
         setBuckets(splitRange, fromShardId, toShardId, true);
+
+        // done, mark operation as completed
+        sendActionToAll(Action.NOOP);
     }
 
     @Override
@@ -194,9 +202,18 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
         sendActionToAll(!migrationComplete ? MIGRATE_2 : MIGRATE_3, splitRange.lowerEndpoint(),
                         splitRange.upperEndpoint(), fromShardId, toShardId, migrationComplete);
         if (!waitCondition(null, !migrationComplete ? ZookeeperStat::isMigrating2Operational
-                                                    : ZookeeperStat::isNormalOperational, 300)) {
+                                                    : ZookeeperStat::isNormalOperational, 3000)) {
             throw new ShardManagerException(FAILED_SET_BUCKETS, "timed out");
         }
+    }
+
+    @Override
+    public void rollbackBuckets(Range<Integer> splitRange) throws ShardManagerException, InterruptedException {
+        sendActionToAll(MIGRATE_ROLLBACK, splitRange.lowerEndpoint(), splitRange.upperEndpoint());
+        if (!waitCondition(null, ZookeeperStat::isNormalOperational, 3000)) {
+            throw new ShardManagerException(FAILED_BUCKET_ROLLBACK, "timed out");
+        }
+        sendActionToAll(NOOP);
     }
 
     private void sendActionToAll(Action action, Object... args) {

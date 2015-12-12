@@ -89,6 +89,13 @@ public class DirectShardManagerClient implements ShardManagerClient {
         }
     }
 
+    @Override
+    public void rollbackBuckets(Range<Integer> splitRange) {
+        for (Config.ConfigMember m : config.getMembers()) {
+            getShardManager(m.getMemberId()).rollbackBuckets(splitRange);
+        }
+    }
+
     private Function<Integer, Boolean> getWaitApproachingFunction(String shardId, long timeoutMs) {
         return memberId -> {
             try {

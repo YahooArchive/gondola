@@ -6,9 +6,8 @@
 
 package com.yahoo.gondola.demo;
 
-import com.yahoo.gondola.container.RoutingFilter;
+import com.yahoo.gondola.container.GondolaApplication;
 
-import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.server.ResourceConfig;
 
 import java.net.URI;
@@ -23,26 +22,15 @@ import javax.ws.rs.core.Context;
  * callback and register RoutingFilter as Jersey filter 4. Register the resources
  */
 public class DemoApplication extends ResourceConfig {
-    DemoService demoService;
 
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
-
         // Initialize Routing application
-        RoutingFilter routingFilter = RoutingFilter.Builder.createRoutingFilter()
-            .setConfigUri(URI.create("classpath:///gondola.conf"))
+        GondolaApplication.Builder.createGondolaApplication()
+            .setConfigUri(URI.create(System.getProperty("conf")))
+            .setRoutingHelper(DemoRoutingHelper.class)
             .setService(DemoService.class)
-            .build();
-
-        // Register routing application
-        register(routingFilter);
-
-        // Dependency injection to DemoResource
-        register(new AbstractBinder() {
-            @Override
-            protected void configure() {
-                bind((DemoService) routingFilter.getService()).to(DemoService.class);
-            }
-        });
+            .setApplication(this)
+            .register();
 
         // register resource
         register(DemoResources.class);

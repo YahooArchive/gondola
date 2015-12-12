@@ -20,10 +20,9 @@ public class ZookeeperAction {
      * The enum Action.
      */
     public enum Action {
-        NOOP, START_SLAVE, STOP_SLAVE, MIGRATE_1, MIGRATE_2, MIGRATE_3
+        NOOP, START_SLAVE, STOP_SLAVE, MIGRATE_1, MIGRATE_2, MIGRATE_3, MIGRATE_ROLLBACK
     }
 
-    ;
     public Action action = Action.NOOP;
     public int memberId;
     public List<Object> args;
@@ -61,6 +60,10 @@ public class ZookeeperAction {
                     argsObj.fromShard = (String) args.get(2);
                     argsObj.toShard = (String) args.get(3);
                     argsObj.complete = (Boolean) args.get(4);
+                    break;
+                case MIGRATE_ROLLBACK:
+                    argsObj.rangeStart = (Integer) args.get(0);
+                    argsObj.rangeStop = (Integer) args.get(1);
                     break;
             }
             return argsObj;

@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.typesafe.config.ConfigException;
 import com.typesafe.config.ConfigFactory;
 import com.typesafe.config.ConfigRenderOptions;
 import com.typesafe.config.ConfigValueFactory;
@@ -18,6 +19,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Config writer supports change config value and save to file.
@@ -38,7 +41,13 @@ public class ConfigWriter {
         this.configFile = configFile;
         config = new Config(configFile);
         configImpl = ConfigFactory.parseFile(configFile);
+        tmpFile = getFile(true);
+        tmpFile = getFile(true);
         verify();
+    }
+
+    private File getFile(boolean tmp) {
+        return new File("foo");
     }
 
     private void verify() {
@@ -51,7 +60,11 @@ public class ConfigWriter {
      * @return the file
      */
     public File save() {
-        ConfigRenderOptions renderOptions = ConfigRenderOptions.defaults().setJson(false);
+        ConfigRenderOptions renderOptions = ConfigRenderOptions.defaults()
+            .setComments(true)
+            .setFormatted(true)
+            .setOriginComments(false)
+            .setJson(false);
         bumpVersion();
         String configData = configImpl.root().render(renderOptions);
         FileWriter writer = null;
@@ -67,11 +80,31 @@ public class ConfigWriter {
     }
 
     private void bumpVersion() {
-        // TODO: bump config version
+        int version;
+        try {
+            version = configImpl.getInt("version");
+        } catch (ConfigException e) {
+            version = 0;
+        }
+        version++;
+        configImpl = configImpl.withValue("version", ConfigValueFactory.fromAnyRef(version));
     }
 
     public void setBucketMap(String shardId, String bucketMapString) {
-        configImpl = configImpl
-            .withValue("gondola.shards." + shardId, ConfigValueFactory.fromAnyRef(bucketMapString));
+        boolean success = false;
+        List<com.typesafe.config.ConfigObject> newShards = new ArrayList<>();
+        for (com.typesafe.config.Config shard : configImpl.getConfigList("gondola.shards")) {
+            if (shard.getString("shardId").equals(shardId)) {
+                shard = shard.withValue("bucketMap", ConfigValueFactory.fromAnyRef(bucketMapString));
+                success = true;
+            }
+            newShards.add(shard.root());
+        }
+        if (!success) {
+            throw new IllegalArgumentException("ShardID not found in config!" + shardId);
+        }
+
+
+        configImpl = configImpl.withValue("gondola.shards", ConfigValueFactory.fromIterable(newShards));
     }
 }

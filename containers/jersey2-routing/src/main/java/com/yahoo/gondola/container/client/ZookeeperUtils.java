@@ -7,14 +7,32 @@
 package com.yahoo.gondola.container.client;
 
 import org.apache.curator.framework.CuratorFramework;
+import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.retry.RetryForever;
+
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The type Zookeeper utils.
  */
 public class ZookeeperUtils {
 
-    private static String PREFIX = "/commands";
+    static Map<String, CuratorFramework> clients = new ConcurrentHashMap<>();
 
+    public static CuratorFramework getCuratorFrameworkInstance (String connectString) {
+        CuratorFramework client = clients.get(connectString);
+        if (client == null) {
+            CuratorFramework newClient = CuratorFrameworkFactory.newClient(connectString, new RetryForever(1000));
+            newClient.start();
+            CuratorFramework origClient = clients.putIfAbsent(connectString, newClient);
+            client = origClient != null ? origClient : newClient;
+            if (origClient != null) {
+                newClient.close();
+            }
+        }
+        return client;
+    }
     public static String actionPath(String serviceName, int memberId) {
         return actionBasePath(serviceName) + "/" + memberId;
     }
@@ -46,6 +64,6 @@ public class ZookeeperUtils {
     }
 
     public static String basePath(String serviceName) {
-        return "/" + serviceName + PREFIX;
+        return "/" + serviceName;
     }
 }

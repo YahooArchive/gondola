@@ -20,15 +20,23 @@ class BucketManager {
     //bucketId -> shardId.
     private RangeMap<Integer, ShardState> bucketMap = TreeRangeMap.create();
     private Config config;
+    private int numberOfBuckets;
 
     public static class ShardState {
 
-        String shardId;
-        String migratingShardId;
+        public String shardId;
+        public String migratingShardId;
 
         public ShardState(String shardId, String migratingShardId) {
             this.shardId = shardId;
             this.migratingShardId = migratingShardId;
+        }
+
+        @Override
+        public String toString() {
+            return "ShardState{" + "shardId='" + shardId + '\''
+                   + ", migratingShardId='" + migratingShardId + '\''
+                   + '}';
         }
     }
 
@@ -49,7 +57,8 @@ class BucketManager {
     public ShardState lookupBucketTable(Range<Integer> range) {
         Map<Range<Integer>, ShardState> rangeMaps = bucketMap.subRangeMap(range).asMapOfRanges();
         if (rangeMaps.size() > 1) {
-            throw new IllegalStateException();
+            throw new IllegalStateException(
+                "Overlapped range found - inputRange=" + range + " ranges=" + rangeMaps.toString());
         } else if (rangeMaps.size() == 0) {
             return null;
         }
@@ -58,6 +67,7 @@ class BucketManager {
 
     private void loadBucketTable() {
         Range<Integer> range;
+        int numBuckets = 0;
         for (String shardId : config.getShardIds()) {
             Map<String, String> attributesForShard = config.getAttributesForShard(shardId);
             String bucketMapString = attributesForShard.get("bucketMap");
@@ -85,6 +95,11 @@ class BucketManager {
                 bucketMap.put(range, new ShardState(shardId, null));
             }
         }
+        for (Map.Entry<Range<Integer>, ShardState> e : bucketMap.asMapOfRanges().entrySet()) {
+            Range<Integer> r = e.getKey();
+            numBuckets += (r.upperEndpoint() - r.lowerEndpoint() + 1);
+        }
+        numberOfBuckets = numBuckets;
         validateBucketMap();
     }
 
@@ -117,6 +132,9 @@ class BucketManager {
             }
             prev = range;
         }
+        if (numberOfBuckets == 0) {
+            throw new IllegalStateException("Number of bucket must not be 0");
+        }
     }
 
     public void updateBucketRange(Range<Integer> range, String fromShardId, String toShardId,
@@ -142,14 +160,13 @@ class BucketManager {
         if (
             (shardState.shardId.equals(fromShardId) && toShardId.equals(shardState.migratingShardId))
             || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
-            shardState.migratingShardId = null;
-            shardState.shardId = toShardId;
+            ShardState newShardState = new ShardState(toShardId, null);
+            bucketMap.put(range, newShardState);
         } else {
             throw new IllegalStateException(String.format(
                 "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,
                 shardState.shardId, toShardId, shardState.migratingShardId));
         }
-        bucketMap.put(range, shardState);
     }
 
     private void handleMigrationInProgress(Range<Integer> range, String fromShardId, String toShardId,
@@ -167,7 +184,21 @@ class BucketManager {
                 String.format("Bucket range=%s is migrating to shard=%s, cannot be override by shard=%s",
                               range, shardState.shardId, toShardId));
         }
-        shardState.migratingShardId = toShardId;
-        bucketMap.put(range, shardState);
+
+        ShardState newShardState = new ShardState(shardState.shardId, toShardId);
+        bucketMap.put(range, newShardState);
+    }
+
+    public int getNumberOfBuckets() {
+        return numberOfBuckets;
+    }
+
+    public RangeMap<Integer, ShardState> getBucketMap() {
+        return bucketMap;
+    }
+
+    public void rollbackBuckets(Range<Integer> range) {
+        ShardState shardState = lookupBucketTable(range);
+        shardState.migratingShardId = null;
     }
 }

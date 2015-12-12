@@ -6,11 +6,9 @@
 
 package com.yahoo.gondola.container;
 
-import com.google.common.base.Preconditions;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.container.client.ProxyClient;
@@ -22,9 +20,8 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.net.InetSocketAddress;
-import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +31,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.servlet.ServletContext;
@@ -60,12 +61,15 @@ import static javax.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE;
 public class RoutingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
     public static final int POLLING_TIMES = 3;
+    public static final int RETRY_TIMES = 3;
+    public static final int WAIT_MS = 1000;
     private static Logger logger = LoggerFactory.getLogger(RoutingFilter.class);
 
-    static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
-    static final String X_FORWARDED_BY = "X-Forwarded-By";
-    static final String APP_PORT = "appPort";
-    static final String APP_SCHEME = "appScheme";
+    public static final String X_GONDOLA_LEADER_ADDRESS = "X-Gondola-Leader-Address";
+    public static final String X_FORWARDED_BY = "X-Forwarded-By";
+    public static final String X_GONDOLA_ERROR = "X-Gondola-Error";
+    public static final String X_GONDOLA_BUCKET_ID = "X-Gondola-Bucket-Id";
+    public static final String X_GONDOLA_SHARD_ID = "X-Gondola-Shard-Id";
 
     private RoutingHelper routingHelper;
     private Gondola gondola;
@@ -91,7 +95,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     private static List<RoutingFilter> instances = new ArrayList<>();
     private ChangeLogProcessor changeLogProcessor;
-    private RoutingService service;
+    private Map<String, RoutingService> services;
+    private Pattern whiteList = Pattern.compile("^gondola/.*");
+
+    private ReentrantLock lock = new ReentrantLock();
+    Condition leaderFoundCondition = lock.newCondition();
 
     /**
      * Disallow default constructor.
@@ -103,15 +111,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * Instantiates a new Routing filter.
      *
      * @param gondola             the gondola
-     * @param routingHelper       the routing helper
      * @param proxyClientProvider the proxy client provider
      * @throws ServletException the servlet exception
      */
     RoutingFilter(Gondola gondola, RoutingHelper routingHelper, ProxyClientProvider proxyClientProvider,
-                  ChangeLogProcessor changeLogProcessor, RoutingService service)
+                  Map<String, RoutingService> services, ChangeLogProcessor changeLogProcessor)
         throws ServletException {
         this.gondola = gondola;
-        this.routingHelper = routingHelper;
         lockManager = new LockManager(gondola);
         bucketManager = new BucketManager(gondola.getConfig());
         loadRoutingTable();
@@ -119,12 +125,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         watchGondolaEvent();
         proxyClient = proxyClientProvider.getProxyClient(gondola.getConfig());
         instances.add(this);
+        this.services = services;
+        this.routingHelper = routingHelper;
         this.changeLogProcessor = changeLogProcessor;
-        this.service = service;
     }
 
-    public RoutingService getService() {
-        return service;
+    /**
+     * Called by RoutingService factory. to get the right service.
+     */
+    public RoutingService getService(ContainerRequestContext request) {
+        extractShardAndBucketIdFromRequest(request);
+        return services.get(getShardIdFromRequest(request));
     }
 
     private void loadConfig() {
@@ -134,8 +145,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void watchGondolaEvent() {
         gondola.registerForRoleChanges(roleChangeEvent -> {
             if (roleChangeEvent.leader != null) {
+                lock.lock();
+                try {
+                    logger.info("New leader is {} elected.", roleChangeEvent.leader.getMemberId());
+                    leaderFoundCondition.signalAll();
+                } finally {
+                    lock.unlock();
+                }
                 Config config = gondola.getConfig();
-                String appUri = getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
+                String
+                    appUri =
+                    Utils.getAppUri(config, config.getMember(roleChangeEvent.leader.getMemberId()).getHostId());
                 updateShardRoutingEntries(roleChangeEvent.shard.getShardId(), appUri);
                 if (roleChangeEvent.leader.isLocal()) {
                     CompletableFuture.runAsync(() -> {
@@ -148,7 +168,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
                         waitDrainRaftLogs(shardId);
                         trace("[{}-{}] Raft logs are up-to-date, notify application is ready to serve...",
                               gondola.getHostId(), roleChangeEvent.leader.getMemberId());
-                        service.ready(shardId);
+                        services.get(roleChangeEvent.shard.getShardId()).ready();
                         trace("[{}-{}] Ready for serving, unblocking the requests...",
                               gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                         long count = lockManager.unblockRequestOnShard(shardId);
@@ -171,16 +191,42 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     }
 
 
+    public void extractShardAndBucketIdFromRequest(ContainerRequestContext request) {
+        // Extract required data
+        if (request.getProperty("shardId") == null) {
+            int bucketId = getBucketId(request);
+            String shardId = getShardId(bucketId);
+
+            request.setProperty("shardId", shardId);
+            request.setProperty("bucketId", bucketId);
+        }
+    }
+
+    private int getBucketIdFromRequest(ContainerRequestContext request) {
+        return (Integer) request.getProperty("bucketId");
+    }
+
+    private String getShardIdFromRequest(ContainerRequestContext request) {
+        return (String) request.getProperty("shardId");
+    }
+
+
+    private int getBucketId(ContainerRequestContext request) {
+        return Math.abs(routingHelper.getBucketHash(request) % bucketManager.getNumberOfBuckets());
+    }
+
+
     @Override
     public void filter(ContainerRequestContext request) throws IOException {
-        // Extract required data
-        int bucketId = routingHelper.getBucketId(request);
+        if (isWhiteList(request)) {
+            request.setProperty("whiteList", true);
+            return;
+        }
+        extractShardAndBucketIdFromRequest(request);
+        int bucketId = getBucketIdFromRequest(request);
+        String shardId = getShardIdFromRequest(request);
+
         incrementBucketCounter(bucketId);
-        String shardId = getShardId(request);
-
-        request.setProperty("shardId", shardId);
-        request.setProperty("bucketId", bucketId);
-
         trace("Processing request: {} of shard={}, forwarded={}",
               request.getUriInfo().getAbsolutePath(), shardId,
               request.getHeaders().containsKey(X_FORWARDED_BY) ? request.getHeaders()
@@ -205,14 +251,20 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         // Block request if needed
         blockRequest(bucketId, shardId);
 
-        Member leader = getLeader(shardId);
-        // Those are the condition that the server should process this request
-        // Still under leader election
+        Member leader = null;
+        try {
+            leader = waitForLeader(shardId);
+        } catch (InterruptedException e) {
+            abortResponse(request, Response.Status.INTERNAL_SERVER_ERROR, "Request interrupted");
+        }
+
         if (leader == null) {
             abortResponse(request, SERVICE_UNAVAILABLE, "No leader is available");
-            trace("Leader is not available");
             return;
-        } else if (leader.isLocal()) {
+
+        }
+
+        if (leader.isLocal()) {
             trace("Processing this request");
             return;
         }
@@ -221,10 +273,35 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         proxyRequestToLeader(request, shardId);
     }
 
+    private Member waitForLeader(String shardId) throws InterruptedException {
+        Member leader;
+        lock.lock();
+        try {
+            for (int i = 0; i < RETRY_TIMES; i++) {
+                leader = getLeader(shardId);
+                if (leader != null) {
+                    return leader;
+                }
+                leaderFoundCondition.await(WAIT_MS, TimeUnit.MILLISECONDS);
+            }
+        } finally {
+            lock.unlock();
+        }
+        return null;
+    }
+
+    private boolean isWhiteList(ContainerRequestContext request) {
+        return whiteList.matcher(request.getUriInfo().getPath()).matches();
+    }
+
+    /**
+     * The function is used for tell other routing filter that this server is not able to handle the request.
+     */
     private void abortResponse(ContainerRequestContext requestContext, Response.Status status, String stringEntity) {
         requestContext.abortWith(
             Response.status(status)
                 .entity(stringEntity)
+                .header(X_GONDOLA_ERROR, stringEntity)
                 .build()
         );
     }
@@ -246,7 +323,14 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
         throws IOException {
-        decrementBucketCounter(routingHelper.getBucketId(requestContext));
+        if (requestContext.getProperty("whiteList") != null) {
+            return;
+        }
+        decrementBucketCounter(routingHelper.getBucketHash(requestContext));
+        responseContext.getHeaders()
+            .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
+        responseContext.getHeaders()
+            .put(X_GONDOLA_SHARD_ID, Collections.singletonList(requestContext.getProperty("shardId")));
     }
 
     /**
@@ -298,12 +382,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         bucketManager.updateBucketRange(range, fromShard, toShard, migrationComplete);
     }
 
-    protected boolean isBucketRange(Range<Integer> range, String shardId, String migratingShardId) {
-        BucketManager.ShardState shardState = bucketManager.lookupBucketTable(range);
-        return shardState.shardId.equals(shardId) && shardState.migratingShardId.equals(migratingShardId);
-    }
-
-
     /**
      * Waits until there is no request to the target buckets.
      *
@@ -344,10 +422,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         Config config = gondola.getConfig();
         for (String hostId : config.getHostIds()) {
             if (hostId.equals(gondola.getHostId())) {
-                myAppUri = getAppUri(config, hostId);
+                myAppUri = Utils.getAppUri(config, hostId);
                 continue;
             }
-            String appUri = getAppUri(config, hostId);
+            String appUri = Utils.getAppUri(config, hostId);
             serviceUris.put(hostId, appUri);
             for (String shardId : config.getShardIds(hostId)) {
                 List<String> addresses = newRoutingTable.get(shardId);
@@ -362,37 +440,17 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         routingTable = newRoutingTable;
     }
 
-    private String getAppUri(Config config, String hostId) {
-        InetSocketAddress address = config.getAddressForHost(hostId);
-        Map<String, String> attrs = config.getAttributesForHost(hostId);
-        String
-            appUri =
-            String.format("%s://%s:%s", attrs.get(APP_SCHEME), address.getHostName(), attrs.get(APP_PORT));
-        if (!attrs.containsKey(APP_PORT) || !attrs.containsKey(APP_SCHEME)) {
-            throw new IllegalStateException(
-                String
-                    .format("gondola.hosts[%s] is missing either the %s or %s config values", hostId, APP_PORT,
-                            APP_SCHEME));
-        }
-        return appUri;
-    }
 
-
-    private String getShardId(ContainerRequestContext request) {
-        if (routingHelper != null) {
-            int bucketId = routingHelper.getBucketId(request);
-            if (bucketId == -1 && routingHelper != null) {
-                return getAffinityColoShard(request);
-            } else {
-                BucketManager.ShardState shardState = bucketManager.lookupBucketTable(bucketId);
-                // If the shard is migrating and it's local shard, forwarding to migrating shard.
-                if (shardState.migratingShardId != null && isMyShard(shardState.shardId)) {
-                    return shardState.migratingShardId;
-                }
-                return shardState.shardId;
-            }
+    private String getShardId(int bucketId) {
+        if (bucketId == -1) {
+            return getAffinityColoShard();
         } else {
-            return gondola.getShardsOnHost().get(0).getShardId();
+            BucketManager.ShardState shardState = bucketManager.lookupBucketTable(bucketId);
+            // If the shard is migrating and it's local shard, forwarding to migrating shard.
+            if (shardState.migratingShardId != null && isMyShard(shardState.shardId)) {
+                return shardState.migratingShardId;
+            }
+            return shardState.shardId;
         }
     }
 
@@ -413,39 +471,72 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private void proxyRequestToLeader(ContainerRequestContext request, String shardId) throws IOException {
         List<String> appUris = lookupRoutingTable(shardId);
 
-        boolean fail = false;
+        boolean failed = false;
         for (String appUri : appUris) {
-            try {
-                trace("Proxy request to remote server, method={}, URI={}",
-                      request.getMethod(), appUri + request.getUriInfo().getRequestUri());
-                List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
-                if (forwardedBy == null) {
-                    forwardedBy = new ArrayList<>();
-                    request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
-                }
-                forwardedBy.add(myAppUri);
+            for (int i = 0; i < RETRY_TIMES; i++) {
+                try {
+                    trace("Proxy request to remote server, method={}, URI={}",
+                          request.getMethod(), appUri + request.getUriInfo().getRequestUri());
 
-                Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
-                String
-                    entity =
-                    proxiedResponse.getEntity() != null ? proxiedResponse.getEntity().toString() : "";
-                request.abortWith(Response
-                                      .status(proxiedResponse.getStatus())
-                                      .entity(entity)
-                                      .header(X_GONDOLA_LEADER_ADDRESS, appUri)
-                                      .build());
-                updateRoutingTableIfNeeded(shardId, proxiedResponse);
-                if (fail) {
-                    updateShardRoutingEntries(shardId, appUri);
+                    if (sendProxyRequest(request, shardId, appUri)) {
+                        // If the remote server is the leader, and the local server routing table is not right,
+                        // update routing table with the request appUri.
+                        if (failed) {
+                            updateShardRoutingEntries(shardId, appUri);
+                        }
+                        return;
+                    }
+                    failed = true;
+                    break;
+                } catch (IOException e) {
+                    logger.warn("[{}] Error while forwarding request to shard:{} {}, message={}",
+                                gondola.getHostId(), shardId, appUri, e.getMessage());
                 }
-                return;
-            } catch (IOException e) {
-                fail = true;
-                logger.error("[{}] Error while forwarding request to shard:{} {}", gondola.getHostId(), shardId, appUri,
-                             e);
             }
         }
         abortResponse(request, BAD_GATEWAY, "All servers are not available in Shard: " + shardId);
+    }
+
+    private boolean sendProxyRequest(ContainerRequestContext request, String shardId, String appUri)
+        throws IOException {
+
+        appendForwardedByHeader(request);
+
+        Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
+
+        // Remote server is not able to serve the request.
+        if (proxiedResponse.getHeaderString(X_GONDOLA_ERROR) != null) {
+            return false;
+        }
+
+        String entity = getResponseEntity(proxiedResponse);
+
+        // Proxied response successful, response the data to the requester.
+        request.abortWith(Response
+                              .status(proxiedResponse.getStatus())
+                              .entity(entity)
+                              .header(X_GONDOLA_LEADER_ADDRESS, appUri)
+                              .build());
+
+        // If remote server is not the leader (2-hop, update the local routing table.
+        updateRoutingTableIfNeeded(shardId, proxiedResponse);
+        return true;
+    }
+
+
+    private String getResponseEntity(Response proxiedResponse) {
+        return proxiedResponse.getEntity() != null ? proxiedResponse.getEntity().toString() : "";
+    }
+
+    private void appendForwardedByHeader(ContainerRequestContext request) {
+        List<String> forwardedBy = request.getHeaders().get(X_FORWARDED_BY);
+
+        if (forwardedBy == null) {
+            forwardedBy = Collections.singletonList(myAppUri);
+        } else {
+            forwardedBy = Collections.singletonList(forwardedBy.get(0) + "," + myAppUri);
+        }
+        request.getHeaders().put(X_FORWARDED_BY, forwardedBy);
     }
 
     private void updateRoutingTableIfNeeded(String shardId, Response proxiedResponse) {
@@ -461,6 +552,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
      * Moves newAppUrl to the first entry of the routing table.
      */
     private void updateShardRoutingEntries(String shardId, String appUri) {
+        if (appUri.equals(myAppUri)) {
+            logger.warn("Trying to update routingTable with self appUri. -- skip");
+            return;
+        }
         List<String> appUris = lookupRoutingTable(shardId);
         List<String> newAppUris = new ArrayList<>(appUris.size());
         newAppUris.add(appUri);
@@ -487,14 +582,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         return appUrls;
     }
 
-    private String getAffinityColoShard(ContainerRequestContext request) {
-        return getAnyShardInSite(routingHelper.getSiteId(request));
-    }
-
-    /**
-     * Find random shardId in siteId.
-     */
-    private String getAnyShardInSite(String siteId) {
+    private String getAffinityColoShard() {
+        String siteId = getSiteId();
         Config config = gondola.getConfig();
         return config.getHostIds().stream()
             .map(config::getSiteIdForHost)
@@ -577,86 +666,10 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         gondola.stop();
     }
 
-    /**
-     * Builder class.
-     */
-    public static class Builder {
-
-        Gondola gondola;
-        RoutingHelper routingHelper;
-        ProxyClientProvider proxyClientProvider;
-        ShardManagerProvider shardManagerProvider;
-        Class<? extends RoutingService> serviceClass;
-        RoutingService service;
-        URI configUri;
-
-        public static Builder createRoutingFilter() {
-            return new Builder();
-        }
-
-        Builder() {
-            proxyClientProvider = new ProxyClientProvider();
-        }
-
-        public Builder setProxyClientProvider(ProxyClientProvider proxyClientProvider) {
-            this.proxyClientProvider = proxyClientProvider;
-            return this;
-        }
-
-        public Builder setShardManagerProvider(ShardManagerProvider shardManagerProvider) {
-            this.shardManagerProvider = shardManagerProvider;
-            return this;
-        }
-
-        public Builder setService(Class<? extends RoutingService> serviceClass) {
-            this.serviceClass = serviceClass;
-            return this;
-        }
-
-        public Builder setConfigUri(URI configUri) {
-            this.configUri = configUri;
-            return this;
-        }
-
-        public RoutingFilter build()
-            throws ServletException, GondolaException, NoSuchMethodException, IllegalAccessException,
-                   InvocationTargetException, InstantiationException {
-            Preconditions.checkState(serviceClass != null, "Service class must be set");
-            Preconditions.checkState(configUri != null, "Config URI must be set");
-            gondola = createGondolaInstance();
-            service = serviceClass.getConstructor(Gondola.class).newInstance(gondola);
-            routingHelper = service.provideRoutingHelper();
-            Preconditions.checkState(routingHelper != null, "RoutingHelper instance must be set");
-
-            if (shardManagerProvider == null) {
-                shardManagerProvider = new ShardManagerProvider(gondola.getConfig());
-            }
-            ChangeLogProcessor changeLogProcessor = new ChangeLogProcessor(gondola, service.provideChangeLogConsumer());
-            RoutingFilter routingFilter =
-                new RoutingFilter(gondola, routingHelper, proxyClientProvider, changeLogProcessor,
-                                  service);
-            initShardManagerServer(routingFilter);
-            gondola.start();
-            routingFilter.start();
-            return routingFilter;
-        }
-
-        private Gondola createGondolaInstance() throws GondolaException {
-            String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
-            return new Gondola(new Config(new ConfigLoader().loadConfig(configUri)), hostId);
-        }
-
-        private void initShardManagerServer(RoutingFilter routingFilter) {
-            ShardManagerServer shardManagerServer = shardManagerProvider.getShardManagerServer();
-            if (shardManagerServer != null) {
-                ShardManager shardManager =
-                    new ShardManager(gondola, routingFilter, gondola.getConfig(),
-                                     shardManagerProvider.getShardManagerClient());
-                shardManagerServer.setShardManager(shardManager);
-                routingFilter.registerShutdownFunction(shardManagerServer::stop);
-            }
-        }
+    public String getSiteId() {
+        return gondola.getConfig().getSiteIdForHost(gondola.getHostId());
     }
+
 
     public static List<RoutingFilter> getInstance() {
         return instances;
@@ -693,5 +706,25 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             RoutingFilter.getInstance().forEach(RoutingFilter::stop);
             RoutingFilter.getInstance().clear();
         }
+    }
+
+    public Gondola getGondola() {
+        return gondola;
+    }
+
+    public ChangeLogProcessor getChangeLogProcessor() {
+        return changeLogProcessor;
+    }
+
+    public BucketManager getBucketManager() {
+        return bucketManager;
+    }
+
+    public Map<String, List<String>> getRoutingTable() {
+        return routingTable;
+    }
+
+    public LockManager getLockManager() {
+        return lockManager;
     }
 }

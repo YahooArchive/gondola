@@ -28,6 +28,7 @@ import java.io.File;
 import java.net.URI;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.HashMap;
 
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -71,7 +72,13 @@ public class LocalTestRoutingServerTest {
     ExtendedUriInfo uriInfo;
 
     @Mock
-    MultivaluedMap<String,String> headersMap;
+    MultivaluedMap<String, String> headersMap;
+
+    @Mock
+    RoutingService routingService;
+
+    @Mock
+    ChangeLogProcessor changeLogProcessor;
 
     URL configUri = LocalTestRoutingServerTest.class.getClassLoader().getResource("gondola.conf");
     Config config = new Config(new File(configUri.getFile()));
@@ -79,15 +86,15 @@ public class LocalTestRoutingServerTest {
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
-        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
+        when(shardManagerProvider.getShardManagerServer(any())).thenReturn(shardManagerServer);
         when(gondola.getConfig()).thenReturn(config);
         when(gondola.getShard(any())).thenReturn(shard);
         when(gondola.getShardsOnHost()).thenReturn(Arrays.asList(shard, shard));
         when(gondola.getHostId()).thenReturn("host1");
-        when(routingHelper.getBucketId(any())).thenReturn(1);
+        when(routingHelper.getBucketHash(any())).thenReturn(1);
         when(proxyClientProvider.getProxyClient(any())).thenReturn(proxyClient);
         when(shard.getShardId()).thenReturn("shard1", "shard2");
-        when(shardManagerProvider.getShardManagerServer()).thenReturn(shardManagerServer);
+        when(shardManagerProvider.getShardManagerServer(any())).thenReturn(shardManagerServer);
         when(request.getUriInfo()).thenReturn(uriInfo);
         when(request.getHeaders()).thenReturn(headersMap);
         when(request.getRequestUri()).thenReturn(URI.create(MY_APP_URI));
@@ -95,7 +102,14 @@ public class LocalTestRoutingServerTest {
 
     @Test
     public void testRoutingServer() throws Exception {
-        server = new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider);
+        server =
+            new LocalTestRoutingServer(gondola, routingHelper, proxyClientProvider,
+                                       new HashMap<String, RoutingService>() {
+                                           {
+                                               put("shard1", routingService);
+                                               put("shard2", routingService);
+                                           }
+                                       }, changeLogProcessor);
 
         CloseableHttpClient client = HttpClients.createDefault();
         CloseableHttpResponse response = client.execute(new HttpGet(server.getHostUri()));

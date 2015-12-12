@@ -64,10 +64,11 @@ public class ShardManager implements ShardManagerProtocol {
         throws ShardManagerException, InterruptedException {
         boolean success = false;
         trace("[{}-{}] Try to follow shardId={} as slave...",
-              gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), shardId, observedShardId);
+              gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), observedShardId);
         List<Config.ConfigMember> membersInShard = config.getMembersInShard(observedShardId);
         for (Config.ConfigMember m : membersInShard) {
             if (success = setSlave(shardId, m.getMemberId(), timeoutMs / membersInShard.size())) {
+                filter.getChangeLogProcessor().reset(shardId);
                 trace("[{}-{}] Successfully to follow masterId={}",
                       gondola.getHostId(), gondola.getShard(shardId).getLocalMember().getMemberId(), m.getMemberId());
                 break;
@@ -86,13 +87,19 @@ public class ShardManager implements ShardManagerProtocol {
         throws InterruptedException, ShardManagerException {
 
         try {
-            gondola.getShard(shardId).getLocalMember().setSlave(memberId);
+            Member localMember = gondola.getShard(shardId).getLocalMember();
+            Member.SlaveStatus slaveStatus = localMember.getSlaveStatus();
+            if (slaveStatus != null && slaveStatus.masterId == memberId && slaveStatus.running) {
+                return true;
+            }
+            localMember.setSlave(memberId);
             return Utils.pollingWithTimeout(() -> {
                 Member.SlaveStatus status = gondola.getShard(shardId).getLocalMember().getSlaveStatus();
                 if (slaveOperational(status)) {
                     trace("[{}] Successfully connect to leader node={}", gondola.getHostId(), memberId);
                     return true;
                 }
+                trace("[{}] Slave status={} role={}", gondola.getHostId(), status, gondola.getShard(shardId).getLocalRole());
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);
         } catch (Exception e) {
@@ -230,12 +237,21 @@ public class ShardManager implements ShardManagerProtocol {
     public void setBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, boolean migrationComplete) {
         trace("[{}] Update local bucket table: buckets={} {} => {}. status={}",
               gondola.getHostId(), splitRange, fromShardId, toShardId, migrationComplete ? "COMPLETE" : "MIGRATING");
-        filter.updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
+        filter.getBucketManager().updateBucketRange(splitRange, fromShardId, toShardId, migrationComplete);
+    }
+
+    @Override
+    public void rollbackBuckets(Range<Integer> splitRange) {
+        filter.getBucketManager().rollbackBuckets(splitRange);
     }
 
     private void trace(String format, Object... args) {
         if (tracing) {
             logger.info(format, args);
         }
+    }
+
+    public ShardManagerClient getShardManagerClient() {
+        return shardManagerClient;
     }
 }

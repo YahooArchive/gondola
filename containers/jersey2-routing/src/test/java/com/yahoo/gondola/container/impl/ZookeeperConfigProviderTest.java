@@ -22,6 +22,7 @@ import static org.testng.Assert.assertTrue;
 
 public class ZookeeperConfigProviderTest {
 
+    public static final String SERVICE_NAME = "fooService";
     ZookeeperServer server;
     ZookeeperConfigProvider configProvider;
     URL file = ZookeeperConfigProviderTest.class.getClassLoader().getResource("gondola.conf");
@@ -30,9 +31,10 @@ public class ZookeeperConfigProviderTest {
     public void setUp() throws Exception {
         if (server == null) {
             server = new ZookeeperServer();
-            server.getClient().create().creatingParentContainersIfNeeded().forPath(ZookeeperUtils.configPath("fooService"), IOUtils.toByteArray(file));
+            server.getClient().create().creatingParentContainersIfNeeded().forPath(ZookeeperUtils.configPath(
+                SERVICE_NAME), IOUtils.toByteArray(file));
         }
-        configProvider = new ZookeeperConfigProvider(server.getClient(), "fooService");
+        configProvider = new ZookeeperConfigProvider(server.getClient(), SERVICE_NAME);
     }
 
     @AfterMethod
@@ -45,15 +47,4 @@ public class ZookeeperConfigProviderTest {
         File configFile = configProvider.getConfigFile();
         assertTrue(Arrays.equals(IOUtils.toByteArray(configFile.toURI()), IOUtils.toByteArray(file)));
     }
-
-    // TODO: fix race condition
-//    @Test
-//    public void testStop() throws Exception {
-//        configProvider.stop();
-//    }
-//
-//    @Test
-//    public void testSaveConfigFile() throws Exception {
-//        configProvider.saveConfigFile(new File(file.getFile()));
-//    }
 }

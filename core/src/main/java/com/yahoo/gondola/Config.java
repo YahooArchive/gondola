@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * This class supplies all of the configuration information for the entire raft system. This implementation reads a
  * config file but can be subclassed to pull configuration data from elsewhere.
  */
-public class Config {
+public class Config implements Stoppable {
 
     final static Logger logger = LoggerFactory.getLogger(Config.class);
 
@@ -36,6 +36,23 @@ public class Config {
      * This interface helps getting secret in the config and it's not allowed to store in the config.
      */
     Function<String, String> secretHelper;
+
+    @Override
+    public void start() throws GondolaException {
+
+    }
+
+    @Override
+    public boolean stop() {
+        watcher.interrupt();
+        try {
+            watcher.join();
+        } catch (InterruptedException e) {
+            logger.warn("Watcher refuse to die..");
+        }
+        shutdownFunctions.forEach(Runnable::run);
+        return true;
+    }
 
     /*
      * This class encapsulates all the configuration data. It's used to avoid having a lock
@@ -81,6 +98,9 @@ public class Config {
     // If non-null, the file which contains the config information
     File file;
 
+    Watcher watcher;
+
+    List<Runnable> shutdownFunctions = new ArrayList<>();
     /**
      * The type Config member.
      */
@@ -115,7 +135,13 @@ public class Config {
     public Config(File file) {
         this.file = file;
         process(getMergedConf(file));
-        new Watcher(file).start();
+        watcher = new Watcher(file);
+        watcher.start();
+    }
+
+    public Config(ConfigProvider configProvider) {
+        this(configProvider.getConfigFile());
+        shutdownFunctions.add(configProvider::stop);
     }
 
     /*
@@ -397,6 +423,8 @@ public class Config {
                         logger.info("Reloaded config file {}", file);
                         lastModified = file.lastModified();
                     }
+                } catch (InterruptedException e) {
+                    return;
                 } catch (Exception e) {
                     logger.error(e.getMessage(), e);
                 }
@@ -408,19 +436,8 @@ public class Config {
      * Provider interface to get config file.
      */
     public interface ConfigProvider {
-        void saveConfigFile(File configFile);
         File getConfigFile();
         void stop();
-    }
-
-    /**
-     * Factory method to create config instance by a config provider.
-     *
-     * @param provider
-     * @return
-     */
-    public static Config getConfigInstance(ConfigProvider provider) {
-        return new Config(provider.getConfigFile());
     }
 
     public File getFile() {

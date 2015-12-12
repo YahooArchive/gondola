@@ -22,23 +22,22 @@ import java.util.Map;
  */
 public class ChangeLogProcessor {
 
+    private final Map<String, RoutingService> services;
     private Gondola gondola;
     private Map<String, ChangeLogProcessorThread> threads = new HashMap<>();
     private static Logger logger = LoggerFactory.getLogger(ChangeLogProcessor.class);
-    private ChangeLogConsumer changeLogConsumer;
 
 
     /**
      * Instantiates a new Change log processor.
-     *  @param gondola  the gondola
-     * @param changeLogConsumer change log consumer provided by app.
+     *
+     * @param gondola  the gondola
+     * @param services the routing services
      */
-    public ChangeLogProcessor(Gondola gondola, ChangeLogConsumer changeLogConsumer) {
+    public ChangeLogProcessor(Gondola gondola, Map<String, RoutingService> services) {
         this.gondola = gondola;
-        this.changeLogConsumer = changeLogConsumer;
-        for (String shardId : gondola.getConfig().getShardIds(gondola.getHostId())) {
-            createThread(shardId);
-        }
+        this.services = services;
+        gondola.getConfig().getShardIds(gondola.getHostId()).forEach(this::createThread);
     }
 
     /**
@@ -52,12 +51,15 @@ public class ChangeLogProcessor {
         private String shardId;
         private String hostId;
         private int memberId;
+        private ChangeLogConsumer changeLogConsumer;
+        boolean reset = false;
 
         public ChangeLogProcessorThread(String shardId) {
             setName("ChangeLogProcessor");
             this.shardId = shardId;
             this.hostId = gondola.getHostId();
-            // TODO: get memberId
+            this.memberId = gondola.getShard(shardId).getLocalMember().getMemberId();
+            this.changeLogConsumer = services.get(shardId).provideChangeLogConsumer();
         }
 
         public void run() {
@@ -67,12 +69,17 @@ public class ChangeLogProcessor {
                 try {
                     command = shard.getCommittedCommand(appliedIndex + 1);
                     if (changeLogConsumer != null) {
-                        changeLogConsumer.apply(shardId, command);
+                        changeLogConsumer.applyLog(shardId, command);
                     }
                     appliedIndex++;
                 } catch (InterruptedException e) {
-                    logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                    return;
+                    if (!reset) {
+                        reset = false;
+                        appliedIndex = 0;
+                    } else {
+                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                        return;
+                    }
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
                     if (++retryCount == 3) {
@@ -118,10 +125,20 @@ public class ChangeLogProcessor {
     }
 
     /**
+     * Reset
+     */
+    public void reset(String shardId) {
+        ChangeLogProcessorThread t = threads.get(shardId);
+        t.reset = false;
+        t.interrupt();
+    }
+
+    /**
      * Change log consumer functional interface.
      */
     @FunctionalInterface
     public interface ChangeLogConsumer {
-        void apply(String shardId, Command command);
+
+        void applyLog(String shardId, Command command);
     }
 }

@@ -10,7 +10,6 @@ import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.container.ChangeLogProcessor;
 import com.yahoo.gondola.container.RoutingService;
-import com.yahoo.gondola.container.spi.RoutingHelper;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +18,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import javax.ws.rs.container.ContainerRequestContext;
-
 /**
  * The core business logic of demo service.
  */
@@ -28,31 +25,25 @@ public class DemoService extends RoutingService {
 
     private static Logger logger = LoggerFactory.getLogger(DemoService.class);
     private Map<String, String> entries = new ConcurrentHashMap<>();
-    private String hostId;
-    private DemoRoutingHelper demoRoutingHelper;
 
     /**
      * Instantiates a new Routing service.
-     *
-     * @param gondola the gondola
      */
-    public DemoService(Gondola gondola) {
-        super(gondola);
-        hostId = gondola.getHostId();
-        demoRoutingHelper = new DemoRoutingHelper(gondola.getHostId(), gondola.getConfig());
-        gondola.registerForRoleChanges(listener);
+    public DemoService(Gondola gondola, String shardId) {
+        super(gondola, shardId);
+        registerEventHandler(listener);
     }
 
     Consumer<RoleChangeEvent> listener = crevt -> {
         switch (crevt.newRole) {
             case CANDIDATE:
-                logger.info("[{}] Current role: CANDIDATE", gondola.getHostId());
+                logger.info("[{}] Current role: CANDIDATE", hostId);
                 break;
             case LEADER:
-                logger.info("[{}] Current role: LEADER", gondola.getHostId());
+                logger.info("[{}] Current role: LEADER", hostId);
                 break;
             case FOLLOWER:
-                logger.info("[{}] Current role: FOLLOWER", gondola.getHostId());
+                logger.info("[{}] Current role: FOLLOWER", hostId);
                 break;
         }
     };
@@ -62,21 +53,21 @@ public class DemoService extends RoutingService {
      * Returns the value stored at the specified key.
      *
      * @param key            the key
-     * @param servletRequest the servlet request
      * @return The non-null value of the key
      * @throws NotLeaderException the not leader exception
      * @throws NotFoundException  the not found exception
      */
-    public String getValue(String key, ContainerRequestContext servletRequest)
+    public String getValue(String key)
         throws NotLeaderException, NotFoundException {
-        if (!isLeader(getShardId(servletRequest))) {
+        if (!isLeader()) {
             throw new NotLeaderException();
         }
         if (!entries.containsKey(key)) {
+            logger.info("[{}] Get key {}, but data not found", this.hostId, key);
             throw new NotFoundException();
         }
         String value = entries.get(key);
-        logger.info(String.format("[%s] Get key %s: %s", this.hostId, key, value));
+        logger.info("[{}] Get key {}={}", this.hostId, key, value);
         return value;
     }
 
@@ -85,19 +76,18 @@ public class DemoService extends RoutingService {
      *
      * @param key            The non-null key
      * @param value          The non-null value
-     * @param servletRequest the servlet request
      * @throws NotLeaderException the not leader exception
      */
-    public void putValue(String key, String value, ContainerRequestContext servletRequest) throws NotLeaderException {
-        if (key.indexOf(" ") >= 0) {
+    public void putValue(String key, String value) throws NotLeaderException {
+        if (key.contains(" ")) {
             throw new IllegalArgumentException("The key must not contain spaces");
         }
         try {
             byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
-            writeLog(getShardId(servletRequest), bytes);
-            logger.info(String.format("[%s] Put key %s=%s", hostId, key, value));
+            writeLog(bytes);
+            logger.info("[{}] Put key {}={}", hostId, key, value);
         } catch (com.yahoo.gondola.NotLeaderException e) {
-            logger.info(String.format("Failed to put %s/%s because not a leader", key, value));
+            logger.info("Failed to put {}/{} because not a leader", key, value);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -114,13 +104,8 @@ public class DemoService extends RoutingService {
     }
 
     @Override
-    public RoutingHelper provideRoutingHelper() {
-        return demoRoutingHelper;
-    }
-
-    @Override
-    public void ready(String shardId) {
-        logger.info("[{}] {} ready for serving", gondola.getHostId(), shardId);
+    public void ready() {
+        logger.info("[{}-{}] {} ready for serving", hostId, memberId, shardId);
     }
 
     /**
