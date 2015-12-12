@@ -147,7 +147,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (roleChangeEvent.leader != null) {
                 lock.lock();
                 try {
-                    logger.info("New leader found, signal all!");
+                    logger.info("New leader is {} elected.", roleChangeEvent.leader.getMemberId());
                     leaderFoundCondition.signalAll();
                 } finally {
                     lock.unlock();
