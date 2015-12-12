@@ -113,16 +113,17 @@ public class SocketNetwork implements Network {
 
     @Override
     public Channel createChannel(int fromMemberId, int toMemberId) {
-        for (Channel c : channels) {
-            SocketChannel ch = (SocketChannel) c;
-            if (ch.memberId == fromMemberId && ch.peerId == toMemberId) {
-                channels.remove(ch);
-                break;
-            }
-        }
         SocketChannel channel = new SocketChannel(gondola, fromMemberId, toMemberId);
         channels.add(channel);
         return channel;
+    }
+
+    void removeChannel(Channel channel) {
+        SocketChannel schannel = (SocketChannel) channel;
+        if (!channels.remove(channel)) {
+            throw new IllegalStateException(String.format("Unable to remove channel %d-%d",
+                                                          schannel.memberId, schannel.peerId));
+        }
     }
 
     @Override
@@ -265,7 +266,7 @@ public class SocketNetwork implements Network {
                     hello.close(socket);
                 } else if (channel == null) {
                     // The channel is a slave
-                    channel = new SocketChannel(gondola, hello.toMemberId, hello.fromMemberId);
+                    channel = (SocketChannel) createChannel(hello.toMemberId, hello.fromMemberId);
                     channel.disableRetry();
                     if (listener.apply(channel)) {
                         // Request accepted
