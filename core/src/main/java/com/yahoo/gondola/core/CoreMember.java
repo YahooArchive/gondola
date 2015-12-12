@@ -850,8 +850,8 @@ public class CoreMember implements Stoppable {
             logger.info(
                     String.format("[%s-%d] %s%s %spid=%s wait=%dms cmdQ=%d waitQ=%d in=%d"
                                     + "|%.1f/s out=%.1f/s lat=%.3fms/%.3fms",
-                            gondola.getHostId(), memberId, role, enabled ? "" : " (disabled)",
-                            masterId >= 0 ? "-SLAVE" : "",
+                            gondola.getHostId(), memberId, role,
+                            masterId >= 0 ? "-SLAVE" : "", enabled ? "" : " (disabled)",
                             gondola.getProcessId(), waitMs, commandQueue.size(), waitQueue.size(),
                             incomingQueue.size(), stats.incomingMessagesRps, stats.sentMessagesRps,
                             CoreCmd.commitLatency.get(), latency.get()));

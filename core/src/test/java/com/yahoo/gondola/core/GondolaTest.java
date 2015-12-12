@@ -573,7 +573,7 @@ public class GondolaTest {
     /**
      * Leader elected with one node down.
      */
-    //@Test
+    @Test
     public void leaderWithTwoNodes() throws Exception {
         // Init state
         member1.setFollower();
@@ -1020,18 +1020,21 @@ public class GondolaTest {
         // Now hit the leader
         slave1.setSlave(4);
         slave2.setSlave(4);
-        while (member1.getCommitIndex() == 0 || slave1.getCommitIndex() < member1.getCommitIndex()) {
+        while (member1.getCommitIndex() == 0
+               || slave1.getCommitIndex() < member1.getCommitIndex()
+               || slave2.getCommitIndex() < member1.getCommitIndex()) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
-            assertTrue(!status.running, "slave should not be running");
-            logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
+            logger.info("running commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
             Thread.sleep(100);
 
             // Just call again to make sure this is idempotent
             slave1.setSlave(4);
             slave2.setSlave(4);
         }
+        assertTrue(slave1.getSlaveStatus().running, "slave should be running");
+        assertTrue(slave2.getSlaveStatus().running, "slave should be running");
         Member.SlaveStatus status = slave1.getSlaveStatus();
-        logger.info("commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
+        logger.info("done commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
 
         // Disable the slave
         slave1.setSlave(-1);

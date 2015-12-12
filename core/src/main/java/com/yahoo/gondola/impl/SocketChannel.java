@@ -122,12 +122,14 @@ public class SocketChannel implements Channel {
         }
         boolean status = Utils.stopThreads(threads);
         close(socket, in, out);
+        ((SocketNetwork) gondola.getNetwork()).removeChannel(this);
         return status;
     }
 
     void disableRetry() {
         retry = false;
     }
+
     /**
      * See Channel.getMemberId().
      */
