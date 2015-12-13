@@ -80,9 +80,9 @@ public class Shard implements Stoppable {
     /******************** methods *********************/
 
     /**
-     * Returns the cluster as provided in the constructor. See Cluster().
+     * Returns the shard as provided in the constructor. See Shard().
      *
-     * @return non-null cluster id.
+     * @return non-null shard id.
      */
     public String getShardId() {
         return shardId;
@@ -103,15 +103,16 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * @return non-null list of members in this cluster.
+     * @return non-null list of members in this shard.
      */
     public List<Member> getMembers() {
         return members;
     }
 
     /**
-     * Returns the local member of this cluster. The local member is the actual process running on this host. The remote
-     * members are proxies of members running on other hosts.
+     * Returns the local member of this shard. The local member is the
+     * member assigned to this host. The remote members are members of
+     * this shard assigned to other hosts.
      *
      * @return non-null local member.
      */
@@ -122,7 +123,7 @@ public class Shard implements Stoppable {
     /**
      * Returns the list of non-local members.
      *
-     * @return non-null list of non-local members.
+     * @return non-null list of members.
      */
     public List<Member> getRemoteMembers() {
         return members.stream().filter(m -> !m.isLocal()).collect(Collectors.toList());
@@ -138,7 +139,7 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Forces the local member of this cluster to become the leader. Blocks until this member becomes the leader.
+     * Forces the local member of this shard to become the leader. Blocks until this member becomes the leader.
      *
      * @param timeout -1 means there is no timeout.
      */
@@ -162,7 +163,7 @@ public class Shard implements Stoppable {
     }
 
     /**
-     * Returns the last saved index for this cluster. Waits until the storage is settled if necessary.
+     * Returns the last saved index for this shard. Waits until the storage is settled if necessary.
      */
     public int getLastSavedIndex() throws InterruptedException {
         return cmember.getSavedIndex();

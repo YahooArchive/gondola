@@ -261,6 +261,12 @@ public class Gondola implements Stoppable {
     }
 
     /**
+     * The registered listener will be called when the role of local
+     * members change.  A "local" member is a member assigned to this
+     * host.  One exception is when a remote member becomes a
+     * leader. In this case, the listener is called and the member
+     * field will be the same as the leader field.
+     *
      * Can be called before calling start(). The listener is not unregistered when stop() is called.
      */
     public void registerForRoleChanges(Consumer<RoleChangeEvent> listener) {

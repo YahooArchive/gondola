@@ -1091,7 +1091,14 @@ public class CoreMember implements Stoppable {
                 // Update member raft variables
                 int oldCommitIndex = CoreMember.this.commitIndex;
                 CoreMember.this.commitIndex = commitIndex;
-                leaderId = fromMemberId;
+                if (leaderId != fromMemberId) {
+                    leaderId = fromMemberId;
+
+                    // Notify gondola listeners of leader change
+                    gondola.notifyRoleChange(
+                        new RoleChangeEvent(shard, shard.getMember(leaderId),
+                                            shard.getMember(leaderId), Role.CANDIDATE, Role.LEADER));
+                }
 
                 if (message.isHeartbeat()) {
                     // Don't save heartbeats. Reuse this message for the heartbeat reply

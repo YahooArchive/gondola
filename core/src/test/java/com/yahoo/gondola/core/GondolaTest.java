@@ -615,7 +615,11 @@ public class GondolaTest {
     @Test
     public void roleChange() throws Exception {
         member1.insert(1, 1, "command 1");
+        member2.insert(1, 1, "command 1");
         gondolaRc.resetMembers(); // Pick up new storage state
+        member1.setLeader();
+        member2.setFollower();
+
         Consumer<RoleChangeEvent> listener = crevt -> {
             if (crevt.newRole == Role.CANDIDATE) {
                 assertNull(crevt.leader);
@@ -703,7 +707,6 @@ public class GondolaTest {
         }
         member1.saveVote(cterm, -1);
         gondolaRc.resetMembers(); // Pick up new storage state
-
         member1.setLeader();
         member2.setFollower();
         member3.setFollower();
