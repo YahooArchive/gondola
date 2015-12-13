@@ -6,11 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Shard;
-import com.yahoo.gondola.Command;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.NotLeaderException;
+import com.yahoo.gondola.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,7 +108,7 @@ public class CoreCmd {
      * @throws TimeoutException   if timeout >= 0 and a timeout occurred.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen, int timeout)
-        throws InterruptedException, NotLeaderException, TimeoutException {
+          throws GondolaException, InterruptedException, NotLeaderException, TimeoutException {
         if (bufLen + bufOffset > buffer.length) {
             throw new IllegalStateException(
                 String.format("Command buffer is not large enough. bytes=%d + offset=%d > capacity=%d",
@@ -157,6 +153,8 @@ public class CoreCmd {
             case Command.STATUS_NOT_LEADER:
                 throw new NotLeaderException(leaderId == -1 ? null
                                              : gondola.getConfig().getAddressForMember(leaderId));
+            case Command.STATUS_SLAVE_MODE:
+                throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
             case Command.STATUS_ERROR:
                 throw new IllegalStateException("Error committing index " + index + ": " + errorMessage);
             case Command.STATUS_OK:
@@ -177,7 +175,8 @@ public class CoreCmd {
      * @param index   the index of the log entry.
      * @param timeout return after timeout milliseconds, even if the log entry is not available.
      */
-    void waitForLogEntry(int index, int timeout) throws InterruptedException, TimeoutException {
+    void waitForLogEntry(int index, int timeout)
+          throws GondolaException, InterruptedException, TimeoutException {
         reset();
         this.index = index;
 
@@ -209,6 +208,8 @@ public class CoreCmd {
             case Command.STATUS_NOT_LEADER:
                 assert false; // Can't happen
                 break;
+            case Command.STATUS_SLAVE_MODE:
+                throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
             case Command.STATUS_ERROR:
                 throw new IllegalStateException("Error getting index " + index + ": " + errorMessage);
             case Command.STATUS_OK:

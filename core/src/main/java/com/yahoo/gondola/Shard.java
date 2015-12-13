@@ -231,7 +231,7 @@ public class Shard implements Stoppable {
             return command;
         } catch (GondolaException e) {
             command.release();
-            throw new GondolaException(e);
+            throw e;
         }
     }
 

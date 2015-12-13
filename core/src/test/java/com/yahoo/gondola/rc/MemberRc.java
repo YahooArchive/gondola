@@ -45,7 +45,7 @@ public class MemberRc {
     }
 
     public void reset() throws Exception {
-        cmember.reset(Role.FOLLOWER);
+        cmember.reset();
     }
 
     public Gondola getGondola() {

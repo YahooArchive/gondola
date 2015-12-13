@@ -165,7 +165,7 @@ public class CoreMember implements Stoppable {
         // Initialize some convenience variables for use when calculating the commit index
         majority = (peers.size() + 1) / 2 + 1;
         matchIndices = new int[peers.size()];
-        reset(Role.FOLLOWER);
+        reset();
     }
 
     /*
@@ -196,11 +196,16 @@ public class CoreMember implements Stoppable {
     /**
      * Reinitializes the members after changing the contents of storage.
      */
-    public void reset(Role role) throws GondolaException {
-        // Reset state variables
+    public void reset() throws GondolaException {
+        reset(Role.FOLLOWER, 0);
+    }
+
+    private void reset(Role role, int commitIndex) throws GondolaException {
         become(role, -1);
+        this.commitIndex = commitIndex;
+
+        // Reset state variables
         lastSentTs = clock.now();
-        commitIndex = 0;
         prevotesOnly = true;
 
         // Clear queues
@@ -1384,6 +1389,7 @@ public class CoreMember implements Stoppable {
                             peers.add(masterPeer);
                             peerMap.put(masterPeer.peerId, masterPeer);
                             masterPeer.start();
+                            reset(Role.CANDIDATE, 0);
                         } else {
                             // Leave slave mode and restore original peers
                             logger.info("[{}-{}] Leaving slave mode from master {}",
@@ -1396,8 +1402,8 @@ public class CoreMember implements Stoppable {
                                 peer.start();
                             }
                             member.masterId = masterId;
+                            reset(Role.CANDIDATE, commitIndex);
                         }
-                        reset(Role.CANDIDATE);
                     }
                 } catch (Exception e) {
                     throw new RuntimeException(e);
