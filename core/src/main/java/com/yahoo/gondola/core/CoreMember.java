@@ -1371,7 +1371,6 @@ public class CoreMember implements Stoppable {
                             member.masterId = masterId;
                             currentTerm = 1;
                             save(1, -1);
-                            becomeCandidate();
 
                             // Create a new peer to the master
                             Peer masterPeer = new Peer(gondola, member, masterId);
@@ -1390,8 +1389,8 @@ public class CoreMember implements Stoppable {
                                 peer.start();
                             }
                             member.masterId = masterId;
-                            reset(Role.CANDIDATE);
                         }
+                        reset(Role.CANDIDATE);
                     }
                 } catch (Exception e) {
                     throw new RuntimeException(e);

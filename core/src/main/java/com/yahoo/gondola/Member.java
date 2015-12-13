@@ -146,14 +146,9 @@ public class Member {
 
         @Override
         public String toString() {
-            return "SlaveStatus{" +
-                   "running=" + running +
-                   ", memberId=" + memberId +
-                   ", masterId=" + masterId +
-                   ", commitIndex=" + commitIndex +
-                   ", savedIndex=" + savedIndex +
-                   ", exception=" + exception +
-                   '}';
+            return String.format("SlaveStatus{running=%s, memberId=%d, masterId=%d, commitIndex=%d"
+                                 + ", savedIndex=%d, exception=%d}",
+                                 running, memberId, masterId, commitIndex, savedIndex, exception);
         }
     }
 

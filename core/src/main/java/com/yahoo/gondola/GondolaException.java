@@ -16,7 +16,7 @@ public class GondolaException extends Exception {
     public enum Code {
         /** Used for any generic error condition. The message should provide details of the error. */
         ERROR(""),
-        NOT_LEADER("%s is not a leader"),
+        NOT_LEADER("The leader is %s"),
         SAME_SHARD("This slave (%d) and the master (%d) cannot be in the same shard (%s)");
 
         private String messageTemplate;

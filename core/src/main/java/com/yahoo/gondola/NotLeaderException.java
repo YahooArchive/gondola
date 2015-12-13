@@ -15,7 +15,8 @@ public class NotLeaderException extends GondolaException {
     InetSocketAddress leaderAddr;
 
     public NotLeaderException(InetSocketAddress leaderAddr) {
-        super(Code.NOT_LEADER, String.format(Code.NOT_LEADER.messageTemplate(), leaderAddr));
+        super(Code.NOT_LEADER, String.format(Code.NOT_LEADER.messageTemplate(),
+                                             leaderAddr == null ? "unknown" : leaderAddr));
         this.leaderAddr = leaderAddr;
     }
 

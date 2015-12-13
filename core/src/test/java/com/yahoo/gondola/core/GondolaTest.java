@@ -800,6 +800,7 @@ public class GondolaTest {
     @Test
     public void getCommand1() throws Exception {
         member1.setLeader();
+        member2.setFollower();
         runningTick = 50;
 
         commit(member1, "command 1");
@@ -819,6 +820,7 @@ public class GondolaTest {
     @Test
     public void getCommand2() throws Exception {
         member1.setLeader();
+        member2.setFollower();
 
         commit(member1, "command 1");
         commit(member1, "command 2");

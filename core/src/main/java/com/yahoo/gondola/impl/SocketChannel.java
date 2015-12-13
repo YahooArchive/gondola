@@ -94,7 +94,8 @@ public class SocketChannel implements Channel {
         });
 
         if (networkTracing) {
-            logger.info("[{}-{}] Creating connection to {}", gondola.getHostId(), memberId, toMemberId);
+            logger.info("[{}-{}] Creating connection to {} {}", gondola.getHostId(), memberId, toMemberId,
+                        this.toString());
         }
         inetSocketAddress = gondola.getConfig().getAddressForMember(peerId);
     }

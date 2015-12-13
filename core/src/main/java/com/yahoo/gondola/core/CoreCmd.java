@@ -155,7 +155,8 @@ public class CoreCmd {
                 throw new TimeoutException(String.format("Timeout (%d ms) for index %d size %d",
                                                          timeout, index, bufLen));
             case Command.STATUS_NOT_LEADER:
-                throw new NotLeaderException(leaderId == -1 ? null : gondola.getConfig().getAddressForMember(leaderId));
+                throw new NotLeaderException(leaderId == -1 ? null
+                                             : gondola.getConfig().getAddressForMember(leaderId));
             case Command.STATUS_ERROR:
                 throw new IllegalStateException("Error committing index " + index + ": " + errorMessage);
             case Command.STATUS_OK:
