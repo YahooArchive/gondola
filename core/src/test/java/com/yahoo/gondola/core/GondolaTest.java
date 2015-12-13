@@ -1064,6 +1064,48 @@ public class GondolaTest {
     }
 
     /**
+     * Expect an error if a member tries to slave to another member in the same shard.
+     */
+    @Test
+    public void slavePeer() throws Exception {
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        runningTick = 50;
+
+        // Wait for a leader
+        while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(100);
+        }
+
+        // Now slave each other and reverse it
+        try {
+            member1.setSlave(member2.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+        }
+        try {
+            member2.setSlave(member3.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+        }
+        try {
+            member3.setSlave(member1.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+        }
+
+        Assert.assertNull(member1.getSlaveStatus(), "should not be in slave mode");
+        Assert.assertNull(member2.getSlaveStatus(), "should not be in slave mode");
+        Assert.assertNull(member3.getSlaveStatus(), "should not be in slave mode");
+
+        // Wait for a leader
+        while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(100);
+        }
+    }
+
+    /**
      * Throw an exception if getCommittedCommand() is called during slave mode.
      */
     @Test

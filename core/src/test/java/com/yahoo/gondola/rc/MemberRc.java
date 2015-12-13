@@ -72,6 +72,14 @@ public class MemberRc {
         return cmember.isEnabled();
     }
 
+    public void setSlave(int masterId) throws Exception {
+        cmember.setSlave(masterId);
+    }
+
+    public Member.SlaveStatus getSlaveStatus() throws Exception {
+        return cmember.getSlaveStatus();
+    }
+
     public Command checkoutCommand() throws Exception {
         return shard.checkoutCommand();
     }

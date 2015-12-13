@@ -8,7 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.NotLeaderException;
+import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.Shard;
 
@@ -62,11 +62,11 @@ public abstract class RoutingService {
      * Write log.
      *
      * @param bytes the bytes
-     * @throws NotLeaderException   the not leader exception
+     * @throws GondolaException   thrown if the local member is not the leader
      * @throws InterruptedException the interrupted exception
      */
     public void writeLog(byte[] bytes)
-        throws NotLeaderException, InterruptedException {
+        throws GondolaException, InterruptedException {
         Command command = shard.checkoutCommand();
         command.commit(bytes, 0, bytes.length);
     }
