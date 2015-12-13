@@ -73,7 +73,7 @@ public class GondolaCommand {
     public void printUsage() {
         // Stop is implemented in the shell script
         System.out.println("Usage: gondola.sh [-host <host-id> -shard <shard-id>|-member <member-id>]"
-                           + " [-port <port>] [-master <master-id>] [-writers <num>] [start|stop]");
+                + " [-port <port>] [-master <master-id>] [-writers <num>] [start|stop]");
         if (config != null) {
             System.out.println("    Available host ids: " + config.getHostIds());
         }
@@ -185,7 +185,7 @@ public class GondolaCommand {
                 double avgLatency = 1.0 * waitTime.get() / requests.get();
                 if (shard.getLocalMember().isLeader()) {
                     logger.info(String.format("commits: %.2f/s  latency: %.2f ms (%.2fms)",
-                                              (requests.get() - start) / 5.0, avgLatency, latency.get()));
+                            (requests.get() - start) / 5.0, avgLatency, latency.get()));
                 }
                 waitTime.set(0);
                 requests.set(0);
@@ -237,6 +237,7 @@ public class GondolaCommand {
     }
 
     static AtomicInteger ccounter = new AtomicInteger();
+
     class Writer extends Thread {
         int id;
 
@@ -309,8 +310,8 @@ public class GondolaCommand {
                         if (availableWriters.get() <= socketQueue.size() && numWriters < maxWriters) {
                             if (tracing) {
                                 logger.info("[{}] Creating remote interface writer: avail writers={}"
-                                            + " socketQ={} numWriters={}",
-                                            hostId, availableWriters.get(), socketQueue, numWriters);
+                                                + " socketQ={} numWriters={}",
+                                        hostId, availableWriters.get(), socketQueue, numWriters);
                             }
                             new RemoteInterface().start();
                             numWriters++;
@@ -369,8 +370,13 @@ public class GondolaCommand {
                                 Runtime.getRuntime().halt(0);
                             }
                         }
-                    } catch (NotLeaderException e) {
-                        wr.write(String.format("ERROR: Not leader - leader is %s", e.getLeaderAddress()));
+                    } catch (GondolaException e) {
+                        if (e.getCode() == GondolaException.Code.NOT_LEADER) {
+                            wr.write("ERROR: " + e.getMessage() + "\n");
+                        } else {
+                            wr.write("ERROR: Unhandled exception: " + e.getMessage() + "\n");
+                            logger.error(e.getMessage(), e);
+                        }
                     } catch (Exception e) {
                         wr.write("ERROR: Unhandled exception: " + e.getMessage() + "\n");
                         logger.error(e.getMessage(), e);

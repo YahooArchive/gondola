@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.impl;
 
+import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.LogEntry;
 import com.yahoo.gondola.Storage;
@@ -81,10 +82,21 @@ public class H2dbStorage implements Storage {
     }
 
     void createConnection() throws GondolaException {
-        String url = gondola.getConfig().get("storage.h2.url");
-        String user = gondola.getConfig().get("storage.h2.user");
-        String password = gondola.getConfig().get("storage.h2.password");
+        Config cfg = gondola.getConfig();
+        String user = cfg.get("storage.h2.user");
+        String password = cfg.get("storage.h2.password");
+
+        // If there's a store-specific setting, use it; otherwise use default
+        String url = cfg.get("storage.h2.url");
+        String storeId = cfg.getAttributesForHost(hostId).get("storeId");
+        if (storeId != null) {
+            String urlKey = "storage." + storeId + ".h2.url";
+            if (cfg.has(urlKey)) {
+                url = cfg.get(urlKey);
+            }
+        }
         url = url.replace("$hostId", hostId);
+
         logger.info("Initializing H2DB storage. maxCommandSize={} url={} user={}", maxCommandSize, url, user);
 
         try {

@@ -46,6 +46,7 @@ public class MySqlStorage implements Storage {
         String user = cfg.get("storage.mysql.user");
         String password = cfg.get("storage.mysql.password");
 
+        // If there's a store-specific setting, use it; otherwise use default
         String url = cfg.get("storage.mysql.url");
         String storeId = cfg.getAttributesForHost(hostId).get("storeId");
         if (storeId != null) {
