@@ -1048,9 +1048,17 @@ public class GondolaTest {
         assertNull(slave2.getSlaveStatus());
 
         // Wait to make sure slave1 becomes the leader
-        while (!slave1.isLeader() && !slave2.isLeader()) {
+        while (true) {
+            if (slave1.isLeader()) {
+                Command c = g1.getShard("shard1").getCommittedCommand(1, 5000);
+                break;
+            } else if (slave2.isLeader()) {
+                Command c = g2.getShard("shard2").getCommittedCommand(1, 5000);
+                break;
+            }
             Thread.sleep(100);
         }
+
         g1.stop();
         g2.stop();
     }
