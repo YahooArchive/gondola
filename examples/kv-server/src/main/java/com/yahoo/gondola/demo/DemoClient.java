@@ -87,8 +87,10 @@ public class DemoClient {
         int data;
         if (response.getStatus() == 404) {
             data = -1;
-        } else {
+        } else if (response.getStatus() == 200){
             data = Integer.parseInt(response.readEntity(String.class));
+        } else {
+            return null;
         }
         String bucketId = response.getHeaderString(RoutingFilter.X_GONDOLA_BUCKET_ID);
         String shardId = response.getHeaderString(RoutingFilter.X_GONDOLA_SHARD_ID);

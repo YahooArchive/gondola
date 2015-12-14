@@ -326,7 +326,7 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         if (requestContext.getProperty("whiteList") != null) {
             return;
         }
-        decrementBucketCounter(routingHelper.getBucketHash(requestContext));
+        decrementBucketCounter((Integer) requestContext.getProperty("bucketId"));
         responseContext.getHeaders()
             .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
         responseContext.getHeaders()
