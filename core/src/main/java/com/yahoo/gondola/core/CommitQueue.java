@@ -109,7 +109,12 @@ public class CommitQueue {
      *
      * @param ccmd non-null object containing the command to be committed.
      */
-    public void add(CoreCmd ccmd) {
+    public void add(CoreCmd ccmd) throws GondolaException {
+        // Commits are not allowed in slave mode
+        if (cmember.masterId >= 0) {
+            throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
+        }
+
         commandQueue.add(ccmd);
     }
 
@@ -121,6 +126,11 @@ public class CommitQueue {
      */
     public void get(CoreCmd ccmd, int index, int timeout)
             throws InterruptedException, TimeoutException, GondolaException {
+        // Gets are not allowed in slave mode
+        if (cmember.masterId >= 0) {
+            throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
+        }
+
         // Get latest saved index
         cmember.saveQueue.getLatestWait(cmember.savedRid);
 
@@ -172,6 +182,27 @@ public class CommitQueue {
             ccmd.update(Command.STATUS_OK, cmember.leaderId);
             getQueue.poll();
             ccmd = getQueue.peek();
+        }
+    }
+
+    /**
+     * Throws an exception to any waiters for log entries.
+     */
+    public void enterSlaveMode() {
+        // Clear out get queue
+        CoreCmd ccmd = getQueue.peek();
+        while (ccmd != null) {
+            ccmd = getQueue.remove();
+            ccmd.update(Command.STATUS_SLAVE_MODE, cmember.leaderId);
+            ccmd = getQueue.peek();
+        }
+
+        // Clear out command queue
+        ccmd = commandQueue.peek();
+        while (ccmd != null) {
+            ccmd = commandQueue.remove();
+            ccmd.update(Command.STATUS_SLAVE_MODE, cmember.leaderId);
+            ccmd = commandQueue.peek();
         }
     }
 

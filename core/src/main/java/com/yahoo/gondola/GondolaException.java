@@ -16,8 +16,9 @@ public class GondolaException extends Exception {
     public enum Code {
         /** Used for any generic error condition. The message should provide details of the error. */
         ERROR(""),
-        NOT_LEADER("%s is not a leader"),
-        SAME_SHARD("This slave (%d) and the master (%d) cannot be in the same shard (%s)");
+        NOT_LEADER("The leader is %s"),
+        SAME_SHARD("This slave (%d) and the master (%d) cannot be in the same shard (%s)"),
+        SLAVE_MODE("This operation is not allowed while the member (%d) is in slave mode");
 
         private String messageTemplate;
 
@@ -34,21 +35,36 @@ public class GondolaException extends Exception {
 
     public GondolaException(Throwable cause) {
         super(cause.getMessage(), cause);
+        // Inherit the code from the most recent GondolaException in the chain, if any
+        while (cause != null) {
+            if (cause instanceof GondolaException) {
+                GondolaException ge = (GondolaException) cause;
+                code = ge.code;
+                break;
+            }
+            cause = cause.getCause();
+        }
+        if (code == null) {
+            code = Code.ERROR;
+        }
+    }
+
+    public GondolaException(String message) {
+        super(message);
         this.code = Code.ERROR;
     }
 
-    public GondolaException(Code code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public GondolaException(Code code, String message, Throwable cause) {
+    public GondolaException(String message, Throwable cause) {
         super(message, cause);
-        this.code = code;
+        this.code = Code.ERROR;
     }
 
     public GondolaException(Code code, Object... args) {
         super(String.format(code.messageTemplate(), args));
         this.code = code;
+    }
+
+    public Code getCode() {
+        return code;
     }
 }

@@ -34,6 +34,7 @@ public class Command {
     public final static int STATUS_INTERRUPTED = 2; // Not used
     public final static int STATUS_ERROR = 3;       // Storage or system error
     public final static int STATUS_TIMEOUT = 4;
+    public final static int STATUS_SLAVE_MODE = 5;
 
     final Shard shard;
     final CoreCmd ccmd;
@@ -102,7 +103,7 @@ public class Command {
      * @throws NotLeaderException if the member is not currently the leader.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen)
-            throws InterruptedException, NotLeaderException {
+            throws InterruptedException, GondolaException {
         try {
             ccmd.commit(buf, bufOffset, bufLen, -1);
         } catch (TimeoutException e) {
@@ -118,7 +119,7 @@ public class Command {
      * @throws NotLeaderException if the member is not currently the leader.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen, int timeout)
-            throws InterruptedException, NotLeaderException, TimeoutException {
+            throws InterruptedException, GondolaException, TimeoutException {
         ccmd.commit(buf, bufOffset, bufLen, timeout);
     }
 

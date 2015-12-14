@@ -62,6 +62,15 @@ public class Member {
     }
 
     /**
+     * Returns the latest contingous index saved in the storage layer.
+     * For a leader, this index < commit index. For other roles, this will be < commit index.
+     */
+    public int getSavedIndex() throws InterruptedException {
+        return cmember.getSavedIndex();
+    }
+
+
+    /**
      * The results are valid only if the local member is the leader.
      */
     public boolean isLogUpToDate() throws InterruptedException {
@@ -146,14 +155,9 @@ public class Member {
 
         @Override
         public String toString() {
-            return "SlaveStatus{" +
-                   "running=" + running +
-                   ", memberId=" + memberId +
-                   ", masterId=" + masterId +
-                   ", commitIndex=" + commitIndex +
-                   ", savedIndex=" + savedIndex +
-                   ", exception=" + exception +
-                   '}';
+            return String.format("SlaveStatus{running=%s, memberId=%d, masterId=%d, commitIndex=%d"
+                                 + ", savedIndex=%d, exception=%d}",
+                                 running, memberId, masterId, commitIndex, savedIndex, exception);
         }
     }
 

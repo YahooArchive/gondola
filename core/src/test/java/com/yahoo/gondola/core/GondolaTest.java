@@ -615,7 +615,11 @@ public class GondolaTest {
     @Test
     public void roleChange() throws Exception {
         member1.insert(1, 1, "command 1");
+        member2.insert(1, 1, "command 1");
         gondolaRc.resetMembers(); // Pick up new storage state
+        member1.setLeader();
+        member2.setFollower();
+
         Consumer<RoleChangeEvent> listener = crevt -> {
             if (crevt.newRole == Role.CANDIDATE) {
                 assertNull(crevt.leader);
@@ -703,7 +707,6 @@ public class GondolaTest {
         }
         member1.saveVote(cterm, -1);
         gondolaRc.resetMembers(); // Pick up new storage state
-
         member1.setLeader();
         member2.setFollower();
         member3.setFollower();
@@ -765,7 +768,7 @@ public class GondolaTest {
     public void commandIndex0() throws Exception {
         try {
             assertCommand(member3, 1, 0, "");
-            Assert.fail();
+            Assert.fail("Getting command index 0 should fail");
         } catch (Exception e) {
             assertTrue(true);
         }
@@ -800,6 +803,7 @@ public class GondolaTest {
     @Test
     public void getCommand1() throws Exception {
         member1.setLeader();
+        member2.setFollower();
         runningTick = 50;
 
         commit(member1, "command 1");
@@ -819,6 +823,7 @@ public class GondolaTest {
     @Test
     public void getCommand2() throws Exception {
         member1.setLeader();
+        member2.setFollower();
 
         commit(member1, "command 1");
         commit(member1, "command 2");
@@ -1009,7 +1014,7 @@ public class GondolaTest {
         Thread.sleep(500);
         assertTrue(!slave1.getSlaveStatus().running, "slave should not be running");
         assertTrue(!slave2.getSlaveStatus().running, "slave should not be running");
-        
+
         // Try another non-leader
         slave1.setSlave(5);
         slave2.setSlave(5);
@@ -1021,8 +1026,8 @@ public class GondolaTest {
         slave1.setSlave(4);
         slave2.setSlave(4);
         while (member1.getCommitIndex() == 0
-               || slave1.getCommitIndex() < member1.getCommitIndex()
-               || slave2.getCommitIndex() < member1.getCommitIndex()) {
+                || slave1.getSavedIndex() < 100
+                || slave2.getSavedIndex() < 100) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
             logger.info("running commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
             Thread.sleep(100);
@@ -1043,18 +1048,80 @@ public class GondolaTest {
         assertNull(slave2.getSlaveStatus());
 
         // Wait to make sure slave1 becomes the leader
-        while (!slave1.isLeader() && !slave2.isLeader()) {
+        while (true) {
+            if (slave1.isLeader()) {
+                Command c = g1.getShard("shard2").getCommittedCommand(1, 5000);
+                break;
+            } else if (slave2.isLeader()) {
+                Command c = g2.getShard("shard2").getCommittedCommand(1, 5000);
+                break;
+            }
             Thread.sleep(100);
         }
+
         g1.stop();
         g2.stop();
     }
 
     /**
-     * When the master of the slave is not a leader, the running state should be false.
+     * Expect an error if a member tries to slave to another member in the same shard.
      */
     @Test
-    public void slaveModeNonLeader() throws Exception {
+    public void slavePeer() throws Exception {
+        member1.setLeader();
+        member2.setFollower();
+        member3.setFollower();
+        runningTick = 50;
+
+        // Wait for a leader
+        while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(100);
+        }
+
+        // Now slave each other and reverse it
+        try {
+            member1.setSlave(member2.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
+        }
+        try {
+            member2.setSlave(member3.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
+        }
+        try {
+            member3.setSlave(member1.getMemberId());
+            Assert.fail("expected an exception");
+        } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
+        }
+
+        Assert.assertNull(member1.getSlaveStatus(), "should not be in slave mode");
+        Assert.assertNull(member2.getSlaveStatus(), "should not be in slave mode");
+        Assert.assertNull(member3.getSlaveStatus(), "should not be in slave mode");
+
+        // Wait for a leader
+        while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(100);
+        }
+    }
+
+    /**
+     * Throw an exception if getCommittedCommand() is called during slave mode.
+     */
+    @Test
+    public void commandInSlaveMode() throws Exception {
         // Init state
         int term = 77;
         for (int i = 1; i <= 100; i++) {
@@ -1068,24 +1135,53 @@ public class GondolaTest {
         member3.setFollower();
         runningTick = 50;
 
-        // Create the slave
-        Gondola g = new Gondola(gondolaRc.getConfig(), "D");
-        gondolaRc.add(g);
-        Member slave1 = g.getShard("shard2").getMember(1);
-        g.start();
+        // Create slave1
+        Gondola g1 = new Gondola(gondolaRc.getConfig(), "D");
+        gondolaRc.add(g1);
+        final Shard shard = g1.getShard("shard2");
+        final Member slave1 = shard.getMember(1);
+        g1.start();
 
-        // Enable the slave
-        slave1.setSlave(5);
+        // Create thread to read commands
+        Thread reader = new Thread() {
+            public void run() {
+                int ix = 1;
+                while (ix <= 100) {
+                    try {
+                        if (slave1.getSlaveStatus() == null) {
+                            shard.getCommittedCommand(ix);
+                            ix++;
+                        } else {
+                            shard.getCommittedCommand(ix);
+                            Assert.fail("Getting a command in slave mode should fail");
+                        }
+                    } catch (GondolaException e) {
+                        if (ix > 1) {
+                            e.printStackTrace();
+                            Assert.fail();
+                        }
+                        Assert.assertSame(e.getCode(), GondolaException.Code.SLAVE_MODE, e.getMessage());
+                    } catch (Exception e) {
+                        // Unexpected exception
+                        e.printStackTrace();
+                        Assert.fail();
+                    }
+                }
+            }
+        };
+        reader.start();
 
-        // Wait until it fails
-        for (int i=0; i<5 && slave1.getSlaveStatus().running; i++) {
-            Thread.sleep(1000);
+        // Enable slave mode
+        slave1.setSlave(4);
+        while (member1.getCommitIndex() == 0
+                || slave1.getSavedIndex() < 100) {
+            Thread.sleep(100);
         }
-        assertTrue(!slave1.getSlaveStatus().running, "Slave should not be running");
 
         // Disable the slave
         slave1.setSlave(-1);
-        g.stop();
+        reader.join();
+        g1.stop();
     }
 
     //@Test

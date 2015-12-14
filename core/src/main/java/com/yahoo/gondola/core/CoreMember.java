@@ -165,7 +165,7 @@ public class CoreMember implements Stoppable {
         // Initialize some convenience variables for use when calculating the commit index
         majority = (peers.size() + 1) / 2 + 1;
         matchIndices = new int[peers.size()];
-        reset(Role.FOLLOWER);
+        reset();
     }
 
     /*
@@ -196,11 +196,16 @@ public class CoreMember implements Stoppable {
     /**
      * Reinitializes the members after changing the contents of storage.
      */
-    public void reset(Role role) throws GondolaException {
-        // Reset state variables
+    public void reset() throws GondolaException {
+        reset(Role.FOLLOWER, 0);
+    }
+
+    private void reset(Role role, int commitIndex) throws GondolaException {
         become(role, -1);
+        this.commitIndex = commitIndex;
+
+        // Reset state variables
         lastSentTs = clock.now();
-        commitIndex = 0;
         prevotesOnly = true;
 
         // Clear queues
@@ -1091,7 +1096,14 @@ public class CoreMember implements Stoppable {
                 // Update member raft variables
                 int oldCommitIndex = CoreMember.this.commitIndex;
                 CoreMember.this.commitIndex = commitIndex;
-                leaderId = fromMemberId;
+                if (leaderId != fromMemberId) {
+                    leaderId = fromMemberId;
+
+                    // Notify gondola listeners of leader change
+                    gondola.notifyRoleChange(
+                        new RoleChangeEvent(shard, shard.getMember(leaderId),
+                                            shard.getMember(leaderId), Role.CANDIDATE, Role.LEADER));
+                }
 
                 if (message.isHeartbeat()) {
                     // Don't save heartbeats. Reuse this message for the heartbeat reply
@@ -1339,6 +1351,15 @@ public class CoreMember implements Stoppable {
      * @param masterId the identity of a leader to sync with.
      */
     public void setSlave(int masterId) throws GondolaException, InterruptedException {
+        if (masterId >= 0) {
+            // Make sure this member and the master are not in the same shard
+            String shardId = gondola.getConfig().getMember(masterId).getShardId();
+            if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
+                throw new GondolaException(GondolaException.Code.SAME_SHARD,
+                                           memberId, masterId, shardId);
+            }
+        }
+
         final CoreMember member = this;
 
         // To avoid race conditions, the following executed by the main loop
@@ -1358,11 +1379,6 @@ public class CoreMember implements Stoppable {
                             // Make sure this member and the master are not in the same shard
                             logger.info("[{}-{}] Entering slave mode to master {}",
                                     gondola.getHostId(), memberId, masterId);
-                            String shardId = gondola.getConfig().getMember(masterId).getShardId();
-                            if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
-                                throw new GondolaException(GondolaException.Code.SAME_SHARD,
-                                                           memberId, masterId, shardId);
-                            }
 
                             // Delete the entire log
                             saveQueue.truncate();
@@ -1371,13 +1387,13 @@ public class CoreMember implements Stoppable {
                             member.masterId = masterId;
                             currentTerm = 1;
                             save(1, -1);
-                            becomeCandidate();
 
                             // Create a new peer to the master
                             Peer masterPeer = new Peer(gondola, member, masterId);
                             peers.add(masterPeer);
                             peerMap.put(masterPeer.peerId, masterPeer);
                             masterPeer.start();
+                            reset(Role.CANDIDATE, 0);
                         } else {
                             // Leave slave mode and restore original peers
                             logger.info("[{}-{}] Leaving slave mode from master {}",
@@ -1390,7 +1406,7 @@ public class CoreMember implements Stoppable {
                                 peer.start();
                             }
                             member.masterId = masterId;
-                            reset(Role.CANDIDATE);
+                            reset(Role.CANDIDATE, commitIndex);
                         }
                     }
                 } catch (Exception e) {

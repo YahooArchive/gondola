@@ -9,6 +9,7 @@ package com.yahoo.gondola.rc;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Network;
 import com.yahoo.gondola.Role;
 import com.yahoo.gondola.RoleChangeEvent;
@@ -45,7 +46,7 @@ public class MemberRc {
     }
 
     public void reset() throws Exception {
-        cmember.reset(Role.FOLLOWER);
+        cmember.reset();
     }
 
     public Gondola getGondola() {
@@ -70,6 +71,14 @@ public class MemberRc {
 
     public boolean isEnabled() {
         return cmember.isEnabled();
+    }
+
+    public void setSlave(int masterId) throws Exception {
+        cmember.setSlave(masterId);
+    }
+
+    public Member.SlaveStatus getSlaveStatus() throws Exception {
+        return cmember.getSlaveStatus();
     }
 
     public Command checkoutCommand() throws Exception {

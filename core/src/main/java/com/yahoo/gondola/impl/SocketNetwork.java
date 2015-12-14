@@ -275,6 +275,7 @@ public class SocketNetwork implements Network {
                     } else {
                         // Request rejected
                         hello.close(socket);
+                        channel.stop();
                     }
                 } else {
                     hello.ok();

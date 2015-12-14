@@ -6,11 +6,7 @@
 
 package com.yahoo.gondola.core;
 
-import com.yahoo.gondola.Shard;
-import com.yahoo.gondola.Command;
-import com.yahoo.gondola.Config;
-import com.yahoo.gondola.Gondola;
-import com.yahoo.gondola.NotLeaderException;
+import com.yahoo.gondola.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,15 +104,15 @@ public class CoreCmd {
      * object can be used again.
      *
      * @param timeout if -1, the timeout is disabled.
-     * @throws NotLeaderException if the member is not currently the leader.
-     * @throws TimeoutException   if timeout >= 0 and a timeout occurred.
+     * @throws GondolaException if the member is not currently the leader.
+     * @throws TimeoutException if timeout >= 0 and a timeout occurred.
      */
     public void commit(byte[] buf, int bufOffset, int bufLen, int timeout)
-        throws InterruptedException, NotLeaderException, TimeoutException {
+            throws GondolaException, InterruptedException, TimeoutException {
         if (bufLen + bufOffset > buffer.length) {
             throw new IllegalStateException(
-                String.format("Command buffer is not large enough. bytes=%d + offset=%d > capacity=%d",
-                              bufLen, bufOffset, buffer.length));
+                    String.format("Command buffer is not large enough. bytes=%d + offset=%d > capacity=%d",
+                            bufLen, bufOffset, buffer.length));
         }
         reset();
         counter = commitCounter.incrementAndGet();
@@ -153,15 +149,18 @@ public class CoreCmd {
                 // Timeout occurred
                 status = Command.STATUS_TIMEOUT;
                 throw new TimeoutException(String.format("Timeout (%d ms) for index %d size %d",
-                                                         timeout, index, bufLen));
+                        timeout, index, bufLen));
             case Command.STATUS_NOT_LEADER:
-                throw new NotLeaderException(leaderId == -1 ? null : gondola.getConfig().getAddressForMember(leaderId));
+                throw new GondolaException(GondolaException.Code.NOT_LEADER, leaderId == -1 ? "unknown"
+                        : gondola.getConfig().getAddressForMember(leaderId));
+            case Command.STATUS_SLAVE_MODE:
+                throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
             case Command.STATUS_ERROR:
                 throw new IllegalStateException("Error committing index " + index + ": " + errorMessage);
             case Command.STATUS_OK:
                 if (commandTracing) {
                     logger.info("[{}-{}] committed(term={} index={} size={}) status={}",
-                                gondola.getHostId(), cmember.memberId, term, index, size, status);
+                            gondola.getHostId(), cmember.memberId, term, index, size, status);
                 }
                 break;
         }
@@ -176,7 +175,8 @@ public class CoreCmd {
      * @param index   the index of the log entry.
      * @param timeout return after timeout milliseconds, even if the log entry is not available.
      */
-    void waitForLogEntry(int index, int timeout) throws InterruptedException, TimeoutException {
+    void waitForLogEntry(int index, int timeout)
+            throws GondolaException, InterruptedException, TimeoutException {
         reset();
         this.index = index;
 
@@ -208,6 +208,8 @@ public class CoreCmd {
             case Command.STATUS_NOT_LEADER:
                 assert false; // Can't happen
                 break;
+            case Command.STATUS_SLAVE_MODE:
+                throw new GondolaException(GondolaException.Code.SLAVE_MODE, cmember.memberId);
             case Command.STATUS_ERROR:
                 throw new IllegalStateException("Error getting index " + index + ": " + errorMessage);
             case Command.STATUS_OK:
