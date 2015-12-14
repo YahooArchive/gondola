@@ -26,6 +26,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_BUCKET_ROLLBACK;
+import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_MIGRATE_1;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_SET_BUCKETS;
 import static com.yahoo.gondola.container.ShardManagerProtocol.ShardManagerException.CODE.FAILED_START_SLAVE;
 import static com.yahoo.gondola.container.Utils.pollingWithTimeout;
@@ -162,9 +163,11 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId, String toShardId, long timeoutMs)
         throws ShardManagerException, InterruptedException {
         // Enable special mode on destination shard.
-        sendActionToShard(toShardId, MIGRATE_1, splitRange.lowerEndpoint(),
+        sendActionToShard(fromShardId, MIGRATE_1, splitRange.lowerEndpoint(),
                           splitRange.upperEndpoint(), fromShardId, toShardId, timeoutMs);
-        waitCondition(fromShardId, ZookeeperStat::isMigrating1Operational, timeoutMs);
+        if (!waitCondition(fromShardId, ZookeeperStat::isMigrating1Operational, timeoutMs)) {
+            throw new ShardManagerException(FAILED_MIGRATE_1, "Timed out");
+        }
 
         // set all nodes in migrating mode, traffic to the original shard will route to new shard in this state.
         setBuckets(splitRange, fromShardId, toShardId, false);

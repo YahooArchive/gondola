@@ -201,4 +201,19 @@ class BucketManager {
         ShardState shardState = lookupBucketTable(range);
         shardState.migratingShardId = null;
     }
+
+    public String getBucketString(String shardId) {
+        return bucketMap.asMapOfRanges().entrySet().stream()
+            .filter(e -> e.getValue().shardId.equals(shardId))
+            .map(e -> getRangeString(e.getKey()))
+            .reduce((s1, s2) -> s1 + "," + s2)
+            .orElseThrow(() -> new IllegalStateException("Cannot find shardId in bucketManager. shardId=" + shardId));
+    }
+
+    private String getRangeString(Range<Integer> range) {
+        if (range.upperEndpoint().equals(range.lowerEndpoint())) {
+            return range.upperEndpoint().toString();
+        }
+        return range.lowerEndpoint() + "-" + range.upperEndpoint();
+    }
 }

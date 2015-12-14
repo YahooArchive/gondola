@@ -164,7 +164,7 @@ public class ShardManager implements ShardManagerProtocol {
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs) throws ShardManagerException {
         // Make sure only leader can execute this request.
-        if (!filter.isLeaderInShard(toShardId)) {
+        if (!filter.isLeaderInShard(fromShardId)) {
             return;
         } else {
             assignBucketOnLeader(splitRange, fromShardId, toShardId, timeoutMs);
@@ -176,8 +176,11 @@ public class ShardManager implements ShardManagerProtocol {
         try {
             filter.blockRequestOnBuckets(splitRange);
             filter.waitNoRequestsOnBuckets(splitRange, timeoutMs);
+            trace("[{}] waiting slaves synced...", gondola.getHostId());
             shardManagerClient.waitSlavesSynced(toShardId, timeoutMs);
+            trace("[{}] waiting stop slaving...", gondola.getHostId());
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
+            trace("[{}] update bucket range...", gondola.getHostId());
             filter.updateBucketRange(splitRange, fromShardId, toShardId, false);
         } catch (InterruptedException | ExecutionException e) {
             logger.warn("Error occurred, rollback!", e);
@@ -202,17 +205,18 @@ public class ShardManager implements ShardManagerProtocol {
         Shard shard = gondola.getShard(shardId);
         try {
             return Utils.pollingWithTimeout(() -> {
-                if (shard.getCommitIndex() != 0 && shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
+                if (shard.getCommitIndex() != 0
+                    && shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
                     return true;
                 }
                 Member.SlaveStatus slaveStatus = shard.getLocalMember().getSlaveStatus();
                 if (!slaveOperational(slaveStatus)) {
                     throw new ShardManagerException(MASTER_IS_GONE);
                 }
-                trace("[{}] {} Log status={}, currentDiff={}, targetDiff={}",
+                trace("[{}] {} Log status={}, ci={}, si={}, ai={} targetDiff={}",
                       gondola.getHostId(), shardId, slaveOperational(slaveStatus) ? "RUNNING" : "DOWN",
-                      slaveOperational(slaveStatus) ? "N/A" : shard.getCommitIndex() - getSavedIndex(shard),
-                      logPosDiff);
+                      shard.getCommitIndex(), getSavedIndex(shard),
+                      filter.getChangeLogProcessor().getAppliedIndex(shardId), logPosDiff);
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);
         } catch (ExecutionException e) {

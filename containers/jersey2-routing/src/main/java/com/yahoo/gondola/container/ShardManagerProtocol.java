@@ -96,9 +96,9 @@ public interface ShardManagerProtocol {
         public enum CODE {
             FAILED_START_SLAVE,
             FAILED_STOP_SLAVE,
-            FAILED_MIGRATE_BUCKETS,
             FAILED_BUCKET_ROLLBACK,
             FAILED_SET_BUCKETS,
+            FAILED_MIGRATE_1,
             MASTER_IS_GONE,
             SLAVE_NOT_SYNC,
 

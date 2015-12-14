@@ -113,7 +113,6 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                         .forPath(actionPath, objectMapper.writeValueAsBytes(action));
                 }
                 currentStats.put(member.getMemberId(), stat);
-                currentActions.put(member.getMemberId(), action);
                 processAction(action);
                 NodeCache node = new NodeCache(client, actionPath);
                 node.getListenable().addListener(getListener(node));
@@ -215,6 +214,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
 
     private void processAction(ZookeeperAction action) throws InterruptedException {
         ZookeeperStat stat = currentStats.get(action.memberId);
+        currentActions.put(action.memberId, action);
         if (action.action == ZookeeperAction.Action.NOOP) {
             return;
         }

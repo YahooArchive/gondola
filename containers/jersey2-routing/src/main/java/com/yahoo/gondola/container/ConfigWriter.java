@@ -42,7 +42,6 @@ public class ConfigWriter {
         config = new Config(configFile);
         configImpl = ConfigFactory.parseFile(configFile);
         tmpFile = getFile(true);
-        tmpFile = getFile(true);
         verify();
     }
 

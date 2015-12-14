@@ -104,6 +104,7 @@ public class AdminClient {
      * @throws AdminException the admin exception
      */
     public void setConfig(File configFile) throws AdminException {
+        //this.config = new Config(configFile);
     }
 
 
@@ -146,7 +147,7 @@ public class AdminClient {
                 shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
                 trace("[admin] success!");
                 trace("[admin] Writing latest config to config storage!");
-                saveConfig(fromShardId, toShardId);
+                updateConfig(fromShardId, toShardId, range);
                 break;
             } catch (ShardManagerException e) {
                 logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
@@ -165,15 +166,13 @@ public class AdminClient {
         }
     }
 
-    private void saveConfig(String fromShardId, String toShardId) throws AdminException {
-        configWriter.setBucketMap(fromShardId, getBucketMapString(fromShardId));
-        configWriter.setBucketMap(fromShardId, getBucketMapString(toShardId));
+    private void updateConfig(String fromShardId, String toShardId, Range<Integer> range) throws AdminException {
+        BucketManager bucketManager = new BucketManager(config);
+        bucketManager.updateBucketRange(range, fromShardId, toShardId, false);
+        bucketManager.updateBucketRange(range, fromShardId, toShardId, true);
+        configWriter.setBucketMap(fromShardId, bucketManager.getBucketString(fromShardId));
+        configWriter.setBucketMap(toShardId, bucketManager.getBucketString(toShardId));
         setConfig(configWriter.save());
-    }
-
-    private String getBucketMapString(String fromShardId) {
-        // TODO: implement
-        return "";
     }
 
     private void trace(String format, Object... args) {
