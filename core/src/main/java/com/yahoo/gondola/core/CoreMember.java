@@ -1351,6 +1351,15 @@ public class CoreMember implements Stoppable {
      * @param masterId the identity of a leader to sync with.
      */
     public void setSlave(int masterId) throws GondolaException, InterruptedException {
+        if (masterId >= 0) {
+            // Make sure this member and the master are not in the same shard
+            String shardId = gondola.getConfig().getMember(masterId).getShardId();
+            if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
+                throw new GondolaException(GondolaException.Code.SAME_SHARD,
+                                           memberId, masterId, shardId);
+            }
+        }
+
         final CoreMember member = this;
 
         // To avoid race conditions, the following executed by the main loop
@@ -1370,11 +1379,6 @@ public class CoreMember implements Stoppable {
                             // Make sure this member and the master are not in the same shard
                             logger.info("[{}-{}] Entering slave mode to master {}",
                                     gondola.getHostId(), memberId, masterId);
-                            String shardId = gondola.getConfig().getMember(masterId).getShardId();
-                            if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
-                                throw new GondolaException(GondolaException.Code.SAME_SHARD,
-                                                           memberId, masterId, shardId);
-                            }
 
                             // Delete the entire log
                             saveQueue.truncate();

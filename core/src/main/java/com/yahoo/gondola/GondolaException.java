@@ -35,7 +35,18 @@ public class GondolaException extends Exception {
 
     public GondolaException(Throwable cause) {
         super(cause.getMessage(), cause);
-        this.code = Code.ERROR;
+        // Inherit the code from the most recent GondolaException in the chain, if any
+        while (cause != null) {
+            if (cause instanceof GondolaException) {
+                GondolaException ge = (GondolaException) cause;
+                code = ge.code;
+                break;
+            }
+            cause = cause.getCause();
+        }
+        if (code == null) {
+            code = Code.ERROR;
+        }
     }
 
     public GondolaException(String message) {

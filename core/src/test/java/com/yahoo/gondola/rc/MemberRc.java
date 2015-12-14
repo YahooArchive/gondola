@@ -9,6 +9,7 @@ package com.yahoo.gondola.rc;
 import com.yahoo.gondola.Shard;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.Member;
 import com.yahoo.gondola.Network;
 import com.yahoo.gondola.Role;
 import com.yahoo.gondola.RoleChangeEvent;

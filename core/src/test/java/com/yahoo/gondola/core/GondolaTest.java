@@ -1083,16 +1083,28 @@ public class GondolaTest {
             member1.setSlave(member2.getMemberId());
             Assert.fail("expected an exception");
         } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
         }
         try {
             member2.setSlave(member3.getMemberId());
             Assert.fail("expected an exception");
         } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
         }
         try {
             member3.setSlave(member1.getMemberId());
             Assert.fail("expected an exception");
         } catch (Exception e) {
+            if (((GondolaException) e).getCode() != GondolaException.Code.SAME_SHARD) {
+                e.printStackTrace();
+            }
+            Assert.assertSame(((GondolaException) e).getCode(), GondolaException.Code.SAME_SHARD);
         }
 
         Assert.assertNull(member1.getSlaveStatus(), "should not be in slave mode");
