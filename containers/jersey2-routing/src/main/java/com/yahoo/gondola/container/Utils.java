@@ -157,7 +157,9 @@ public class Utils {
         return conf;
     }
 
-    enum Type {NONE, HTTP, ZOOKEEPER}
+    enum Type {
+        NONE, HTTP, ZOOKEEPER
+    }
 
     /**
      * Registry config.

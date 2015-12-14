@@ -105,7 +105,7 @@ public class ApacheHttpComponentProxyClient implements ProxyClient {
                 requestBody = IOUtils.toString(request.getEntityStream());
                 request.setProperty("requestBody", requestBody);
             }
-            ((HttpEntityEnclosingRequest) httpRequest).setEntity(new StringEntity((String)requestBody));
+            ((HttpEntityEnclosingRequest) httpRequest).setEntity(new StringEntity((String) requestBody));
         }
         proxiedResponse = httpClient.execute(httpRequest);
         return proxiedResponse;

@@ -99,7 +99,8 @@ public class ShardManager implements ShardManagerProtocol {
                     trace("[{}] Successfully connect to leader node={}", gondola.getHostId(), memberId);
                     return true;
                 }
-                trace("[{}] Slave status={} role={}", gondola.getHostId(), status, gondola.getShard(shardId).getLocalRole());
+                trace("[{}] Slave status={} role={}",
+                      gondola.getHostId(), status, gondola.getShard(shardId).getLocalRole());
                 return false;
             }, timeoutMs / POLLING_TIMES, timeoutMs);
         } catch (Exception e) {

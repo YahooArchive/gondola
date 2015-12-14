@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 
 import static com.yahoo.gondola.container.AdminClientIT.Type.DIRECT;
 import static com.yahoo.gondola.container.AdminClientIT.Type.ZOOKEEPER;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
 
 public class AdminClientIT {
@@ -63,6 +65,8 @@ public class AdminClientIT {
 
     public void setUp(Type type) throws Exception {
         MockitoAnnotations.initMocks(this);
+        when(routingServiceMap.get(any())).thenReturn(routingService);
+        when(routingService.provideChangeLogConsumer()).thenReturn((shardId1, command) -> {});
         routingTable = new ConcurrentHashMap<>();
         addressTable = new HashMap<>();
         latches = new HashMap<>();
@@ -99,10 +103,10 @@ public class AdminClientIT {
     }
 
     @Mock
-    ChangeLogProcessor changeLogProcessor;
+    RoutingService routingService;
 
     @Mock
-    RoutingService routingService;
+    Map<String, RoutingService> routingServiceMap;
 
     private LocalTestRoutingServer getLocalTestRoutingServer(final Gondola gondola) throws Exception {
         return new LocalTestRoutingServer(gondola, request -> 1, new ProxyClientProvider(),
@@ -112,7 +116,7 @@ public class AdminClientIT {
                                                       put(shard.getShardId(), routingService);
                                                   }
                                               }
-                                          }, changeLogProcessor);
+                                          }, new ChangeLogProcessor(gondola, routingServiceMap));
     }
 
     private ShardManagerServer getShardManagerServer(Type type, Gondola gondola,

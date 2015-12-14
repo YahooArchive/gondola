@@ -15,12 +15,15 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Admin command line tool.
+ */
 public class AdminCli {
 
     AdminClient adminClient;
 
 
-    public static void main(String args[])
+    public static void main(String[] args)
         throws Exception {
         new AdminCli(args);
     }
@@ -34,7 +37,7 @@ public class AdminCli {
         String confFile = "file:///examples/kv-server/src/main/resources/gondola.conf";
         for (int i = 0; i < argsList.size(); i++) {
             if (argsList.get(i).equals("-c")) {
-                confFile = argsList.get(i+1);
+                confFile = argsList.get(i + 1);
                 argsList.remove(i);
                 argsList.remove(i);
                 break;
@@ -114,25 +117,25 @@ public class AdminCli {
     }
 
     private void usage() {
-        String usage = "Gondola admin client\n\n" +
-                       "usage: adminCli -c <config> <command> [<args>]\n\n" +
-                       "These are common commands used in various situation: \n\n" +
-                       "Config related: \n" +
-                       "   enable         <hostId>\n" +
-                       "   disable        <hostId>\n" +
-                       "   enableTracing  <hostId>\n" +
-                       "   disableTracing <hostId>\n" +
-                       "   setLeader      <hostId>\n" +
-                       "   setSlave       <fromShard> <toShard>\n" +
-                       "   unsetSlave     <fromShard> <toShard>\n" +
-                       "   mergeShard     <fromShardId> <toShardId>\n" +
-                       "   splitShard     <fromShardId> <toShardId>\n" +
-                       "   setBuckets     <bucketStart> <bucketEnd> <fromShardId> <toShardId>\n" +
-                       "   inspectUri     <uri>\n" +
-                       "   status         \n" +
-                       "   getConfig      \n" +
-                       "   setConfig      <file>\n" +
-                       "   getHostIds     \n";
+        String usage = "Gondola admin client\n\n"
+                       + "usage: adminCli -c <config> <command> [<args>]\n\n"
+                       + "These are common commands used in various situation: \n\n"
+                       + "Config related: \n"
+                       + "   enable         <hostId>\n"
+                       + "   disable        <hostId>\n"
+                       + "   enableTracing  <hostId>\n"
+                       + "   disableTracing <hostId>\n"
+                       + "   setLeader      <hostId>\n"
+                       + "   setSlave       <fromShard> <toShard>\n"
+                       + "   unsetSlave     <fromShard> <toShard>\n"
+                       + "   mergeShard     <fromShardId> <toShardId>\n"
+                       + "   splitShard     <fromShardId> <toShardId>\n"
+                       + "   setBuckets     <bucketStart> <bucketEnd> <fromShardId> <toShardId>\n"
+                       + "   inspectUri     <uri>\n"
+                       + "   status         \n"
+                       + "   getConfig      \n"
+                       + "   setConfig      <file>\n"
+                       + "   getHostIds     \n";
         System.out.println(usage);
         System.exit(1);
     }

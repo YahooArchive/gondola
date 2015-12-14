@@ -25,6 +25,10 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 
+
+/**
+ * Admin resource.
+ */
 @Path("/gondola/v1/")
 @Produces("application/json")
 @Singleton

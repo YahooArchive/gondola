@@ -7,6 +7,7 @@
 package com.yahoo.gondola.demo;
 
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.RoleChangeEvent;
 import com.yahoo.gondola.container.ChangeLogProcessor;
 import com.yahoo.gondola.container.RoutingService;
@@ -52,7 +53,7 @@ public class DemoService extends RoutingService {
     /**
      * Returns the value stored at the specified key.
      *
-     * @param key            the key
+     * @param key the key
      * @return The non-null value of the key
      * @throws NotLeaderException the not leader exception
      * @throws NotFoundException  the not found exception
@@ -74,8 +75,8 @@ public class DemoService extends RoutingService {
     /**
      * Commits the entry to Raft log. The entries map is not updated; it is updated by the Replicator thread.
      *
-     * @param key            The non-null key
-     * @param value          The non-null value
+     * @param key   The non-null key
+     * @param value The non-null value
      * @throws NotLeaderException the not leader exception
      */
     public void putValue(String key, String value) throws NotLeaderException {
@@ -86,10 +87,10 @@ public class DemoService extends RoutingService {
             byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
             writeLog(bytes);
             logger.info("[{}] Put key {}={}", hostId, key, value);
-        } catch (com.yahoo.gondola.NotLeaderException e) {
-            logger.info("Failed to put {}/{} because not a leader", key, value);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
+        } catch (GondolaException e) {
+            logger.info("Failed to put {}/{} reason={}", key, value, e.getCode());
         }
     }
 

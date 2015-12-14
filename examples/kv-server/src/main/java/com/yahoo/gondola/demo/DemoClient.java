@@ -20,11 +20,14 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
+/**
+ * Key value service command line client.
+ */
 public class DemoClient {
 
     Client client = ClientBuilder.newClient();
 
-    public static void main(String args[]) throws InterruptedException, IOException {
+    public static void main(String[] args) throws InterruptedException, IOException {
         new DemoClient();
     }
 
