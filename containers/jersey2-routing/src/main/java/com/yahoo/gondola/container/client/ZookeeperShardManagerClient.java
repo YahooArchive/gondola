@@ -231,6 +231,5 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
     @Override
     public void stop() {
         CloseableUtils.closeQuietly(stats);
-        CloseableUtils.closeQuietly(client);
     }
 }

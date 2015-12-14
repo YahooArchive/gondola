@@ -70,10 +70,14 @@ public class ShardManagerTest {
     @Mock
     Consumer<Member.SlaveStatus> updateCallback;
 
+    @Mock
+    ChangeLogProcessor changeLogProcessor;
+
     @BeforeMethod
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
         when(filter.isLeaderInShard(any())).thenReturn(true);
+        when(filter.getChangeLogProcessor()).thenReturn(changeLogProcessor);
         when(gondola.getShard(any())).thenReturn(shard);
         when(shard.getLocalMember()).thenReturn(member);
         shardManager = new ShardManager(gondola, filter, config, shardManagerClient);

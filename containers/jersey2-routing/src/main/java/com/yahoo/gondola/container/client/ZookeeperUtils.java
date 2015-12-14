@@ -8,6 +8,7 @@ package com.yahoo.gondola.container.client;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
+import org.apache.curator.framework.imps.CuratorFrameworkState;
 import org.apache.curator.retry.RetryForever;
 
 import java.util.Map;
@@ -22,7 +23,7 @@ public class ZookeeperUtils {
 
     public static CuratorFramework getCuratorFrameworkInstance (String connectString) {
         CuratorFramework client = clients.get(connectString);
-        if (client == null) {
+        if (client == null || !client.getState().equals(CuratorFrameworkState.STARTED)) {
             CuratorFramework newClient = CuratorFrameworkFactory.newClient(connectString, new RetryForever(1000));
             newClient.start();
             CuratorFramework origClient = clients.putIfAbsent(connectString, newClient);

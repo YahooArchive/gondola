@@ -275,7 +275,6 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
             }
         }
         Utils.stopThreads(threads);
-        CloseableUtils.closeQuietly(client);
     }
 
     @Override

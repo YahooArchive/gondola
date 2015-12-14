@@ -131,7 +131,7 @@ public class ZookeeperShardManagerClientTest {
     @Test
     public void testMigrateBuckets() throws Exception {
         client.migrateBuckets(Range.closed(0, 10), "shard1", "shard2", 1000);
-        for (Config.ConfigMember m : config.getMembersInShard("shard1")) {
+        for (Config.ConfigMember m : config.getMembersInShard("shard2")) {
             ShardManager shardManager = shardManagers.get(m.getHostId());
             verify(shardManager).migrateBuckets(any(), any(), any(), anyLong());
         }
