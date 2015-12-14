@@ -57,6 +57,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
 
     Lock lock = new ReentrantLock();
     Condition newEvent = lock.newCondition();
+    boolean ready = false;
 
     public ZookeeperShardManagerClient(String serviceName, String clientName, String connectString, Config config) {
         client = ZookeeperUtils.getCuratorFrameworkInstance(connectString);
@@ -66,6 +67,7 @@ public class ZookeeperShardManagerClient implements ShardManagerClient {
         ensurePath(serviceName, client);
         watchZookeeperStats();
         config.registerForUpdates(config1 -> tracing = config.getBoolean("tracing.router"));
+        ready = true;
     }
 
     private void watchZookeeperStats() {

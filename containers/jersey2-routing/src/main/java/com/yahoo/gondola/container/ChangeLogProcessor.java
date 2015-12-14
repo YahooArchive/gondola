@@ -8,6 +8,7 @@ package com.yahoo.gondola.container;
 
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
+import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Shard;
 
 import org.slf4j.Logger;
@@ -72,8 +73,18 @@ public class ChangeLogProcessor {
                         changeLogConsumer.applyLog(shardId, command);
                     }
                     appliedIndex++;
+                } catch (GondolaException e) {
+                    logger.info("[{}-{}] Error while get gondola command, appliedIndex={}, error={}",
+                                hostId, memberId, appliedIndex, e.getMessage());
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e1) {
+                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                        return;
+                    }
                 } catch (InterruptedException e) {
-                    if (!reset) {
+                    if (reset) {
+                        logger.info("[{}-{}] ChangeLogProcessor reset appliedIndex to 0", hostId, memberId);
                         reset = false;
                         appliedIndex = 0;
                     } else {
@@ -129,7 +140,7 @@ public class ChangeLogProcessor {
      */
     public void reset(String shardId) {
         ChangeLogProcessorThread t = threads.get(shardId);
-        t.reset = false;
+        t.reset = true;
         t.interrupt();
     }
 

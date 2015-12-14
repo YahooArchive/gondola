@@ -33,6 +33,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.yahoo.gondola.container.client.ZookeeperStat.Mode.MIGRATING_1;
 import static com.yahoo.gondola.container.client.ZookeeperStat.Mode.MIGRATING_2;
@@ -62,9 +64,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     Logger logger = LoggerFactory.getLogger(ZookeeperShardManagerServer.class);
     List<NodeCache> nodes = new ArrayList<>();
     Map<Integer, ZookeeperStat> currentStats = new HashMap<>();
-    Map<Integer, ZookeeperAction> actions = new ConcurrentHashMap<>();
+    Map<Integer, ZookeeperAction> currentActions = new ConcurrentHashMap<>();
     List<Thread> threads = new ArrayList<>();
     boolean tracing = false;
+    boolean ready = false;
+    ExecutorService singleThreadExecutor = Executors.newSingleThreadExecutor();
 
     public ZookeeperShardManagerServer(String serviceName, String connectString, Gondola gondola,
                                        ShardManager shardmanager) {
@@ -78,6 +82,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         watcher.start();
         threads.add(watcher);
         initNode(gondola.getHostId());
+        ready = true;
     }
 
     private void initNode(String hostId) {
@@ -107,11 +112,11 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                     client.create().creatingParentContainersIfNeeded()
                         .forPath(actionPath, objectMapper.writeValueAsBytes(action));
                 }
-                currentStats.put(stat.memberId, stat);
-                actions.put(action.memberId, action);
-                resume(stat, action);
+                currentStats.put(member.getMemberId(), stat);
+                currentActions.put(member.getMemberId(), action);
+                processAction(action);
                 NodeCache node = new NodeCache(client, actionPath);
-                node.getListenable().addListener(getListener(node, stat));
+                node.getListenable().addListener(getListener(node));
                 node.start();
                 nodes.add(node);
             } catch (Exception e) {
@@ -130,14 +135,14 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
                 try {
                     for (Map.Entry<Integer, ZookeeperStat> e : currentStats.entrySet()) {
                         ZookeeperStat stat = e.getValue();
-                        ZookeeperAction action = actions.get(e.getKey());
+                        ZookeeperAction action = currentActions.get(e.getKey());
                         watchAction(action, stat);
                     }
                     Thread.sleep(300);
                 } catch (InterruptedException e) {
                     return;
                 } catch (Exception e) {
-                    logger.error("[{}] Unexpected error - {}", gondola.getHostId(), e.getMessage());
+                    logger.error("[{}] Unexpected error - {} {}", gondola.getHostId(), e.getClass(), e.getMessage(), e);
                 }
             }
         }
@@ -187,27 +192,29 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
         }
     }
 
-    private void resume(ZookeeperStat stat, ZookeeperAction action) throws InterruptedException {
-        processAction(stat, action);
-    }
-
-    private NodeCacheListener getListener(NodeCache node, ZookeeperStat stat) {
+    private NodeCacheListener getListener(NodeCache node) {
         return () -> {
             try {
                 if (node.getCurrentData() != null) {
-                    ZookeeperAction
-                        action =
+                    ZookeeperAction action =
                         objectMapper.readValue(node.getCurrentData().getData(), ZookeeperAction.class);
-                    actions.put(action.memberId, action);
-                    processAction(stat, action);
+                    singleThreadExecutor.execute(() -> {
+                        try {
+                            processAction(action);
+                        } catch (Exception e) {
+                            logger.warn("process action error! action={}, error={}, message={}", action, e.getClass(),
+                                        e.getMessage(), e);
+                        }
+                    });
                 }
             } catch (Exception e) {
-                logger.warn("[{}] Process action error - {}", gondola.getHostId(), e.getMessage());
+                logger.warn("[{}] Process action error - {}", gondola.getHostId(), e.getMessage(), e);
             }
         };
     }
 
-    private void processAction(ZookeeperStat stat, ZookeeperAction action) throws InterruptedException {
+    private void processAction(ZookeeperAction action) throws InterruptedException {
+        ZookeeperStat stat = currentStats.get(action.memberId);
         if (action.action == ZookeeperAction.Action.NOOP) {
             return;
         }
@@ -265,6 +272,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
 
     @Override
     public void stop() {
+        singleThreadExecutor.shutdown();
         nodes.forEach(CloseableUtils::closeQuietly);
         for (NodeCache node : nodes) {
             try {
@@ -286,7 +294,7 @@ public class ZookeeperShardManagerServer implements ShardManagerServer {
     public Map getStatus() {
         Map<Object, Object> map = new LinkedHashMap<>();
         map.put("currentStats", currentStats);
-        map.put("actions", actions);
+        map.put("actions", currentActions);
         return map;
     }
 

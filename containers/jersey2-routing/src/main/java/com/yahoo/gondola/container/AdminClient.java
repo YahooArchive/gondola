@@ -140,8 +140,7 @@ public class AdminClient {
                     throw new ShardManagerException(SLAVE_NOT_SYNC);
                 }
 
-                trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...",
-                      toShardId, range);
+                trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
                 shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);

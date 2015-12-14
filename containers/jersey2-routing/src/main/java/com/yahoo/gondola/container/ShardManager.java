@@ -164,7 +164,7 @@ public class ShardManager implements ShardManagerProtocol {
     public void migrateBuckets(Range<Integer> splitRange, String fromShardId,
                                String toShardId, long timeoutMs) throws ShardManagerException {
         // Make sure only leader can execute this request.
-        if (!filter.isLeaderInShard(fromShardId)) {
+        if (!filter.isLeaderInShard(toShardId)) {
             return;
         } else {
             assignBucketOnLeader(splitRange, fromShardId, toShardId, timeoutMs);
