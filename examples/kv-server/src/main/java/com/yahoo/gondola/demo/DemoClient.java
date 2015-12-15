@@ -14,7 +14,6 @@ import com.yahoo.gondola.container.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.net.URI;
 
 import javax.ws.rs.client.Client;
@@ -31,11 +30,11 @@ public class DemoClient {
     Client client = ClientBuilder.newClient();
     Logger logger = LoggerFactory.getLogger(DemoClient.class);
 
-    public static void main(String[] args) throws InterruptedException, IOException {
+    public static void main(String[] args) throws InterruptedException {
         new DemoClient();
     }
 
-    public DemoClient() throws InterruptedException, IOException {
+    public DemoClient() throws InterruptedException {
         Config config = ConfigLoader.getConfigInstance(URI.create("classpath:///gondola.conf"));
         String appUri = Utils.getAppUri(config, config.getHostIds().get(0));
         String resource = "/api/entries/1";
