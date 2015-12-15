@@ -54,18 +54,19 @@ public class DemoClient {
                 Thread.sleep(1000);
             }
 
-//            logger.info("Resource: {}, BucketId: {}, shardID: {}, value:{}",
-//                        resource, data.bucketId, data.shardId, data.value);
-//
-//            logger.info("Request path = {} -> {}", appUri, data.gondolaLeaderAddress);
+            logger.info("Resource: {}, BucketId: {}, shardID: {}, value:{}",
+                        resource, data.bucketId, data.shardId, data.value);
+
+            logger.info("Request path = {} -> {}", appUri, data.gondolaLeaderAddress);
 
             if (data.value != value + 1) {
-                logger.error("Data inconsistency! got value={}, expect={}", data.value, value + 1);
+                logger.error("Data inconsistency! got value={}, expect={}, shardId={}, bucketId={}, leader={}",
+                             data.value, value + 1, data.shardId, data.bucketId, data.gondolaLeaderAddress);
                 throw new IllegalStateException();
             }
 
             value++;
-            Thread.sleep(200);
+            Thread.sleep(100);
         }
     }
 

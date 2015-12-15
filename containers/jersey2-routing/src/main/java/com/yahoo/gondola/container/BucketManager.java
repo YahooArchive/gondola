@@ -88,7 +88,8 @@ class BucketManager {
             ShardState prev = null;
             for (Map.Entry<Range<Integer>, ShardState> e : rangeMaps.entrySet()) {
                 Range<Integer> r = e.getKey();
-                if (r.upperEndpoint() - r.lowerEndpoint() <= 1 && r.lowerBoundType() == BoundType.OPEN && r.upperBoundType() == BoundType.OPEN) {
+                if (r.upperEndpoint() - r.lowerEndpoint() <= 1 && r.lowerBoundType() == BoundType.OPEN
+                    && r.upperBoundType() == BoundType.OPEN) {
                     continue;
                 }
                 if (prev != null && !prev.equals(e.getValue())) {
@@ -215,6 +216,13 @@ class BucketManager {
 
     private void updateBucketMap(Range<Integer> range, ShardState newShardState) {
         bucketMap.put(range, newShardState);
+        for (Range<Integer> r : bucketMap.asMapOfRanges().keySet()) {
+            if (r.lowerBoundType() == BoundType.OPEN
+                && r.upperBoundType() == BoundType.OPEN
+                && r.upperEndpoint() - r.lowerEndpoint() <= 1) {
+                bucketMap.remove(r);
+            }
+        }
     }
 
     private void handleMigrationInProgress(Range<Integer> range, String fromShardId, String toShardId,
@@ -262,8 +270,12 @@ class BucketManager {
         if (range.upperEndpoint().equals(range.lowerEndpoint())) {
             return range.upperEndpoint().toString();
         }
-        int upperEndpoint = range.upperBoundType() == BoundType.CLOSED ? range.upperEndpoint() : range.upperEndpoint() -1;
-        int lowerEndpoint = range.lowerBoundType() == BoundType.CLOSED ? range.lowerEndpoint() : range.lowerEndpoint() +1;
+        int
+            upperEndpoint =
+            range.upperBoundType() == BoundType.CLOSED ? range.upperEndpoint() : range.upperEndpoint() - 1;
+        int
+            lowerEndpoint =
+            range.lowerBoundType() == BoundType.CLOSED ? range.lowerEndpoint() : range.lowerEndpoint() + 1;
         return lowerEndpoint + "-" + upperEndpoint;
     }
 }

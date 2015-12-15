@@ -203,12 +203,16 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public void extractShardAndBucketIdFromRequest(ContainerRequestContext request) {
         // Extract required data
         if (request.getProperty("shardId") == null) {
-            int bucketId = getBucketId(request);
-            String shardId = getShardId(bucketId);
-
-            request.setProperty("shardId", shardId);
-            request.setProperty("bucketId", bucketId);
+            extractShardAndBucketIdWithoutCache(request);
         }
+    }
+
+    private void extractShardAndBucketIdWithoutCache(ContainerRequestContext request) {
+        int bucketId = getBucketId(request);
+        String shardId = getShardId(bucketId);
+
+        request.setProperty("shardId", shardId);
+        request.setProperty("bucketId", bucketId);
     }
 
     private int getBucketIdFromRequest(ContainerRequestContext request) {
@@ -260,8 +264,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             return;
         }
 
-        // Block request if needed
-        blockRequest(bucketId, shardId);
+        // Block request if needed,
+        // During migration process, the destination shard changed, need to re-evaluate shard id.
+        if (blockRequest(bucketId, shardId)) {
+            System.out.println("Request blocked! re-evaluate shardId");
+            extractShardAndBucketIdWithoutCache(request);
+            shardId = getShardIdFromRequest(request);
+        }
 
         Member leader = null;
         try {
@@ -323,9 +332,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         );
     }
 
-    private void blockRequest(int bucketId, String shardId) throws IOException {
+    private boolean blockRequest(int bucketId, String shardId) throws IOException {
         try {
-            lockManager.filterRequest(bucketId, shardId);
+            return lockManager.filterRequest(bucketId, shardId);
         } catch (InterruptedException e) {
             throw new IOException(e);
         }
