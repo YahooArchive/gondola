@@ -1374,6 +1374,9 @@ public class CoreMember implements Stoppable {
                         peers.clear();
                         peerMap.clear();
 
+                        // Destroy any slaves
+                        shutdownSlaves();
+
                         // Prepare to talk to new master
                         if (masterId >= 0) {
                             // Make sure this member and the master are not in the same shard
@@ -1443,7 +1446,8 @@ public class CoreMember implements Stoppable {
     /**
      * Called by the Network system when there's a connection request
      * from a slave.  If this member accepts the channel, true is
-     * returned.  If the channel is not accepted, false should be
+     * returned.  The member will be responsible for starting the channel.
+     * If the channel is not accepted, false should be
      * returned and the caller will take care of closing the channel.
      *
      * @param channel non-null channel to the slave.

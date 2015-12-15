@@ -56,7 +56,7 @@ public class MemberRc {
     public Shard getShard() {
         return shard;
     }
-    
+
     public int getMemberId() {
         return cmember.getMemberId();
     }
@@ -64,7 +64,11 @@ public class MemberRc {
     public int getCommitIndex() {
         return cmember.getCommitIndex();
     }
-    
+
+    public int getSavedIndex() throws Exception {
+        return cmember.getSavedIndex();
+    }
+
     public void enable(boolean on) throws Exception {
         cmember.enable(on);
     }

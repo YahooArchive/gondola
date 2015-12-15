@@ -148,4 +148,8 @@ public class GondolaRc {
     public MemberRc getMember(int memberId) {
         return members.get(memberId);
     }
+
+    public boolean supportsPauseDelivery() {
+        return gondolas.get(0).getNetwork() instanceof RcNetwork;
+    }
 }

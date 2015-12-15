@@ -556,6 +556,10 @@ public class GondolaTest {
      */
     @Test
     public void leaderStepsDown() throws Exception {
+        if (!gondolaRc.supportsPauseDelivery()) {
+            return;
+        }
+
         // Init state
         member1.setLeader();
         member2.setFollower();
@@ -575,6 +579,10 @@ public class GondolaTest {
      */
     @Test
     public void leaderWithTwoNodes() throws Exception {
+        if (!gondolaRc.supportsPauseDelivery()) {
+            return;
+        }
+
         // Init state
         member1.setFollower();
         member2.setFollower();
@@ -880,6 +888,10 @@ public class GondolaTest {
      */
     @Test
     public void commitTimeout() throws Exception {
+        if (!gondolaRc.supportsPauseDelivery()) {
+            return;
+        }
+
         // Init state
         member1.setLeader();
         member2.setFollower();
@@ -985,7 +997,8 @@ public class GondolaTest {
     public void slaveMode() throws Exception {
         // Init state
         int term = 77;
-        for (int i = 1; i <= 100; i++) {
+        int ncmds = 100;
+        for (int i = 1; i <= ncmds; i++) {
             member1.insert(term, i, "command " + i);
             member2.insert(term, i, "command " + i);
             member3.insert(term, i, "command " + i);
@@ -1026,11 +1039,11 @@ public class GondolaTest {
         slave1.setSlave(4);
         slave2.setSlave(4);
         while (member1.getCommitIndex() == 0
-                || slave1.getSavedIndex() < 100
-                || slave2.getSavedIndex() < 100) {
+                || slave1.getSavedIndex() < ncmds
+                || slave2.getSavedIndex() < ncmds) {
             Member.SlaveStatus status = slave1.getSlaveStatus();
-            logger.info("running commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
-            Thread.sleep(100);
+            logger.info("running {}", status.toString());
+            Thread.sleep(50);
 
             // Just call again to make sure this is idempotent
             slave1.setSlave(4);
@@ -1039,7 +1052,7 @@ public class GondolaTest {
         assertTrue(slave1.getSlaveStatus().running, "slave should be running");
         assertTrue(slave2.getSlaveStatus().running, "slave should be running");
         Member.SlaveStatus status = slave1.getSlaveStatus();
-        logger.info("done commitIndex={}, savedIndex={}", status.commitIndex, status.savedIndex);
+        logger.info("done {}", status.toString());
 
         // Disable the slave
         slave1.setSlave(-1);
@@ -1048,15 +1061,44 @@ public class GondolaTest {
         assertNull(slave2.getSlaveStatus());
 
         // Wait to make sure slave1 becomes the leader
+        int leaderId = -1;
         while (true) {
             if (slave1.isLeader()) {
                 Command c = g1.getShard("shard2").getCommittedCommand(1, 5000);
+                leaderId = slave1.getMemberId();
                 break;
             } else if (slave2.isLeader()) {
                 Command c = g2.getShard("shard2").getCommittedCommand(1, 5000);
+                leaderId = slave2.getMemberId();
                 break;
             }
-            Thread.sleep(100);
+            Thread.sleep(50);
+        }
+
+        // Now have a node from shard1 slave to shard2
+        member1.setSlave(leaderId);
+        member2.setSlave(leaderId);
+        member3.setSlave(leaderId);
+
+        // Wait until shard1 is synced
+        while (member1.getCommitIndex() == 0
+                || member1.getSavedIndex() < ncmds
+                || member2.getSavedIndex() < ncmds
+                || member3.getSavedIndex() < ncmds) {
+            status = member1.getSlaveStatus();
+            logger.info("running {}", status.toString());
+            Thread.sleep(50);
+        }
+
+        // Unslave
+        member1.setSlave(-1);
+        member2.setSlave(-1);
+        member3.setSlave(-1);
+
+        // Wait for leader
+        leaderId = -1;
+        while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
+            Thread.sleep(50);
         }
 
         g1.stop();
@@ -1075,7 +1117,7 @@ public class GondolaTest {
 
         // Wait for a leader
         while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
-            Thread.sleep(100);
+            Thread.sleep(50);
         }
 
         // Now slave each other and reverse it
@@ -1113,7 +1155,7 @@ public class GondolaTest {
 
         // Wait for a leader
         while (!member1.isLeader() && !member2.isLeader() && !member3.isLeader()) {
-            Thread.sleep(100);
+            Thread.sleep(50);
         }
     }
 
@@ -1124,7 +1166,8 @@ public class GondolaTest {
     public void commandInSlaveMode() throws Exception {
         // Init state
         int term = 77;
-        for (int i = 1; i <= 100; i++) {
+        int ncmds = 100;
+        for (int i = 1; i <= ncmds; i++) {
             member1.insert(term, i, "command " + i);
             member2.insert(term, i, "command " + i);
             member3.insert(term, i, "command " + i);
@@ -1146,14 +1189,13 @@ public class GondolaTest {
         Thread reader = new Thread() {
             public void run() {
                 int ix = 1;
-                while (ix <= 100) {
+                while (ix <= ncmds) {
                     try {
                         if (slave1.getSlaveStatus() == null) {
                             shard.getCommittedCommand(ix);
                             ix++;
                         } else {
                             shard.getCommittedCommand(ix);
-                            Assert.fail("Getting a command in slave mode should fail");
                         }
                     } catch (GondolaException e) {
                         if (ix > 1) {
@@ -1174,8 +1216,8 @@ public class GondolaTest {
         // Enable slave mode
         slave1.setSlave(4);
         while (member1.getCommitIndex() == 0
-                || slave1.getSavedIndex() < 100) {
-            Thread.sleep(100);
+                || slave1.getSavedIndex() < ncmds) {
+            Thread.sleep(50);
         }
 
         // Disable the slave
@@ -1188,7 +1230,8 @@ public class GondolaTest {
     public void slaveModeLeaderFails() throws Exception {
         // Init state
         int term = 77;
-        for (int i = 1; i <= 100; i++) {
+        int ncmds = 100;
+        for (int i = 1; i <= ncmds; i++) {
             member1.insert(term, i, "command " + i);
             member2.insert(term, i, "command " + i);
             member3.insert(term, i, "command " + i);
