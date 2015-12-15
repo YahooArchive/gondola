@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.Timer;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
@@ -67,11 +68,15 @@ public class ChangeLogProcessor {
         public void run() {
             Command command;
             shard = gondola.getShard(shardId);
+            Timer timer
+                = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("ChangeLogProcessor");
             while (true) {
                 try {
                     command = shard.getCommittedCommand(appliedIndex + 1, 1000);
                     if (changeLogConsumer != null) {
+                        Timer.Context time = timer.time();
                         changeLogConsumer.applyLog(shardId, command);
+                        time.close();
                     }
                     appliedIndex++;
                 } catch (GondolaException e) {

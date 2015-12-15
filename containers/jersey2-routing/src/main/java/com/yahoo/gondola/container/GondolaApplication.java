@@ -201,6 +201,9 @@ public class GondolaApplication {
     }
 
 
+    /**
+     * Metrics registry.
+     */
     @WebListener
     public static class MyMetricsServletContextListener extends MetricsServlet.ContextListener {
 
@@ -213,6 +216,9 @@ public class GondolaApplication {
 
     }
 
+    /**
+     * Healthcheck registry.
+     */
     @WebListener
     public static class MyHealthCheckServletContextListener extends HealthCheckServlet.ContextListener {
 

@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.Timer;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -21,6 +22,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.SortedMap;
 import java.util.stream.Collectors;
 
 import javax.inject.Singleton;
@@ -88,6 +90,22 @@ public class GondolaAdminResource {
         map.put("stats", gondola.getStats());
         map.put("pid", gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("hostname")
                        + ":" + gondola.getProcessId());
+        map.put("timers", timerMap());
+        map.put("meters", GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.getMeters());
+
+        return map;
+    }
+
+    private Map timerMap() {
+        Map<String, Object> map = new HashMap<>();
+        SortedMap<String, Timer> timers =
+            GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.getTimers();
+        for (Map.Entry<String, Timer> e : timers.entrySet()) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("oneMinuteRate", e.getValue().getOneMinuteRate());
+            data.put("meanResponseTime", e.getValue().getSnapshot().getMean());
+            map.put(e.getKey(), data);
+        }
         return map;
     }
 
