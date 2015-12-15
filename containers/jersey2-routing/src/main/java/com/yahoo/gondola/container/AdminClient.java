@@ -104,7 +104,7 @@ public class AdminClient {
      * @throws AdminException the admin exception
      */
     public void setConfig(File configFile) throws AdminException {
-        //this.config = new Config(configFile);
+        this.config = new Config(configFile);
     }
 
 

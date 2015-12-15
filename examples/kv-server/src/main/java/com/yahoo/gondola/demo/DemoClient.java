@@ -11,6 +11,9 @@ import com.yahoo.gondola.container.ConfigLoader;
 import com.yahoo.gondola.container.RoutingFilter;
 import com.yahoo.gondola.container.Utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.URI;
 
@@ -26,6 +29,7 @@ import javax.ws.rs.core.Response;
 public class DemoClient {
 
     Client client = ClientBuilder.newClient();
+    Logger logger = LoggerFactory.getLogger(DemoClient.class);
 
     public static void main(String[] args) throws InterruptedException, IOException {
         new DemoClient();
@@ -42,28 +46,26 @@ public class DemoClient {
         int value = data.value;
         while (true) {
             while (!putData(appUri, resource, value + 1)) {
+                logger.warn("write data failed, retry...");
                 Thread.sleep(1000);
             }
 
             while ((data = getData(appUri, resource)) == null) {
+                logger.warn("read data failed, retry...");
                 Thread.sleep(1000);
             }
 
-            System.out.println(
-                "Resource: " + resource
-                + ", BucketId: " + data.bucketId
-                + ", shardID: " + data.shardId
-                + ", value=" + data.value);
-
-            System.out.println("Request path = " + appUri + " -> " + data.gondolaLeaderAddress + "\n");
+//            logger.info("Resource: {}, BucketId: {}, shardID: {}, value:{}",
+//                        resource, data.bucketId, data.shardId, data.value);
+//
+//            logger.info("Request path = {} -> {}", appUri, data.gondolaLeaderAddress);
 
             if (data.value != value + 1) {
-                throw new IllegalStateException(
-                    "Data inconsistency! got value=" + data.value + ", expect=" + value + 1);
+                logger.error("Data inconsistency! got value={}, expect={}", data.value, value+1);
+                throw new IllegalStateException();
             }
 
             value++;
-            Thread.sleep(1000);
         }
     }
 
@@ -71,32 +73,40 @@ public class DemoClient {
         Response
             putResponse =
             client.target(appUri).path(resource).request().put(Entity.entity(value, MediaType.TEXT_PLAIN_TYPE));
-        if (putResponse.getStatus() != 204) {
-            System.out.println("Error - " + putResponse);
-            return false;
+        try {
+            if (putResponse.getStatus() != 204) {
+                logger.error("Error - {}", putResponse);
+                return false;
+            }
+            return true;
+        } finally {
+            putResponse.close();
         }
-        return true;
     }
 
     private EntryResource getData(String appUri, String resource) {
         Response response = client.target(appUri).path(resource).request().get();
-        if (response.getStatus() != 200 && response.getHeaderString(RoutingFilter.X_GONDOLA_BUCKET_ID) == null) {
-            return null;
-        }
+        try {
+            if (response.getStatus() != 200 && response.getHeaderString(RoutingFilter.X_GONDOLA_BUCKET_ID) == null) {
+                return null;
+            }
 
-        int data;
-        if (response.getStatus() == 404) {
-            data = -1;
-        } else if (response.getStatus() == 200){
-            data = Integer.parseInt(response.readEntity(String.class));
-        } else {
-            return null;
-        }
-        String bucketId = response.getHeaderString(RoutingFilter.X_GONDOLA_BUCKET_ID);
-        String shardId = response.getHeaderString(RoutingFilter.X_GONDOLA_SHARD_ID);
-        String leaderAddress = response.getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS);
+            int data;
+            if (response.getStatus() == 404) {
+                data = -1;
+            } else if (response.getStatus() == 200) {
+                data = Integer.parseInt(response.readEntity(String.class));
+            } else {
+                return null;
+            }
+            String bucketId = response.getHeaderString(RoutingFilter.X_GONDOLA_BUCKET_ID);
+            String shardId = response.getHeaderString(RoutingFilter.X_GONDOLA_SHARD_ID);
+            String leaderAddress = response.getHeaderString(RoutingFilter.X_GONDOLA_LEADER_ADDRESS);
 
-        return new EntryResource(data, bucketId, shardId, leaderAddress);
+            return new EntryResource(data, bucketId, shardId, leaderAddress);
+        } finally {
+            response.close();
+        }
     }
 
     class EntryResource {

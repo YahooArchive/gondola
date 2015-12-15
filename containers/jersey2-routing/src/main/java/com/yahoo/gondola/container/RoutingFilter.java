@@ -147,7 +147,8 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             if (roleChangeEvent.leader != null) {
                 lock.lock();
                 try {
-                    logger.info("[{}] New leader {} elected.", gondola.getHostId(), roleChangeEvent.leader.getMemberId());
+                    logger
+                        .info("[{}] New leader {} elected.", gondola.getHostId(), roleChangeEvent.leader.getMemberId());
                     leaderFoundCondition.signalAll();
                 } finally {
                     lock.unlock();
@@ -504,23 +505,27 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         Response proxiedResponse = proxyClient.proxyRequest(request, appUri);
 
-        // Remote server is not able to serve the request.
-        if (proxiedResponse.getHeaderString(X_GONDOLA_ERROR) != null) {
-            return false;
+        try {
+            // Remote server is not able to serve the request.
+            if (proxiedResponse.getHeaderString(X_GONDOLA_ERROR) != null) {
+                return false;
+            }
+
+            String entity = getResponseEntity(proxiedResponse);
+
+            // Proxied response successful, response the data to the requester.
+            request.abortWith(Response
+                                  .status(proxiedResponse.getStatus())
+                                  .entity(entity)
+                                  .header(X_GONDOLA_LEADER_ADDRESS, appUri)
+                                  .build());
+
+            // If remote server is not the leader (2-hop, update the local routing table.
+            updateRoutingTableIfNeeded(shardId, proxiedResponse);
+            return true;
+        } finally {
+            proxiedResponse.close();
         }
-
-        String entity = getResponseEntity(proxiedResponse);
-
-        // Proxied response successful, response the data to the requester.
-        request.abortWith(Response
-                              .status(proxiedResponse.getStatus())
-                              .entity(entity)
-                              .header(X_GONDOLA_LEADER_ADDRESS, appUri)
-                              .build());
-
-        // If remote server is not the leader (2-hop, update the local routing table.
-        updateRoutingTableIfNeeded(shardId, proxiedResponse);
-        return true;
     }
 
 
@@ -620,11 +625,13 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             try {
                 Thread.sleep(500);
                 long now = System.currentTimeMillis();
-                int diff = gondola.getShard(shardId).getCommitIndex() - changeLogProcessor.getAppliedIndex(shardId);
+                int commitIndex = gondola.getShard(shardId).getCommitIndex();
+                int appliedIndex = changeLogProcessor.getAppliedIndex(shardId);
+                int diff = commitIndex - appliedIndex;
                 if (now - checkTime > 10000) {
                     checkTime = now;
-                    logger.warn("[{}] Recovery running for {} seconds, {} logs left", gondola.getHostId(),
-                                (now - startTime) / 1000, diff);
+                    logger.warn("[{}] Recovery running for {} seconds, {} logs left, ci={}, ai={}", gondola.getHostId(),
+                                (now - startTime) / 1000, diff, commitIndex, appliedIndex);
                 }
                 synced = diff <= 0;
             } catch (Exception e) {

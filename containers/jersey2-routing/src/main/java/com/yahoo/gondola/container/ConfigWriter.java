@@ -19,6 +19,9 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,7 +34,8 @@ public class ConfigWriter {
 
     Logger logger = LoggerFactory.getLogger(ConfigWriter.class);
     com.typesafe.config.Config configImpl;
-    File tmpFile, configFile;
+    File configFile;
+    Path tmpFile;
 
     public ConfigWriter(File configFile) {
         loadConfig(configFile);
@@ -41,12 +45,15 @@ public class ConfigWriter {
         this.configFile = configFile;
         config = new Config(configFile);
         configImpl = ConfigFactory.parseFile(configFile);
-        tmpFile = getFile(true);
+        tmpFile = confFile(true);
         verify();
     }
 
-    private File getFile(boolean tmp) {
-        return new File("foo");
+    private Path confFile(boolean tmp) {
+        String tmpDir = System.getProperty("java.io.tmpdir");
+        return Paths.get(
+            tmpDir + File.separator + "gondola-writer" + "-" + ManagementFactory
+                .getRuntimeMXBean().getName() + (tmp ? "t.conf" : ".conf"));
     }
 
     private void verify() {
@@ -68,14 +75,14 @@ public class ConfigWriter {
         String configData = configImpl.root().render(renderOptions);
         FileWriter writer = null;
         try {
-            writer = new FileWriter(tmpFile);
+            writer = new FileWriter(tmpFile.toFile());
             writer.write(configData);
         } catch (IOException e) {
             logger.warn("failed to write file, message={}", e.getMessage());
         } finally {
             CloseableUtils.closeQuietly(writer);
         }
-        return tmpFile;
+        return tmpFile.toFile();
     }
 
     private void bumpVersion() {

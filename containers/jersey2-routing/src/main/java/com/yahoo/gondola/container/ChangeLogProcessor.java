@@ -79,16 +79,12 @@ public class ChangeLogProcessor {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e1) {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                        return;
+                        if (handleInterrupt()) {
+                            return;
+                        }
                     }
                 } catch (InterruptedException e) {
-                    if (reset) {
-                        logger.info("[{}-{}] ChangeLogProcessor reset appliedIndex to 0", hostId, memberId);
-                        reset = false;
-                        appliedIndex = 0;
-                    } else {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                    if (handleInterrupt()) {
                         return;
                     }
                 } catch (Throwable e) {
@@ -101,10 +97,23 @@ public class ChangeLogProcessor {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e1) {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                        return;
+                        if (handleInterrupt()) {
+                            return;
+                        }
                     }
                 }
+            }
+        }
+
+        private boolean handleInterrupt() {
+            if (reset) {
+                logger.info("[{}-{}] ChangeLogProcessor reset appliedIndex to 0", hostId, memberId);
+                reset = false;
+                appliedIndex = 0;
+                return false;
+            } else {
+                logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                return true;
             }
         }
     }

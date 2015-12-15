@@ -91,6 +91,7 @@ public class DemoService extends RoutingService {
             throw new RuntimeException(e);
         } catch (GondolaException e) {
             logger.info("Failed to put {}/{} reason={}", key, value, e.getCode());
+            throw new NotLeaderException();
         }
     }
 

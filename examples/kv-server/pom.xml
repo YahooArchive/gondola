@@ -5,7 +5,8 @@
   ~ See the accompanying LICENSE file for terms.
   -->
 
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
@@ -41,7 +42,7 @@
     </dependencies>
 
     <build>
-    <plugins>
+        <plugins>
             <plugin>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-maven-plugin</artifactId>
@@ -51,7 +52,8 @@
                     <contextXml>${project.basedir}/src/main/webapp/WEB-INF/jetty-web.xml</contextXml>
                     <webApp>
                         <contextPath>/api</contextPath>
-                        <extraClasspath>../../core/target/classes;../../containers/jersey2-routing/target/classes</extraClasspath>
+                        <extraClasspath>../../core/target/classes;../../containers/jersey2-routing/target/classes
+                        </extraClasspath>
                     </webApp>
                     <httpConnector>
                         <port>${jetty.port}</port>
@@ -65,7 +67,34 @@
                     </env>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>appassembler-maven-plugin</artifactId>
+                <version>${appassembler-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>assemble</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <repositoryLayout>flat</repositoryLayout>
+                    <useAllProjectDependencies>true</useAllProjectDependencies>
+                    <programs>
+                        <program>
+                            <mainClass>com.yahoo.gondola.demo.DemoClient</mainClass>
+                            <id>client.sh</id>
+                            <platforms>
+                                <platform>unix</platform>
+                            </platforms>
+                        </program>
+                    </programs>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
 
 </project>
