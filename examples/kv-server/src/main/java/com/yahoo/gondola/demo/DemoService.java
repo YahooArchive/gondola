@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.demo;
 
+import com.google.common.collect.Sets;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.RoleChangeEvent;
@@ -16,7 +17,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /**
@@ -26,6 +31,10 @@ public class DemoService extends RoutingService {
 
     private static Logger logger = LoggerFactory.getLogger(DemoService.class);
     private Map<String, String> entries = new ConcurrentHashMap<>();
+    private Set<String> recordLock = Sets.newConcurrentHashSet();
+
+    Lock lock = new ReentrantLock();
+    Condition unlockCondition = lock.newCondition();
 
     /**
      * Instantiates a new Routing service.
@@ -59,16 +68,26 @@ public class DemoService extends RoutingService {
      * @throws NotFoundException  the not found exception
      */
     public String getValue(String key)
-        throws NotLeaderException, NotFoundException {
+        throws NotLeaderException, NotFoundException, InterruptedException {
         if (!isLeader()) {
             throw new NotLeaderException();
         }
+
+        lock.lock();
+        try {
+            while (recordLock.contains(key)) {
+                unlockCondition.await();
+            }
+        } finally {
+            lock.unlock();
+        }
+
         if (!entries.containsKey(key)) {
             logger.info("[{}] Get key {}, but data not found", this.hostId, key);
             throw new NotFoundException();
         }
         String value = entries.get(key);
-        logger.info("[{}] Get key {}={}", this.hostId, key, value);
+//        logger.info("[{}] Get key {}={}", this.hostId, key, value);
         return value;
     }
 
@@ -84,9 +103,10 @@ public class DemoService extends RoutingService {
             throw new IllegalArgumentException("The key must not contain spaces");
         }
         try {
-            byte[] bytes = (key + " " + value).getBytes(); // TODO implement better separator
+            recordLock.add(key);
+            byte[] bytes = (key + " " + value).getBytes();
             writeLog(bytes);
-            logger.info("[{}] Put key {}={}", hostId, key, value);
+//            logger.info("[{}] Put key {}={}", hostId, key, value);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (GondolaException e) {
@@ -101,6 +121,13 @@ public class DemoService extends RoutingService {
             String[] pair = command.getString().split(" ", 2);
             if (pair.length == 2) {
                 entries.put(pair[0], pair[1]);
+                recordLock.remove(pair[0]);
+                lock.lock();
+                try {
+                    unlockCondition.signalAll();
+                } finally {
+                    lock.unlock();
+                }
             }
         };
     }

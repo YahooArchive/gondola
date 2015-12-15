@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The type Change log processor.
@@ -68,7 +69,7 @@ public class ChangeLogProcessor {
             shard = gondola.getShard(shardId);
             while (true) {
                 try {
-                    command = shard.getCommittedCommand(appliedIndex + 1);
+                    command = shard.getCommittedCommand(appliedIndex + 1, 1000);
                     if (changeLogConsumer != null) {
                         changeLogConsumer.applyLog(shardId, command);
                     }
@@ -87,6 +88,10 @@ public class ChangeLogProcessor {
                     if (handleInterrupt()) {
                         return;
                     }
+                } catch (TimeoutException e) {
+                    // ignored timeout
+                    // TODO: should remove timeout in the future.
+                    // Currently is blocking for unknown reason in getCommitIndex
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
                     if (++retryCount == 3) {

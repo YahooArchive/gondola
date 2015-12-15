@@ -61,11 +61,12 @@ public class DemoClient {
 //            logger.info("Request path = {} -> {}", appUri, data.gondolaLeaderAddress);
 
             if (data.value != value + 1) {
-                logger.error("Data inconsistency! got value={}, expect={}", data.value, value+1);
+                logger.error("Data inconsistency! got value={}, expect={}", data.value, value + 1);
                 throw new IllegalStateException();
             }
 
             value++;
+            Thread.sleep(200);
         }
     }
 

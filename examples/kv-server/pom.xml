@@ -67,32 +67,6 @@
                     </env>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>appassembler-maven-plugin</artifactId>
-                <version>${appassembler-maven-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>assemble</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <repositoryLayout>flat</repositoryLayout>
-                    <useAllProjectDependencies>true</useAllProjectDependencies>
-                    <programs>
-                        <program>
-                            <mainClass>com.yahoo.gondola.demo.DemoClient</mainClass>
-                            <id>client.sh</id>
-                            <platforms>
-                                <platform>unix</platform>
-                            </platforms>
-                        </program>
-                    </programs>
-                </configuration>
-            </plugin>
         </plugins>
     </build>
 

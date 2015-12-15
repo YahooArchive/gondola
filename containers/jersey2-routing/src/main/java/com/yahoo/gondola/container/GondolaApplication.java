@@ -179,10 +179,6 @@ public class GondolaApplication {
                 context.addServlet("VmInspectionServlet", VmInspectionServlet.class);
             servlet.addMapping("/gondolaApplication");
             servlet.setLoadOnStartup(1);
-
-            ServletRegistration.Dynamic servlet2 = context.addServlet("GondolaAdminServlet", AdminServlet.class);
-            servlet2.addMapping("/admin");
-            servlet.setLoadOnStartup(0);
         }
 
         @Override

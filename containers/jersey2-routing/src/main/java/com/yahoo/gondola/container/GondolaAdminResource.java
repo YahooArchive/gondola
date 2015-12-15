@@ -86,6 +86,8 @@ public class GondolaAdminResource {
         map.put("shardManager", getShardManagerStatus());
         map.put("config", getConfigInfo(gondola));
         map.put("stats", gondola.getStats());
+        map.put("pid", gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("hostname")
+                       + ":" + gondola.getProcessId());
         return map;
     }
 
