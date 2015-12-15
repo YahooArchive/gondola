@@ -952,7 +952,8 @@ public class CoreMember implements Stoppable {
         // Then store command
         saveQueue.add(message);
 
-        lastSentTs = clock.now();
+        // Disable this for now because new nodes are not being connected while there is load
+        //lastSentTs = clock.now();
     }
 
     /**
@@ -970,7 +971,9 @@ public class CoreMember implements Stoppable {
             } finally {
                 message.release();
             }
-            lastSentTs = clock.now();
+
+            // Disable this for now because new nodes are not being connected while there is load
+            //lastSentTs = clock.now();
         }
     }
 
@@ -1006,8 +1009,9 @@ public class CoreMember implements Stoppable {
         }
 
         // Set the time to send the next prevote in case there's no reply
-        lastSentTs = clock.now();
-        prevoteTs = lastSentTs + (long) ((Math.random() * prevotePeriod));
+        // Disable this for now because new nodes are not being connected while there is load
+        //lastSentTs = clock.now();
+        prevoteTs = clock.now() + (long) ((Math.random() * prevotePeriod));
 
         // In the case of a request vote, give the peers the maximum time to respond before sending the next prevote
         if (!isPrevote) {
