@@ -6,6 +6,11 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.health.HealthCheckRegistry;
+import com.codahale.metrics.servlets.AdminServlet;
+import com.codahale.metrics.servlets.HealthCheckServlet;
+import com.codahale.metrics.servlets.MetricsServlet;
 import com.google.common.base.Preconditions;
 import com.purej.vminspect.http.servlet.VmInspectionServlet;
 import com.yahoo.gondola.Gondola;
@@ -16,6 +21,7 @@ import com.yahoo.gondola.container.spi.RoutingHelper;
 import org.glassfish.hk2.utilities.binding.AbstractBinder;
 import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.server.ResourceConfig;
+import org.glassfish.jersey.server.ServerProperties;
 
 import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
@@ -141,6 +147,8 @@ public class GondolaApplication {
             application.register(GondolaAdminResource.class);
             application.register(AdminResource.class);
             application.register(JacksonFeature.class);
+
+            application.property(ServerProperties.MONITORING_STATISTICS_MBEANS_ENABLED, true);
             GondolaApplication.routingFilter = routingFilter;
             GondolaApplication.application = application;
         }
@@ -177,12 +185,43 @@ public class GondolaApplication {
             ServletRegistration.Dynamic
                 servlet =
                 context.addServlet("VmInspectionServlet", VmInspectionServlet.class);
-            servlet.addMapping("/gondolaApplication");
+            servlet.addMapping("/gondola/inspect");
             servlet.setLoadOnStartup(1);
+
+            ServletRegistration.Dynamic
+                servlet2 =
+                context.addServlet("MetricsServlet", AdminServlet.class);
+            servlet2.addMapping("/gondola/metrics/*");
+            servlet2.setLoadOnStartup(0);
         }
 
         @Override
         public void contextDestroyed(ServletContextEvent sce) {
         }
+    }
+
+
+    @WebListener
+    public static class MyMetricsServletContextListener extends MetricsServlet.ContextListener {
+
+        public static final MetricRegistry METRIC_REGISTRY = new MetricRegistry();
+
+        @Override
+        protected MetricRegistry getMetricRegistry() {
+            return METRIC_REGISTRY;
+        }
+
+    }
+
+    @WebListener
+    public static class MyHealthCheckServletContextListener extends HealthCheckServlet.ContextListener {
+
+        public static final HealthCheckRegistry HEALTH_CHECK_REGISTRY = new HealthCheckRegistry();
+
+        @Override
+        protected HealthCheckRegistry getHealthCheckRegistry() {
+            return HEALTH_CHECK_REGISTRY;
+        }
+
     }
 }
