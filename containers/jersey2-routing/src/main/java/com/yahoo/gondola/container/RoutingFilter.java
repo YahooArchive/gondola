@@ -6,7 +6,7 @@
 
 package com.yahoo.gondola.container;
 
-import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -102,9 +102,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     private ReentrantLock lock = new ReentrantLock();
     Condition leaderFoundCondition = lock.newCondition();
 
-    private Meter forwardMeter;
-    private Meter processMeter;
-    private Meter errorMeter;
+    private Timer forwardTimer;
+    private Timer processTimer;
+    private Timer errorTimer;
 
     /**
      * Disallow default constructor.
@@ -133,9 +133,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.services = services;
         this.routingHelper = routingHelper;
         this.changeLogProcessor = changeLogProcessor;
-        forwardMeter = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.meter("filter.forward");
-        processMeter = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.meter("filter.process");
-        errorMeter = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.meter("filter.error");
+        forwardTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.forward-timer");
+        processTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.process-timer");
+        errorTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.error-timer");
     }
 
     /**
@@ -243,20 +243,20 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
         if (hasRoutingLoop(request)) {
             abortResponse(request, BAD_REQUEST, "Routing loop detected");
-            errorMeter.mark();
+            request.setProperty("timer", errorTimer.time());
             return;
         }
 
         if (shardId == null) {
             abortResponse(request, BAD_REQUEST, "Cannot find shard for bucketId=" + bucketId);
-            errorMeter.mark();
+            request.setProperty("timer", errorTimer.time());
             return;
         }
 
         // redirect the request to other shard
         if (!isMyShard(shardId)) {
             proxyRequestToLeader(request, shardId);
-            forwardMeter.mark();
+            request.setProperty("timer", forwardTimer.time());
             return;
         }
 
@@ -268,26 +268,26 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             leader = waitForLeader(shardId);
         } catch (InterruptedException e) {
             abortResponse(request, Response.Status.INTERNAL_SERVER_ERROR, "Request interrupted");
-            errorMeter.mark();
+            request.setProperty("timer", errorTimer.time());
             return;
         }
 
         if (leader == null) {
             abortResponse(request, SERVICE_UNAVAILABLE, "No leader is available");
-            errorMeter.mark();
+            request.setProperty("timer", errorTimer.time());
             return;
 
         }
 
         if (leader.isLocal()) {
             trace("Processing this request");
-            processMeter.mark();
+            request.setProperty("timer", processTimer.time());
             return;
         }
 
         // redirect the request to leader
         proxyRequestToLeader(request, shardId);
-        forwardMeter.mark();
+        request.setProperty("timer", forwardTimer.time());
     }
 
     private Member waitForLeader(String shardId) throws InterruptedException {
@@ -348,6 +348,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
         responseContext.getHeaders()
             .put(X_GONDOLA_SHARD_ID, Collections.singletonList(requestContext.getProperty("shardId")));
+        if (requestContext.getProperty("timer") != null) {
+            ((Timer.Context) requestContext.getProperty("timer")).stop();
+        }
     }
 
     /**

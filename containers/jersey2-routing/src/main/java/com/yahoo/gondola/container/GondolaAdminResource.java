@@ -103,7 +103,7 @@ public class GondolaAdminResource {
         for (Map.Entry<String, Timer> e : timers.entrySet()) {
             Map<String, Object> data = new HashMap<>();
             data.put("oneMinuteRate", e.getValue().getOneMinuteRate());
-            data.put("meanResponseTime", e.getValue().getSnapshot().getMean());
+            data.put("meanResponseTime", e.getValue().getSnapshot().getMean()/1000/1000);
             map.put(e.getKey(), data);
         }
         return map;
