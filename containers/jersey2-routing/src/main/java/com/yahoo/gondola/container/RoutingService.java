@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.Timer;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
@@ -27,6 +28,7 @@ public abstract class RoutingService {
     protected Gondola gondola;
     private Shard shard;
     private List<Consumer<RoleChangeEvent>> eventCallbacks = new ArrayList<>();
+    private Timer commitTimer;
 
 
     // TODO: use dependency injection to hide gondola instance from user app.
@@ -36,6 +38,7 @@ public abstract class RoutingService {
         hostId = gondola.getHostId();
         this.shardId = shardId;
         memberId = shard.getLocalMember().getMemberId();
+        commitTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("LogWriter");
     }
 
     /**
@@ -68,9 +71,10 @@ public abstract class RoutingService {
     public void writeLog(byte[] bytes)
         throws GondolaException, InterruptedException {
         Command command = shard.checkoutCommand();
+        Timer.Context time = commitTimer.time();
         command.commit(bytes, 0, bytes.length);
+        time.stop();
     }
-
     /**
      * Is leader boolean.
      *
