@@ -173,6 +173,8 @@ public class Member {
      *
      * If masterAddress is -1, this member leaves slave mode.
      *
+     * Any waiters for committed commands will get a SLAVE_MODE exception when slave is entered.
+     *
      * @param masterId the member id of the leader to sync with. Set to -1 to leave slave mode.
      */
     public void setSlave(int masterId) throws GondolaException, InterruptedException {

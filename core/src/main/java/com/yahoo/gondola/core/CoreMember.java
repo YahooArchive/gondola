@@ -492,6 +492,9 @@ public class CoreMember implements Stoppable {
                             }
                             updateWaitingCommands();
                             break;
+                        case FORCE_HEARTBEAT:
+                            sendHeartbeat(true);
+                            break;
                         case EXECUTE:
                             action.futureTask.run();
                             break;
@@ -1371,8 +1374,11 @@ public class CoreMember implements Stoppable {
                         for (Peer peer : peers) {
                             peer.stop();
                         }
-                        peers.clear();
-                        peerMap.clear();
+                        peers = new ArrayList<>(); // Don't use clear to avoid sync issues
+                        peerMap = new HashMap<>(); // Don't use clear to avoid sync issues
+
+                        // Destroy any slaves
+                        shutdownSlaves();
 
                         // Prepare to talk to new master
                         if (masterId >= 0) {
@@ -1443,7 +1449,8 @@ public class CoreMember implements Stoppable {
     /**
      * Called by the Network system when there's a connection request
      * from a slave.  If this member accepts the channel, true is
-     * returned.  If the channel is not accepted, false should be
+     * returned.  The member will be responsible for starting the channel.
+     * If the channel is not accepted, false should be
      * returned and the caller will take care of closing the channel.
      *
      * @param channel non-null channel to the slave.
@@ -1489,6 +1496,7 @@ public class CoreMember implements Stoppable {
         slaves.add(slave);
         try {
             slave.start();
+            actionQueue.forceHeartbeat();
         } catch (GondolaException e) {
             logger.error("Could not start slave", e);
             slaves.remove(slave);
@@ -1505,6 +1513,6 @@ public class CoreMember implements Stoppable {
         for (Peer slave : slaves) {
             slave.stop();
         }
-        slaves.clear();
+        slaves = new ArrayList<>(); // Don't use clear to avoid sync issues
     }
 }

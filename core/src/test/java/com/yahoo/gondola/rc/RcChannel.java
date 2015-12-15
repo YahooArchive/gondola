@@ -47,17 +47,24 @@ public class RcChannel implements Channel {
     // The output stream used by the member to send data to the peer.
     OutputStream out = new RcOutputStream();
 
+    boolean stopped = false;
+
     public RcChannel(Gondola gondola, int memberId, int peerId) {
         this.gondola = gondola;
         this.memberId = memberId;
         this.peerId = peerId;
         key = memberId + "-" + peerId;
         rkeys.put(key, peerId + "-" + memberId);
+    }
 
+    @Override
+    public void start() throws GondolaException {
         lock.lock();
         try {
-            if (inputStreams.get(key) == null) {
-                createPipes(key);
+            createPipes(key);
+            if (stopped) {
+                logger.info("Channel {} restarted", key);
+                stopped = false;
             }
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
@@ -67,16 +74,13 @@ public class RcChannel implements Channel {
     }
 
     @Override
-    public void start() throws GondolaException {
-    }
-
-    @Override
     public boolean stop() {
         pauseDelivery = false;
         messages.forEach(Message::release);
         messages.clear();
         inputStreams.remove(key);
         outputStreams.remove(key);
+        stopped = true;
         return true;
     }
 
@@ -141,7 +145,11 @@ public class RcChannel implements Channel {
      * See Channel.getInputStream().
      */
     @Override
-    public InputStream getInputStream(InputStream in, boolean errorOccurred) throws InterruptedException {
+    public InputStream getInputStream(InputStream in, boolean errorOccurred)
+          throws EOFException, InterruptedException {
+        if (stopped) {
+            throw new EOFException("channel " + key + " has been stopped");
+        }
         awaitOperational(errorOccurred);
         return inputStreams.get(key);
     }
@@ -150,7 +158,11 @@ public class RcChannel implements Channel {
      * See Channel.getOutputStream().
      */
     @Override
-    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred) throws InterruptedException {
+    public OutputStream getOutputStream(OutputStream out, boolean errorOccurred)
+          throws EOFException, InterruptedException {
+        if (stopped) {
+            throw new EOFException("channel " + key + " has been stopped");
+        }
         awaitOperational(errorOccurred);
         return this.out;
     }

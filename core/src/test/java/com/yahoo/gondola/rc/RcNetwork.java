@@ -11,10 +11,7 @@ import com.yahoo.gondola.core.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
@@ -25,8 +22,8 @@ public class RcNetwork implements Network {
 
     final Gondola gondola;
     final String hostId;
-
-    static Queue<RcChannel> channels = new ConcurrentLinkedQueue<>();
+    // key -> channel
+    static Map<String, RcChannel> channels = new ConcurrentHashMap<>();
 
     // Map of all registered listeners
     static Map<Integer, Listener> listeners = new ConcurrentHashMap<>();
@@ -48,19 +45,24 @@ public class RcNetwork implements Network {
 
     @Override
     public Channel createChannel(int fromMemberId, int toMemberId) {
-        RcChannel channel = new RcChannel(gondola, fromMemberId, toMemberId);
-        channels.add(channel);
+        String key = key(fromMemberId, toMemberId);
+        RcChannel channel = channels.get(key);
+        if (channel == null) {
+            channel = new RcChannel(gondola, fromMemberId, toMemberId);
+            channels.put(key, channel);
+        }
 
+        // If the members are not in the same shard, we assume this is a slave request
         Config config = gondola.getConfig();
         boolean isSlave = config.getMember(fromMemberId).getShardId() != config.getMember(toMemberId).getShardId();
         if (isSlave && listeners.size() > 0) {
             // Create a channel in the opposite direction
             RcChannel remoteChannel = new RcChannel(gondola, toMemberId, fromMemberId);
-            channels.add(remoteChannel);
 
             // Send to all listeners
-            if (!sendToListeners(toMemberId, remoteChannel)) {
-                channel.stop();
+            Listener l = listeners.get(toMemberId);
+            if (l.listener.apply(remoteChannel)) {
+                channels.put(key(toMemberId, fromMemberId), remoteChannel);
             }
         }
         return channel;
@@ -94,31 +96,22 @@ public class RcNetwork implements Network {
 
     @Override
     public List<Channel> getChannels() {
-        return channels.stream().collect(Collectors.toList());
+        return new ArrayList<Channel>(channels.values());
     }
 
     RcChannel getChannel(int fromMemberId, int toMemberId) {
-        for (RcChannel c : channels) {
-            if (c.memberId == fromMemberId && c.peerId == toMemberId) {
-                return c;
-            }
-        }
-        return null;
+        return (RcChannel) channels.get(key(fromMemberId, toMemberId));
     }
 
     public void pauseDeliveryTo(int memberId, boolean pause) throws Exception {
-        for (RcChannel c : channels) {
+        for (RcChannel c : channels.values()) {
             if (c.peerId == memberId) {
                 c.pauseDelivery(pause);
             }
         }
     }
 
-    private boolean sendToListeners(int memberId, Channel channel) {
-        Listener l = listeners.get(memberId);
-        if (l.listener.apply(channel)) {
-            return true;
-        }
-        return false;
+    private String key(int fromMemberId, int toMemberId) {
+        return String.format("%d-%d", fromMemberId, toMemberId);
     }
 }

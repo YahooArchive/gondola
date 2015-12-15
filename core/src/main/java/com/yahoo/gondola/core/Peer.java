@@ -622,7 +622,6 @@ public class Peer {
         } finally {
             lock.unlock();
         }
-
     }
 
     /**
