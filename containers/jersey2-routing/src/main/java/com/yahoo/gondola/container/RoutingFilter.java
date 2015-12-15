@@ -267,7 +267,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         // Block request if needed,
         // During migration process, the destination shard changed, need to re-evaluate shard id.
         if (blockRequest(bucketId, shardId)) {
-            System.out.println("Request blocked! re-evaluate shardId");
             extractShardAndBucketIdWithoutCache(request);
             shardId = getShardIdFromRequest(request);
         }
