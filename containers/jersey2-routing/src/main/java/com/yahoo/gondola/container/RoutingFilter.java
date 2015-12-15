@@ -133,9 +133,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.services = services;
         this.routingHelper = routingHelper;
         this.changeLogProcessor = changeLogProcessor;
-        forwardTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.forward-timer");
-        processTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.process-timer");
-        errorTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.error-timer");
+        forwardTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.forward");
+        processTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.process");
+        errorTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.error");
     }
 
     /**

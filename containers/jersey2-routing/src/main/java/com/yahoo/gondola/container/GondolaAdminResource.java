@@ -75,7 +75,7 @@ public class GondolaAdminResource {
 
     @GET
     @Path("/gondolaStatus")
-    public Map getGondolaStatus() {
+    public Map getGondolaStatus() throws InterruptedException {
         RoutingFilter routingFilter = GondolaApplication.getRoutingFilter();
         Gondola gondola = routingFilter.getGondola();
         ChangeLogProcessor changeLogProcessor = GondolaApplication.getRoutingFilter().getChangeLogProcessor();
@@ -140,12 +140,14 @@ public class GondolaAdminResource {
         return map;
     }
 
-    private Map<Object, Object> getGondolaStatus(Gondola gondola, ChangeLogProcessor changeLogProcessor) {
+    private Map<Object, Object> getGondolaStatus(Gondola gondola, ChangeLogProcessor changeLogProcessor)
+        throws InterruptedException {
         Map<Object, Object> shards = new LinkedHashMap<>();
         for (Shard shard : gondola.getShardsOnHost()) {
             String shardId = shard.getShardId();
             Map<Object, Object> shardMap = new LinkedHashMap<>();
             shardMap.put("commitIndex", shard.getCommitIndex());
+            shardMap.put("savedIndex", shard.getLastSavedIndex());
             shardMap.put("appliedIndex", changeLogProcessor.getAppliedIndex(shardId));
             shardMap.put("slaveStatus", getSlaveStatus(shard));
             shardMap.put("role", shard.getLocalRole());
