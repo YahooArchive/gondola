@@ -87,7 +87,7 @@ public class DemoService extends RoutingService {
             throw new NotFoundException();
         }
         String value = entries.get(key);
-//        logger.info("[{}] Get key {}={}", this.hostId, key, value);
+        logger.info("[{}] Get key {}={}", this.hostId, key, value);
         return value;
     }
 
@@ -106,7 +106,7 @@ public class DemoService extends RoutingService {
             recordLock.add(key);
             byte[] bytes = (key + " " + value).getBytes();
             writeLog(bytes);
-//            logger.info("[{}] Put key {}={}", hostId, key, value);
+            logger.info("[{}] Put key {}={}", hostId, key, value);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (GondolaException e) {

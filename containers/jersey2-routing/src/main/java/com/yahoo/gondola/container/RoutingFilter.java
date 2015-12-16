@@ -133,9 +133,11 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         this.services = services;
         this.routingHelper = routingHelper;
         this.changeLogProcessor = changeLogProcessor;
-        forwardTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.forward");
-        processTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.process");
-        errorTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("filter.error");
+        forwardTimer =
+            GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("RoutingFilter.forward");
+        processTimer =
+            GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("RoutingFilter.process");
+        errorTimer = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("RoutingFilter.error");
     }
 
     /**
@@ -239,7 +241,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         int bucketId = getBucketIdFromRequest(request);
         String shardId = getShardIdFromRequest(request);
 
-        incrementBucketCounter(bucketId);
         trace("Processing request: {} of shard={}, forwarded={}",
               request.getUriInfo().getAbsolutePath(), shardId,
               request.getHeaders().containsKey(X_FORWARDED_BY) ? request.getHeaders()
@@ -257,12 +258,6 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             return;
         }
 
-        // redirect the request to other shard
-        if (!isMyShard(shardId)) {
-            proxyRequestToLeader(request, shardId);
-            request.setProperty("timer", forwardTimer.time());
-            return;
-        }
 
         // Block request if needed,
         // During migration process, the destination shard changed, need to re-evaluate shard id.
@@ -270,6 +265,16 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
             extractShardAndBucketIdWithoutCache(request);
             shardId = getShardIdFromRequest(request);
         }
+
+        // redirect the request to other shard
+        if (!isMyShard(shardId)) {
+            proxyRequestToLeader(request, shardId);
+            request.setProperty("timer", forwardTimer.time());
+            return;
+        }
+
+        incrementBucketCounter(bucketId);
+        request.setProperty("requestCounter", 1);
 
         Member leader = null;
         try {
@@ -351,11 +356,18 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
         if (requestContext.getProperty("whiteList") != null) {
             return;
         }
-        decrementBucketCounter((Integer) requestContext.getProperty("bucketId"));
-        responseContext.getHeaders()
-            .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
-        responseContext.getHeaders()
-            .put(X_GONDOLA_SHARD_ID, Collections.singletonList(requestContext.getProperty("shardId")));
+
+        if (requestContext.getProperty("requestCounter") != null) {
+            decrementBucketCounter((Integer) requestContext.getProperty("bucketId"));
+        }
+
+        if (requestContext.getProperty("shardId") != null) {
+            responseContext.getHeaders()
+                .put(X_GONDOLA_BUCKET_ID, Collections.singletonList(requestContext.getProperty("bucketId")));
+            responseContext.getHeaders()
+                .put(X_GONDOLA_SHARD_ID, Collections.singletonList(requestContext.getProperty("shardId")));
+        }
+
         if (requestContext.getProperty("timer") != null) {
             ((Timer.Context) requestContext.getProperty("timer")).stop();
         }
@@ -760,5 +772,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
 
     public LockManager getLockManager() {
         return lockManager;
+    }
+
+    public Map<Integer, AtomicInteger> getBucketRequestCounters() {
+        return bucketRequestCounters;
     }
 }

@@ -26,7 +26,7 @@ public class AdminClient {
 
     // TODO: move to config
     public static final int RETRY_COUNT = 3;
-    public static final int TIMEOUT_MS = 3000;
+    public static final int TIMEOUT_MS = 10000;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
@@ -130,7 +130,7 @@ public class AdminClient {
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 trace("[admin] Initializing slaves on {} ...", toShardId);
-                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS * 3);
+                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
                     "[admin] All nodes in {} are in slave mode, "
@@ -144,7 +144,7 @@ public class AdminClient {
                 trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
+                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS * 3);
                 trace("[admin] success!");
                 trace("[admin] Writing latest config to config storage!");
                 updateConfig(fromShardId, toShardId, range);

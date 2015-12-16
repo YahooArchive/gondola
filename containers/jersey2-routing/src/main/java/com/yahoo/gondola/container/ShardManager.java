@@ -206,7 +206,7 @@ public class ShardManager implements ShardManagerProtocol {
         try {
             return Utils.pollingWithTimeout(() -> {
                 if (shard.getCommitIndex() != 0
-                    && shard.getCommitIndex() - getSavedIndex(shard) <= logPosDiff) {
+                    && shard.getCommitIndex() - filter.getChangeLogProcessor().getAppliedIndex(shardId) <= logPosDiff) {
                     return true;
                 }
                 Member.SlaveStatus slaveStatus = shard.getLocalMember().getSlaveStatus();

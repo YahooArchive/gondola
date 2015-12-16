@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.inject.Singleton;
@@ -86,6 +87,7 @@ public class GondolaAdminResource {
         map.put("bucketTable", getBucketMapStatus(routingFilter.getBucketManager()));
         map.put("lock", getLockManagerStatus(routingFilter.getLockManager()));
         map.put("shardManager", getShardManagerStatus());
+        map.put("numActiveRequests", routingFilter.getBucketRequestCounters().values().stream().map(AtomicInteger::get).reduce((i1, i2) -> i1+i2).orElse(0));
         map.put("config", getConfigInfo(gondola));
         map.put("stats", gondola.getStats());
         map.put("pid", gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("hostname")
