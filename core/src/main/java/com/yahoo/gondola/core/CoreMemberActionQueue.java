@@ -28,7 +28,6 @@ public class CoreMemberActionQueue {
         BECOME_FOLLOWER,
         UPDATE_SAVED_INDEX,
         UPDATE_STORAGE_INDEX,
-        FORCE_HEARTBEAT,
         EXECUTE,
     }
 
@@ -56,14 +55,6 @@ public class CoreMemberActionQueue {
 
     public void updateStorageIndex() {
         queue.add(new Action(Type.UPDATE_STORAGE_INDEX));
-    }
-
-    /**
-     * Used when adding a slave. Heartbeats are not sent when the server is under load.
-     * This will allow a heartbeat to get through to the new slave.
-     */
-    public void forceHeartbeat() {
-        queue.add(new Action(Type.FORCE_HEARTBEAT));
     }
 
     public void execute(Runnable runnable) throws GondolaException, InterruptedException {

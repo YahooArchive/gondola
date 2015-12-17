@@ -64,7 +64,7 @@ public class Shard implements Stoppable {
         }
 
         // Create list of peers
-        for (Peer p : cmember.peers) {
+        for (Peer p : cmember.peers.values()) {
             members.add(new Member(gondola, cmember, p));
         }
     }

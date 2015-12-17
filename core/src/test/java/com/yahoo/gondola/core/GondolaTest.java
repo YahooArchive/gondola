@@ -1009,21 +1009,6 @@ public class GondolaTest {
         member3.setFollower();
         runningTick = 50;
 
-        Thread writer = new Thread() {
-                public void run() {
-                    try {
-                        long start = System.currentTimeMillis();
-                        while (System.currentTimeMillis() - start < 15000) {
-                            commit(member1, "testing");
-                            Thread.sleep(1);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            };
-        writer.start();
-
         // Create slave1
         Gondola g1 = new Gondola(gondolaRc.getConfig(), "D");
         gondolaRc.add(g1);
