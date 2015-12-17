@@ -43,11 +43,8 @@ public class CoreMember implements Stoppable {
     final SaveQueue saveQueue;
     final CommitQueue commitQueue;
 
-    public List<Peer> peers = new ArrayList<>();
+    public Map<Integer, Peer> peers = new HashMap<>();
     public List<Peer> slaves = new ArrayList<>();
-
-    // This map is used to find then peer quickly when processing incoming message
-    Map<Integer, Peer> peerMap = new HashMap<>();
 
     // The number of members that constitute a majority for this cluster.
     // It's a convenience variable, used when calculating the commit index.
@@ -156,11 +153,7 @@ public class CoreMember implements Stoppable {
         commitQueue = new CommitQueue(gondola, this);
         gondola.getNetwork().register(memberId, channel -> acceptSlaveConnection(channel));
 
-        for (int id : peerIds) {
-            Peer peer = new Peer(gondola, this, id);
-            peers.add(peer);
-            peerMap.put(peer.peerId, peer);
-        }
+        peerIds.forEach(id -> peers.put(id, new Peer(gondola, this, id)));
 
         // Initialize some convenience variables for use when calculating the commit index
         majority = (peers.size() + 1) / 2 + 1;
@@ -225,14 +218,14 @@ public class CoreMember implements Stoppable {
         // Reset peers
         if (peers != null) {
             Arrays.fill(matchIndices, 0);
-            for (Peer peer : peers) {
+            peers.forEach((peerId, peer) -> {
                 peer.reset();
                 peer.setNextIndex(savedRid.index + 1, savedRid.index + 1);
-            }
-            for (Peer slave : slaves) {
+            });
+            slaves.forEach(slave -> {
                 slave.reset();
                 slave.setNextIndex(savedRid.index + 1, savedRid.index + 1);
-            }
+            });
         }
     }
 
@@ -243,7 +236,7 @@ public class CoreMember implements Stoppable {
         if (threads.size() > 0) {
             throw new IllegalStateException("start() can only be called once");
         }
-        for (Peer peer : peers) {
+        for (Peer peer : peers.values()) {
             peer.start();
         }
 
@@ -258,7 +251,7 @@ public class CoreMember implements Stoppable {
     public boolean stop() {
         boolean status = true;
 
-        for (Peer peer : peers) {
+        for (Peer peer : peers.values()) {
             status = peer.stop() && status;
         }
         for (Peer slave : slaves) {
@@ -492,9 +485,6 @@ public class CoreMember implements Stoppable {
                             }
                             updateWaitingCommands();
                             break;
-                        case FORCE_HEARTBEAT:
-                            sendHeartbeat(true);
-                            break;
                         case EXECUTE:
                             action.futureTask.run();
                             break;
@@ -508,7 +498,7 @@ public class CoreMember implements Stoppable {
                 if (isLeader()) {
                     // Step down if not heard from a majority of peers
                     int liveCount = 1;
-                    for (Peer p : peers) {
+                    for (Peer p : peers.values()) {
                         if (now - p.lastReceivedTs <= leaderTimeout) {
                             liveCount++;
                         }
@@ -643,7 +633,7 @@ public class CoreMember implements Stoppable {
 
     void become(Role role, int leaderId) throws GondolaException {
         // Clear peers and reset storage state
-        peers.forEach(p -> p.reset());
+        peers.forEach((id, p) -> p.reset());
         slaves.forEach(p -> p.reset());
         saveQueue.settle(savedRid);
         sentRid.set(savedRid);
@@ -676,7 +666,7 @@ public class CoreMember implements Stoppable {
         become(Role.LEADER, memberId);
 
         // Initialize raft variables
-        for (Peer peer : peers) {
+        for (Peer peer : peers.values()) {
             int nextIndex = sentRid.index + 1;
             peer.setNextIndex(nextIndex, nextIndex);
             peer.lastReceivedTs = clock.now();
@@ -697,7 +687,7 @@ public class CoreMember implements Stoppable {
         logger.info("[{}-{}] Becomes CANDIDATE{} {}",
                 gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
                 isPrimary ? "(primary)" : "");
-        shutdownSlaves();
+        removeSlaves();
         become(Role.CANDIDATE, -1);
 
         // Set time to send prevote
@@ -708,7 +698,7 @@ public class CoreMember implements Stoppable {
         logger.info("[{}-{}] Becomes FOLLOWER{} of {} {}",
                 gondola.getHostId(), memberId, masterId >= 0 ? "-SLAVE" : "",
                 leaderId, isPrimary ? "(primary)" : "");
-        shutdownSlaves();
+        removeSlaves();
         become(Role.FOLLOWER, leaderId);
 
         // To avoid the case where this member becomes a candidate and an RV is received for the current term
@@ -759,7 +749,7 @@ public class CoreMember implements Stoppable {
     void sendPrevote() throws GondolaException {
         if (clock.now() >= prevoteTs) {
             // Clear the prevotes before sending prevote
-            peers.forEach(p -> p.prevoteGranted = false);
+            peers.forEach((id, p) -> p.prevoteGranted = false);
             slaves.forEach(p -> p.prevoteGranted = false);
             sendRequestVoteRequest(true);
         }
@@ -821,10 +811,12 @@ public class CoreMember implements Stoppable {
      * TODO: do not advance unless the latest commited entry's term matches the current term.
      */
     void advanceCommitIndex() throws InterruptedException {
-        for (int i = 0; i < peers.size(); i++) {
-            Peer peer = peers.get(i);
-            matchIndices[i] = peer.matchIndex;
-        }
+        Map<Integer, Peer> peers = this.peers; // Capture the current state in case peers is modified
+
+        // Get all the match indices
+        Arrays.fill(matchIndices, 0);
+        final int[] ix = {0};
+        peers.forEach((id, p) -> matchIndices[ix[0]++] = p.matchIndex);
 
         // Bubble sort in descending order
         for (int i = 0; i < matchIndices.length; i++) {
@@ -871,12 +863,8 @@ public class CoreMember implements Stoppable {
                     gondola.getHostId(), memberId,
                     stats.savedCommandsRps, saveQueue.lastTerm, saveQueue.savedIndex,
                     saveQueue.workQueue.size(), saveQueue.maxGap, saveQueue.saved.size()));
-            for (Peer peer : peers) {
-                logger.info(peerInfo(peer, false));
-            }
-            for (Peer slave : slaves) {
-                logger.info(peerInfo(slave, true));
-            }
+            peers.forEach((id, peer) -> logger.info(peerInfo(peer, false)));
+            slaves.forEach(slave -> logger.info(peerInfo(slave, true)));
 
             if (commandTracing) {
                 for (CoreCmd c : waitQueue) {
@@ -918,7 +906,7 @@ public class CoreMember implements Stoppable {
         Message message = pool.checkout();
         try {
             message.heartbeat(memberId, currentTerm, rid, commitIndex);
-            peers.forEach(p -> p.send(message, rid.index - 1));
+            peers.forEach((id, p) -> p.send(message, rid.index - 1));
 
             // Send to peers but also check if peer has been inactive
             long now = clock.now();
@@ -946,7 +934,7 @@ public class CoreMember implements Stoppable {
     public void sendAppendEntryRequest(Message message, int prevLogIndex) {
         // Send command first
         assert message.getType() == Message.TYPE_APPEND_ENTRY_REQ;
-        peers.forEach(p -> p.send(message, prevLogIndex));
+        peers.forEach((id, p) -> p.send(message, prevLogIndex));
         slaves.forEach(p -> p.send(message, prevLogIndex));
 
         // Then store command
@@ -960,7 +948,7 @@ public class CoreMember implements Stoppable {
      * Sent after follower has advanced the savedIndex.
      */
     public void sendAppendEntryReply() {
-        Peer leader = peerMap.get(leaderId);
+        Peer leader = peers.get(leaderId);
         if (leader != null) {
             Message message = pool.checkout();
             try {
@@ -1003,7 +991,7 @@ public class CoreMember implements Stoppable {
             // Create and send the message to all the peers
             saveQueue.getLatest(savedRid);
             message.requestVoteRequest(memberId, currentTerm, isPrevote, savedRid);
-            peers.forEach(p -> p.send(message));
+            peers.forEach((id, p) -> p.send(message));
         } finally {
             message.release();
         }
@@ -1043,7 +1031,7 @@ public class CoreMember implements Stoppable {
             if (message.tracingInfo != null) {
                 logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), memberId, fromMemberId, message.tracingInfo);
             }
-            Peer peer = peerMap.get(fromMemberId);
+            Peer peer = peers.get(fromMemberId);
             if (peer == null) {
                 logger.error("Received AE from unknown member {}", fromMemberId);
                 return false;
@@ -1108,8 +1096,8 @@ public class CoreMember implements Stoppable {
 
                     // Notify gondola listeners of leader change
                     gondola.notifyRoleChange(
-                        new RoleChangeEvent(shard, shard.getMember(leaderId),
-                                            shard.getMember(leaderId), Role.CANDIDATE, Role.LEADER));
+                            new RoleChangeEvent(shard, shard.getMember(leaderId),
+                                    shard.getMember(leaderId), Role.CANDIDATE, Role.LEADER));
                 }
 
                 if (message.isHeartbeat()) {
@@ -1140,7 +1128,7 @@ public class CoreMember implements Stoppable {
                 logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), memberId, fromMemberId, message.tracingInfo);
             }
 
-            Peer peer = peerMap.get(fromMemberId);
+            Peer peer = peers.get(fromMemberId);
             if (peer == null) {
                 logger.error("[{}-{}] Received RV from unknown member {}",
                         gondola.getHostId(), memberId, fromMemberId);
@@ -1207,7 +1195,7 @@ public class CoreMember implements Stoppable {
             if (message.tracingInfo != null) {
                 logger.info("[{}-{}] recv({}): {}", gondola.getHostId(), memberId, fromMemberId, message.tracingInfo);
             }
-            Peer peer = peerMap.get(fromMemberId);
+            Peer peer = peers.get(fromMemberId);
             if (peer == null) {
                 logger.error("Received rv from unknown member {}", fromMemberId);
                 return;
@@ -1227,7 +1215,7 @@ public class CoreMember implements Stoppable {
                         peer.prevoteGranted = true;
 
                         // With a majority, send out a request vote
-                        long prevotes = peers.stream().filter(p -> p.prevoteGranted).count() + 1;
+                        long prevotes = peers.values().stream().filter(p -> p.prevoteGranted).count() + 1;
                         if (prevotes >= majority) {
                             logger.info(
                                     "[{}-{}] Has majority of pre-votes ({}). "
@@ -1242,7 +1230,8 @@ public class CoreMember implements Stoppable {
                     peer.votedTerm = term;
                     peer.votedFor = memberId;
                     if (!isLeader() && votedFor == memberId) {
-                        long votes = peers.stream().filter(p -> p.votedTerm == currentTerm && p.votedFor == memberId)
+                        long votes = peers.values().stream()
+                                .filter(p -> p.votedTerm == currentTerm && p.votedFor == memberId)
                                 .count() + 1;
 
                         // Inform all other candidates of successful election
@@ -1363,7 +1352,7 @@ public class CoreMember implements Stoppable {
             String shardId = gondola.getConfig().getMember(masterId).getShardId();
             if (shardId.equals(gondola.getConfig().getMember(memberId).getShardId())) {
                 throw new GondolaException(GondolaException.Code.SAME_SHARD,
-                                           memberId, masterId, shardId);
+                        memberId, masterId, shardId);
             }
         }
 
@@ -1373,16 +1362,11 @@ public class CoreMember implements Stoppable {
         actionQueue.execute(new Runnable() {
             public void run() {
                 try {
+                    Map<Integer, Peer> newPeers = new HashMap<>();
                     if (masterId != member.masterId) {
-                        // Remove the current peers
-                        for (Peer peer : peers) {
-                            peer.stop();
-                        }
-                        peers = new ArrayList<>(); // Don't use clear to avoid sync issues
-                        peerMap = new HashMap<>(); // Don't use clear to avoid sync issues
-
-                        // Destroy any slaves
-                        shutdownSlaves();
+                        // Stop the peers and slaves
+                        peers.forEach((id, p) -> p.stop());
+                        removeSlaves();
 
                         // Prepare to talk to new master
                         if (masterId >= 0) {
@@ -1400,9 +1384,9 @@ public class CoreMember implements Stoppable {
 
                             // Create a new peer to the master
                             Peer masterPeer = new Peer(gondola, member, masterId);
-                            peers.add(masterPeer);
-                            peerMap.put(masterPeer.peerId, masterPeer);
                             masterPeer.start();
+                            newPeers.put(masterId, masterPeer);
+                            peers = newPeers;
                             reset(Role.CANDIDATE, 0);
                         } else {
                             // Leave slave mode and restore original peers
@@ -1411,11 +1395,11 @@ public class CoreMember implements Stoppable {
 
                             for (int id : peerIds) {
                                 Peer peer = new Peer(gondola, member, id);
-                                peers.add(peer);
-                                peerMap.put(peer.peerId, peer);
                                 peer.start();
+                                newPeers.put(id, peer);
                             }
                             member.masterId = masterId;
+                            peers = newPeers;
                             reset(Role.CANDIDATE, commitIndex);
                         }
                     }
@@ -1500,7 +1484,6 @@ public class CoreMember implements Stoppable {
         slaves.add(slave);
         try {
             slave.start();
-            actionQueue.forceHeartbeat();
         } catch (GondolaException e) {
             logger.error("Could not start slave", e);
             slaves.remove(slave);
@@ -1513,10 +1496,8 @@ public class CoreMember implements Stoppable {
     /**
      * Called by the leader to remove all the slaves.
      */
-    private void shutdownSlaves() {
-        for (Peer slave : slaves) {
-            slave.stop();
-        }
+    private void removeSlaves() {
+        slaves.forEach(Peer::stop);
         slaves = new ArrayList<>(); // Don't use clear to avoid sync issues
     }
 }
