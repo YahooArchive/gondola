@@ -193,6 +193,13 @@ public class GondolaApplication {
                 context.addServlet("MetricsServlet", AdminServlet.class);
             servlet2.addMapping("/gondola/metrics/*");
             servlet2.setLoadOnStartup(0);
+
+            ServletRegistration.Dynamic servlet3 =
+                context.addServlet("static", DefaultWrapperServlet.class);
+            servlet3.setInitParameter("cacheControl", "max-age=0,no-cache");
+            servlet3.setInitParameter("org.eclipse.jetty.servlet.Default.dirAllowed", "false");
+            servlet3.setInitParameter("welcomeServlets", "false");
+            servlet3.addMapping("/static/*");
         }
 
         @Override

@@ -133,6 +133,17 @@
             <artifactId>metrics-servlets</artifactId>
             <version>3.1.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlets</artifactId>
+            <version>9.3.6.v20151106</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-servlet</artifactId>
+            <version>9.3.5.v20151012</version>
+        </dependency>
     </dependencies>
 
     <build>

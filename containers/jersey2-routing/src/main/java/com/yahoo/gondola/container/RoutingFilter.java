@@ -48,6 +48,7 @@ import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ContainerResponseContext;
 import javax.ws.rs.container.ContainerResponseFilter;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 import static javax.ws.rs.core.Response.Status.BAD_GATEWAY;
@@ -354,6 +355,9 @@ public class RoutingFilter implements ContainerRequestFilter, ContainerResponseF
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
         throws IOException {
         if (requestContext.getProperty("whiteList") != null) {
+            MultivaluedMap<String, Object> headers = responseContext.getHeaders();
+            headers.add("Access-Control-Allow-Origin", "*");
+            headers.add("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT");
             return;
         }
 
