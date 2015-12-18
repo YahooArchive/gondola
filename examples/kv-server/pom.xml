@@ -49,7 +49,7 @@
                 <version>${jetty-maven-plugin.version}</version>
                 <configuration>
                     <scanIntervalSeconds>${jetty-scan-interval}</scanIntervalSeconds>
-                    <contextXml>${project.basedir}/src/main/webapp/WEB-INF/jetty-web.xml</contextXml>
+                    <contextXml>${project.basedir}/conf/jetty-web.xml</contextXml>
                     <webApp>
                         <contextPath>/api</contextPath>
                         <extraClasspath>../../core/target/classes;../../containers/jersey2-routing/target/classes
