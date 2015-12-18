@@ -16,15 +16,19 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 
-public class DefaultWrapperServlet extends DefaultServlet
-{
+/**
+ * Default wrapper servlet for serving static files.
+ */
+public class DefaultWrapperServlet extends DefaultServlet {
+
     public void doGet(HttpServletRequest req, HttpServletResponse resp)
-        throws ServletException, IOException
-    {
+        throws ServletException, IOException {
         RequestDispatcher rd = getServletContext().getNamedDispatcher("default");
 
         HttpServletRequest wrapped = new HttpServletRequestWrapper(req) {
-            public String getServletPath() { return ""; }
+            public String getServletPath() {
+                return "";
+            }
         };
 
         rd.forward(wrapped, resp);

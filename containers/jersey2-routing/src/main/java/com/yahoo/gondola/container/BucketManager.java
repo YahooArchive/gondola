@@ -216,13 +216,6 @@ class BucketManager {
 
     private void updateBucketMap(Range<Integer> range, ShardState newShardState) {
         bucketMap.put(range, newShardState);
-        for (Range<Integer> r : bucketMap.asMapOfRanges().keySet()) {
-            if (r.lowerBoundType() == BoundType.OPEN
-                && r.upperBoundType() == BoundType.OPEN
-                && r.upperEndpoint() - r.lowerEndpoint() <= 1) {
-                bucketMap.remove(r);
-            }
-        }
     }
 
     private void handleMigrationInProgress(Range<Integer> range, String fromShardId, String toShardId,

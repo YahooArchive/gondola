@@ -43,6 +43,7 @@ import javax.ws.rs.core.Context;
 @Produces("application/json")
 @Singleton
 public class GondolaAdminResource {
+
     static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
 
     @POST
@@ -87,7 +88,8 @@ public class GondolaAdminResource {
         map.put("bucketTable", getBucketMapStatus(routingFilter.getBucketManager()));
         map.put("lock", getLockManagerStatus(routingFilter.getLockManager()));
         map.put("shardManager", getShardManagerStatus());
-        map.put("numActiveRequests", routingFilter.getBucketRequestCounters().values().stream().map(AtomicInteger::get).reduce((i1, i2) -> i1+i2).orElse(0));
+        map.put("numActiveRequests", routingFilter.getBucketRequestCounters().values().stream().map(AtomicInteger::get)
+            .reduce((i1, i2) -> i1 + i2).orElse(0));
         map.put("config", getConfigInfo(gondola));
         map.put("stats", gondola.getStats());
         map.put("pid", gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("hostname")
@@ -105,7 +107,7 @@ public class GondolaAdminResource {
         for (Map.Entry<String, Timer> e : timers.entrySet()) {
             Map<String, Object> data = new HashMap<>();
             data.put("oneMinuteRate", e.getValue().getOneMinuteRate());
-            data.put("meanResponseTime", e.getValue().getSnapshot().getMean()/1000/1000);
+            data.put("meanResponseTime", e.getValue().getSnapshot().getMean() / 1000 / 1000);
             map.put(e.getKey(), data);
         }
         return map;
