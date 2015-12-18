@@ -181,7 +181,7 @@ public class ShardManager implements ShardManagerProtocol {
             trace("[{}] waiting stop slaving...", gondola.getHostId());
             shardManagerClient.stopObserving(toShardId, fromShardId, timeoutMs);
             trace("[{}] update bucket range...", gondola.getHostId());
-            filter.getBucketManager().updateBucketRange(splitRange, fromShardId, toShardId, false);
+            filter.updateBucketRange(splitRange, fromShardId, toShardId, false);
         } catch (InterruptedException | ExecutionException e) {
             logger.warn("Error occurred, rollback!", e);
             try {

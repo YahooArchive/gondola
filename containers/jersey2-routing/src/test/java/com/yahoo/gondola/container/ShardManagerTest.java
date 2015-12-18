@@ -161,6 +161,7 @@ public class ShardManagerTest {
         when(shard.getLastSavedIndex()).thenReturn(1).thenReturn(2);
         when(shard.getMember(anyInt())).thenReturn(member);
         when(member.getSlaveStatus()).thenReturn(getSuccessSlaveStatus());
+        when(changeLogProcessor.getAppliedIndex(any())).thenReturn(100);
         assertTrue(shardManager.waitSlavesSynced(FROM_SHARD, 300));
     }
 
