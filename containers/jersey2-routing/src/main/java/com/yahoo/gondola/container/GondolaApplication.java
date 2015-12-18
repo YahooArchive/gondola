@@ -13,6 +13,7 @@ import com.codahale.metrics.servlets.HealthCheckServlet;
 import com.codahale.metrics.servlets.MetricsServlet;
 import com.google.common.base.Preconditions;
 import com.purej.vminspect.http.servlet.VmInspectionServlet;
+import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
 import com.yahoo.gondola.Shard;
@@ -154,8 +155,17 @@ public class GondolaApplication {
         }
 
         private Gondola createGondolaInstance() throws GondolaException {
-            String hostId = System.getenv("hostId") != null ? System.getenv("hostId") : "host1";
-            return new Gondola(ConfigLoader.getConfigInstance(configUri), hostId);
+            Config config = ConfigLoader.getConfigInstance(configUri);
+            String hostId = null;
+            for (String h : config.getHostIds()) {
+                if (Utils.isMyAddress(config.getAddressForHost(hostId).getAddress())) {
+                    hostId = h;
+                }
+            }
+            if (hostId == null) {
+                throw new IllegalStateException("Cannot find IP address on the host.");
+            }
+            return new Gondola(config, hostId);
         }
 
         private void initShardManagerServer(RoutingFilter routingFilter) {

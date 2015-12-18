@@ -13,7 +13,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.yahoo.gondola.Config;
 
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -168,5 +171,22 @@ public class Utils {
 
         Type type;
         Map<String, String> attributes;
+    }
+
+    /**
+     * Check address is on the server
+     */
+    public static boolean isMyAddress(InetAddress address) {
+        // Check if the address is a valid special local or loop back
+        if (address.isAnyLocalAddress() || address.isLoopbackAddress()) {
+            return true;
+        }
+
+        // Check if the address is defined on any interface
+        try {
+            return NetworkInterface.getByInetAddress(address) != null;
+        } catch (SocketException e) {
+            return false;
+        }
     }
 }
