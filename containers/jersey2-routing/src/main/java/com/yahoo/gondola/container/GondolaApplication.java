@@ -160,8 +160,14 @@ public class GondolaApplication {
             for (String h : config.getHostIds()) {
                 if (Utils.isMyAddress(config.getAddressForHost(hostId).getAddress())) {
                     hostId = h;
+                    break;
                 }
             }
+
+            if (System.getenv("hostId") != null) {
+                hostId = System.getenv("hostId");
+            }
+
             if (hostId == null) {
                 throw new IllegalStateException("Cannot find IP address on the host.");
             }
