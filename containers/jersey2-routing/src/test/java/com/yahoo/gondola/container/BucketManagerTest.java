@@ -103,6 +103,13 @@ public class BucketManagerTest {
         assertEquals(bucketManager.lookupBucketTable(0).migratingShardId, null);
         assertEquals(bucketManager.lookupBucketTable(11).shardId, "shard1");
         assertEquals(bucketManager.lookupBucketTable(11).migratingShardId, null);
+
+        // check bucket string
+        assertEquals(bucketManager.getBucketString("shard1"), "11-99,200");
+        assertEquals(bucketManager.getBucketString("shard2"), "0-10,100-199");
+        bucketManager.updateBucketRange(Range.closed(11, 11), "shard1", "shard2", true);
+        bucketManager.lookupBucketTable(10);
+        bucketManager.lookupBucketTable(Range.closed(10, 11));
     }
 
     @Test(expectedExceptions = IllegalStateException.class)

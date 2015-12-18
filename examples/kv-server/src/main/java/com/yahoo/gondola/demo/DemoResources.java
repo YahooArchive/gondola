@@ -35,7 +35,7 @@ public class DemoResources {
     public String getEntry(@PathParam("key") String key) {
         try {
             return service.getValue(key);
-        } catch (DemoService.NotLeaderException e) {
+        } catch (DemoService.NotLeaderException | InterruptedException e) {
             throw new ServiceUnavailableException();
         } catch (DemoService.NotFoundException e) {
             throw new NotFoundException();

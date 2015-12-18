@@ -51,25 +51,30 @@ class LockManager {
      * @param shardId  the shard id
      * @throws InterruptedException the interrupted exception
      */
-    public void filterRequest(int bucketId, String shardId) throws InterruptedException {
+    public boolean filterRequest(int bucketId, String shardId) throws InterruptedException {
         if (globalLock != null) {
             trace("[{}] Request blocked by global lock", gondola.getHostId());
             globalLock.await();
+            return true;
         }
 
         CountDownLatch shardLock = shardLocks.get(shardId);
         if (shardLock != null) {
             trace("[{}] Request blocked by shard lock - shardId={}", gondola.getHostId(), shardId);
             shardLock.await();
+            return true;
         }
 
         List<CountDownLatch> bucketLocks = getBucketLocks(bucketId);
+        boolean blocked = false;
         if (bucketLocks.size() != 0) {
             for (CountDownLatch bucketLock : bucketLocks) {
                 trace("[{}] Request blocked by bucket lock - bucketId={}", gondola.getHostId(), bucketId);
                 bucketLock.await();
+                blocked = true;
             }
         }
+        return blocked;
     }
 
     /**

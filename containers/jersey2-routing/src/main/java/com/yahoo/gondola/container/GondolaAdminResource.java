@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.Timer;
 import com.google.common.collect.Range;
 import com.yahoo.gondola.Config;
 import com.yahoo.gondola.Gondola;
@@ -21,6 +22,8 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.SortedMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.inject.Singleton;
@@ -40,6 +43,7 @@ import javax.ws.rs.core.Context;
 @Produces("application/json")
 @Singleton
 public class GondolaAdminResource {
+
     static Logger logger = LoggerFactory.getLogger(GondolaAdminResource.class);
 
     @POST
@@ -73,7 +77,7 @@ public class GondolaAdminResource {
 
     @GET
     @Path("/gondolaStatus")
-    public Map getGondolaStatus() {
+    public Map getGondolaStatus() throws InterruptedException {
         RoutingFilter routingFilter = GondolaApplication.getRoutingFilter();
         Gondola gondola = routingFilter.getGondola();
         ChangeLogProcessor changeLogProcessor = GondolaApplication.getRoutingFilter().getChangeLogProcessor();
@@ -84,8 +88,28 @@ public class GondolaAdminResource {
         map.put("bucketTable", getBucketMapStatus(routingFilter.getBucketManager()));
         map.put("lock", getLockManagerStatus(routingFilter.getLockManager()));
         map.put("shardManager", getShardManagerStatus());
+        map.put("numActiveRequests", routingFilter.getBucketRequestCounters().values().stream().map(AtomicInteger::get)
+            .reduce((i1, i2) -> i1 + i2).orElse(0));
         map.put("config", getConfigInfo(gondola));
         map.put("stats", gondola.getStats());
+        map.put("pid", gondola.getConfig().getAttributesForHost(gondola.getHostId()).get("hostname")
+                       + ":" + gondola.getProcessId());
+        map.put("timers", timerMap());
+        map.put("meters", GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.getMeters());
+
+        return map;
+    }
+
+    private Map timerMap() {
+        Map<String, Object> map = new HashMap<>();
+        SortedMap<String, Timer> timers =
+            GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.getTimers();
+        for (Map.Entry<String, Timer> e : timers.entrySet()) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("oneMinuteRate", e.getValue().getOneMinuteRate());
+            data.put("meanResponseTime", e.getValue().getSnapshot().getMean() / 1000 / 1000);
+            map.put(e.getKey(), data);
+        }
         return map;
     }
 
@@ -120,12 +144,14 @@ public class GondolaAdminResource {
         return map;
     }
 
-    private Map<Object, Object> getGondolaStatus(Gondola gondola, ChangeLogProcessor changeLogProcessor) {
+    private Map<Object, Object> getGondolaStatus(Gondola gondola, ChangeLogProcessor changeLogProcessor)
+        throws InterruptedException {
         Map<Object, Object> shards = new LinkedHashMap<>();
         for (Shard shard : gondola.getShardsOnHost()) {
             String shardId = shard.getShardId();
             Map<Object, Object> shardMap = new LinkedHashMap<>();
             shardMap.put("commitIndex", shard.getCommitIndex());
+            shardMap.put("savedIndex", shard.getLastSavedIndex());
             shardMap.put("appliedIndex", changeLogProcessor.getAppliedIndex(shardId));
             shardMap.put("slaveStatus", getSlaveStatus(shard));
             shardMap.put("role", shard.getLocalRole());

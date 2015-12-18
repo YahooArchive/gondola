@@ -26,7 +26,7 @@ public class AdminClient {
 
     // TODO: move to config
     public static final int RETRY_COUNT = 3;
-    public static final int TIMEOUT_MS = 3000;
+    public static final int TIMEOUT_MS = 10000;
     private String serviceName;
     private Config config;
     private ShardManagerClient shardManagerClient;
@@ -104,6 +104,7 @@ public class AdminClient {
      * @throws AdminException the admin exception
      */
     public void setConfig(File configFile) throws AdminException {
+        this.config = new Config(configFile);
     }
 
 
@@ -129,7 +130,7 @@ public class AdminClient {
         for (int i = 1; i <= RETRY_COUNT; i++) {
             try {
                 trace("[admin] Initializing slaves on {} ...", toShardId);
-                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS * 3);
+                shardManagerClient.startObserving(toShardId, fromShardId, TIMEOUT_MS);
 
                 trace(
                     "[admin] All nodes in {} are in slave mode, "
@@ -140,13 +141,14 @@ public class AdminClient {
                     throw new ShardManagerException(SLAVE_NOT_SYNC);
                 }
 
-                trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...", toShardId, range);
+                trace("[admin] All nodes in {} logs approached to leader's log position, assigning buckets={} ...",
+                      toShardId, range);
                 // migrateBuckets is a atomic operation executing on leader at fromShard,
                 // after operation is success, it will stop observing mode of toShard.
-                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS);
+                shardManagerClient.migrateBuckets(range, fromShardId, toShardId, TIMEOUT_MS * 3);
                 trace("[admin] success!");
                 trace("[admin] Writing latest config to config storage!");
-                saveConfig(fromShardId, toShardId);
+                updateConfig(fromShardId, toShardId, range);
                 break;
             } catch (ShardManagerException e) {
                 logger.warn("Error occurred during assign buckets.. retrying {} / {}, errorMsg={}",
@@ -165,15 +167,13 @@ public class AdminClient {
         }
     }
 
-    private void saveConfig(String fromShardId, String toShardId) throws AdminException {
-        configWriter.setBucketMap(fromShardId, getBucketMapString(fromShardId));
-        configWriter.setBucketMap(fromShardId, getBucketMapString(toShardId));
+    private void updateConfig(String fromShardId, String toShardId, Range<Integer> range) throws AdminException {
+        BucketManager bucketManager = new BucketManager(config);
+        bucketManager.updateBucketRange(range, fromShardId, toShardId, false);
+        bucketManager.updateBucketRange(range, fromShardId, toShardId, true);
+        configWriter.setBucketMap(fromShardId, bucketManager.getBucketString(fromShardId));
+        configWriter.setBucketMap(toShardId, bucketManager.getBucketString(toShardId));
         setConfig(configWriter.save());
-    }
-
-    private String getBucketMapString(String fromShardId) {
-        // TODO: implement
-        return "";
     }
 
     private void trace(String format, Object... args) {

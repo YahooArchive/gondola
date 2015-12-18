@@ -25,8 +25,12 @@ public class DemoApplication extends ResourceConfig {
 
     public DemoApplication(@Context ServletContext servletContext) throws Exception {
         // Initialize Routing application
+        String conf = System.getProperty("conf");
+        if (conf == null) {
+            conf = "classpath:///gondola.conf";
+        }
         GondolaApplication.Builder.createGondolaApplication()
-            .setConfigUri(URI.create(System.getProperty("conf")))
+            .setConfigUri(URI.create(conf))
             .setRoutingHelper(DemoRoutingHelper.class)
             .setService(DemoService.class)
             .setApplication(this)

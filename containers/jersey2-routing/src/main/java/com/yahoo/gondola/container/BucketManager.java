@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeMap;
 import com.google.common.collect.TreeRangeMap;
@@ -38,6 +39,32 @@ class BucketManager {
                    + ", migratingShardId='" + migratingShardId + '\''
                    + '}';
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof ShardState)) {
+                return false;
+            }
+
+            ShardState that = (ShardState) o;
+
+            if (shardId != null ? !shardId.equals(that.shardId) : that.shardId != null) {
+                return false;
+            }
+            return !(migratingShardId != null ? !migratingShardId.equals(that.migratingShardId)
+                                              : that.migratingShardId != null);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = shardId != null ? shardId.hashCode() : 0;
+            result = 31 * result + (migratingShardId != null ? migratingShardId.hashCode() : 0);
+            return result;
+        }
     }
 
     public BucketManager(Config config) {
@@ -57,8 +84,26 @@ class BucketManager {
     public ShardState lookupBucketTable(Range<Integer> range) {
         Map<Range<Integer>, ShardState> rangeMaps = bucketMap.subRangeMap(range).asMapOfRanges();
         if (rangeMaps.size() > 1) {
-            throw new IllegalStateException(
-                "Overlapped range found - inputRange=" + range + " ranges=" + rangeMaps.toString());
+            boolean same = true;
+            ShardState prev = null;
+            for (Map.Entry<Range<Integer>, ShardState> e : rangeMaps.entrySet()) {
+                Range<Integer> r = e.getKey();
+                if (r.upperEndpoint() - r.lowerEndpoint() <= 1 && r.lowerBoundType() == BoundType.OPEN
+                    && r.upperBoundType() == BoundType.OPEN) {
+                    continue;
+                }
+                if (prev != null && !prev.equals(e.getValue())) {
+                    same = false;
+                    break;
+
+                }
+                prev = e.getValue();
+            }
+            if (!same) {
+                throw new IllegalStateException(
+                    "Overlapped range found - inputRange=" + range + " ranges=" + rangeMaps.toString());
+            }
+            return prev;
         } else if (rangeMaps.size() == 0) {
             return null;
         }
@@ -92,7 +137,7 @@ class BucketManager {
                 if (range.lowerEndpoint() < 0) {
                     throw new IllegalStateException("Bucket id must > 0");
                 }
-                bucketMap.put(range, new ShardState(shardId, null));
+                updateBucketMap(range, new ShardState(shardId, null));
             }
         }
         for (Map.Entry<Range<Integer>, ShardState> e : bucketMap.asMapOfRanges().entrySet()) {
@@ -161,12 +206,16 @@ class BucketManager {
             (shardState.shardId.equals(fromShardId) && toShardId.equals(shardState.migratingShardId))
             || (shardState.shardId.equals(fromShardId) && shardState.migratingShardId == null)) {
             ShardState newShardState = new ShardState(toShardId, null);
-            bucketMap.put(range, newShardState);
+            updateBucketMap(range, newShardState);
         } else {
             throw new IllegalStateException(String.format(
                 "Cannot finish migration if fromShardId=%s-%s & toShardId=%s-%s does not match.", fromShardId,
                 shardState.shardId, toShardId, shardState.migratingShardId));
         }
+    }
+
+    private void updateBucketMap(Range<Integer> range, ShardState newShardState) {
+        bucketMap.put(range, newShardState);
     }
 
     private void handleMigrationInProgress(Range<Integer> range, String fromShardId, String toShardId,
@@ -186,7 +235,7 @@ class BucketManager {
         }
 
         ShardState newShardState = new ShardState(shardState.shardId, toShardId);
-        bucketMap.put(range, newShardState);
+        updateBucketMap(range, newShardState);
     }
 
     public int getNumberOfBuckets() {
@@ -200,5 +249,26 @@ class BucketManager {
     public void rollbackBuckets(Range<Integer> range) {
         ShardState shardState = lookupBucketTable(range);
         shardState.migratingShardId = null;
+    }
+
+    public String getBucketString(String shardId) {
+        return bucketMap.asMapOfRanges().entrySet().stream()
+            .filter(e -> e.getValue().shardId.equals(shardId))
+            .map(e -> getRangeString(e.getKey()))
+            .reduce((s1, s2) -> s1 + "," + s2)
+            .orElse("");
+    }
+
+    private String getRangeString(Range<Integer> range) {
+        if (range.upperEndpoint().equals(range.lowerEndpoint())) {
+            return range.upperEndpoint().toString();
+        }
+        int
+            upperEndpoint =
+            range.upperBoundType() == BoundType.CLOSED ? range.upperEndpoint() : range.upperEndpoint() - 1;
+        int
+            lowerEndpoint =
+            range.lowerBoundType() == BoundType.CLOSED ? range.lowerEndpoint() : range.lowerEndpoint() + 1;
+        return lowerEndpoint + "-" + upperEndpoint;
     }
 }

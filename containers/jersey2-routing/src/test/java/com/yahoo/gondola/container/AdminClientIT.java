@@ -89,8 +89,8 @@ public class AdminClientIT {
         for (Map.Entry<String, CountDownLatch> e : latches.entrySet()) {
             e.getValue().await();
         }
+        when(configWriter.save()).thenReturn(config.getFile());
         adminClient = new AdminClient(SERVICE_NAME, shardManagerClient, config, configWriter, new GondolaAdminClient(config));
-        Thread.sleep(1000);
     }
 
     private Consumer<RoleChangeEvent> getRoleChangeEventListener() {

@@ -6,6 +6,7 @@
 
 package com.yahoo.gondola.container;
 
+import com.codahale.metrics.Timer;
 import com.yahoo.gondola.Command;
 import com.yahoo.gondola.Gondola;
 import com.yahoo.gondola.GondolaException;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 /**
  * The type Change log processor.
@@ -66,11 +68,15 @@ public class ChangeLogProcessor {
         public void run() {
             Command command;
             shard = gondola.getShard(shardId);
+            Timer timer
+                = GondolaApplication.MyMetricsServletContextListener.METRIC_REGISTRY.timer("ChangeLogProcessor");
             while (true) {
                 try {
-                    command = shard.getCommittedCommand(appliedIndex + 1);
+                    command = shard.getCommittedCommand(appliedIndex + 1, 1000);
                     if (changeLogConsumer != null) {
+                        Timer.Context time = timer.time();
                         changeLogConsumer.applyLog(shardId, command);
+                        time.close();
                     }
                     appliedIndex++;
                 } catch (GondolaException e) {
@@ -79,18 +85,18 @@ public class ChangeLogProcessor {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e1) {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                        return;
+                        if (handleInterrupt()) {
+                            return;
+                        }
                     }
                 } catch (InterruptedException e) {
-                    if (reset) {
-                        logger.info("[{}-{}] ChangeLogProcessor reset appliedIndex to 0", hostId, memberId);
-                        reset = false;
-                        appliedIndex = 0;
-                    } else {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                    if (handleInterrupt()) {
                         return;
                     }
+                } catch (TimeoutException e) {
+                    // ignored timeout
+                    // TODO: should remove timeout in the future.
+                    // Currently is blocking for unknown reason in getCommitIndex
                 } catch (Throwable e) {
                     logger.error(e.getMessage(), e);
                     if (++retryCount == 3) {
@@ -101,10 +107,23 @@ public class ChangeLogProcessor {
                     try {
                         Thread.sleep(1000);
                     } catch (InterruptedException e1) {
-                        logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
-                        return;
+                        if (handleInterrupt()) {
+                            return;
+                        }
                     }
                 }
+            }
+        }
+
+        private boolean handleInterrupt() {
+            if (reset) {
+                logger.info("[{}-{}] ChangeLogProcessor reset appliedIndex to 0", hostId, memberId);
+                reset = false;
+                appliedIndex = 0;
+                return false;
+            } else {
+                logger.warn("[{}-{}] ChangeLogProcessor interrupted, exit..", hostId, memberId);
+                return true;
             }
         }
     }

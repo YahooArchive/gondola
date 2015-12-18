@@ -10,6 +10,6 @@
 <Configure class="org.eclipse.jetty.maven.plugin.JettyWebAppContext">
     <Call name="setAttribute">
         <Arg>org.eclipse.jetty.server.webapp.WebInfIncludeJarPattern</Arg>
-        <Arg>^$</Arg>
+        <Arg>^gondola*$</Arg>
     </Call>
 </Configure>
