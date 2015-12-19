@@ -158,7 +158,7 @@ public class GondolaApplication {
             Config config = ConfigLoader.getConfigInstance(configUri);
             String hostId = null;
             for (String h : config.getHostIds()) {
-                if (Utils.isMyAddress(config.getAddressForHost(hostId).getAddress())) {
+                if (Utils.isMyAddress(config.getAddressForHost(h).getAddress())) {
                     hostId = h;
                     break;
                 }
