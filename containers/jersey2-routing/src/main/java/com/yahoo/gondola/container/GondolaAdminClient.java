@@ -13,6 +13,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
@@ -54,21 +57,34 @@ public class GondolaAdminClient {
     }
 
     public Map getHostStatus(String hostId) {
-        String appUri = Utils.getAppUri(config, hostId);
-        WebTarget target = client.target(appUri).path(API_GONDOLA_STATUS);
         try {
-            return target.request(MediaType.APPLICATION_JSON_TYPE).get(Map.class);
-        } catch (Exception e) {
-            logger.warn("Cannot get remote host hostId={}, message={}", hostId, e.getMessage());
-            return null;
+            return getHostStatusAsync(hostId).get();
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException(e);
         }
     }
 
+    public Future<Map> getHostStatusAsync(String hostId) {
+        String appUri = Utils.getAppUri(config, hostId);
+        WebTarget target = client.target(appUri).path(API_GONDOLA_STATUS);
+        return target.request(MediaType.APPLICATION_JSON_TYPE).async().get(Map.class);
+    }
+
+
     public Map<String, Object> getServiceStatus() {
         Map<String, Object> map = new LinkedHashMap<>();
-        for (String hostId : config.getHostIds()) {
-            map.put(hostId, getHostStatus(hostId));
-        }
+        config.getHostIds().stream()
+            .collect(Collectors.toMap(
+                hostId -> hostId,
+                this::getHostStatusAsync))
+            .forEach((hostId, mapFuture) -> {
+                try {
+                    map.put(hostId, mapFuture.get());
+                } catch (InterruptedException | ExecutionException e) {
+                    logger.warn("Cannot get serviceStatus for hostId={}", hostId);
+                    map.put(hostId, null);
+                }
+            });
         return map;
     }
 
