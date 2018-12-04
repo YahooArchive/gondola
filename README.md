@@ -3,6 +3,8 @@
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.yahoo.gondola/gondola-main/)
 [![Dependency Status](https://www.versioneye.com/user/projects/56563c28ff016c002c001c4c/badge.svg?style=flat)](https://www.versioneye.com/user/projects/56563c28ff016c002c001c4c)
 
+**Please Note**: This project is no longer maintained and contains known security vulnerabilities. Use at your own risk! 
+
 # High-performance Raft-based Java Web Container
 
 Gondola is a high-performance implementation of the [Raft
